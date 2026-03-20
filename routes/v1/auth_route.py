@@ -32,26 +32,24 @@ logger = logging.getLogger(__name__)
 
 @auth_bp.route("/register", methods=["POST"])
 @swag_from({
-    "tags": [
-        "Auth"
-    ],
-    "responses": {
-        "200": {
-            "description": "Register a new user account.",
-            "schema": {
-                "$ref": "#/definitions/UserOut"
-            }
-        }
-    },
+    "tags": ["Auth"],
+    "summary": "Register a new user",
+    "description": "Registers a new user and returns user details.",
     "parameters": [
         {
             "name": "body",
             "in": "body",
-            "schema": {
-                "$ref": "#/definitions/UserCreateSchema"
-            }
+            "required": True,
+            "schema": {"$ref": "#/definitions/UserCreateSchema"}
         }
-    ]
+    ],
+    "responses": {
+        "201": {
+            "description": "User created successfully",
+            "schema": {"$ref": "#/definitions/UserOut"}
+        },
+        "400": {"description": "Validation error or user already exists"}
+    }
 })
 @limiter.limit("5 per minute")
 def register():
@@ -79,16 +77,36 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 @swag_from({
-    "tags": [
-        "Auth"
+    "tags": ["Auth"],
+    "summary": "User Login",
+    "description": "Authenticate via password or OTP and issue JWT tokens.",
+    "parameters": [
+        {
+            "name": "body",
+            "in": "body",
+            "required": True,
+            "schema": {"$ref": "#/definitions/LoginRequest"}
+        }
     ],
     "responses": {
         "200": {
-            "description": "Authenticate via password or OTP and issue JWT tokens.",
+            "description": "Login successful",
             "schema": {
-                "$ref": "#/definitions/UserOut"
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "access_token": {"type": "string"},
+                            "refresh_token": {"type": "string"},
+                            "user": {"$ref": "#/definitions/UserOut"}
+                        }
+                    }
+                }
             }
-        }
+        },
+        "401": {"description": "Invalid credentials"}
     }
 })
 @limiter.limit("5 per minute")
@@ -147,13 +165,26 @@ def login():
 
 @auth_bp.route("/request-otp", methods=["POST"])
 @swag_from({
-    "tags": [
-        "Auth"
+    "tags": ["Auth"],
+    "summary": "Request OTP",
+    "description": "Generate and send an OTP to the given mobile/email.",
+    "parameters": [
+        {
+            "name": "body",
+            "in": "body",
+            "required": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "mobile": {"type": "string"},
+                    "email": {"type": "string"}
+                }
+            }
+        }
     ],
     "responses": {
-        "200": {
-            "description": "Generate and send an OTP to the given mobile/email."
-        }
+        "200": {"description": "OTP sent successfully"},
+        "400": {"description": "Missing identifier"}
     }
 })
 @limiter.limit("3 per minute")
@@ -177,13 +208,23 @@ def request_otp():
 
 @auth_bp.route("/refresh", methods=["POST"])
 @swag_from({
-    "tags": [
-        "Auth"
-    ],
+    "tags": ["Auth"],
+    "summary": "Refresh Access Token",
+    "description": "Generates a new access token using a valid refresh token.",
+    "security": [{"Bearer": []}],
     "responses": {
         "200": {
-            "description": "Issue a new access token using a valid refresh token."
-        }
+            "description": "Token refreshed",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "access_token": {"type": "string"},
+                    "refresh_token": {"type": "string"},
+                    "success": {"type": "boolean"}
+                }
+            }
+        },
+        "401": {"description": "Invalid or expired refresh token"}
     }
 })
 @jwt_required(refresh=True)
@@ -214,13 +255,12 @@ def refresh():
 
 @auth_bp.route("/logout", methods=["POST"])
 @swag_from({
-    "tags": [
-        "Auth"
-    ],
+    "tags": ["Auth"],
+    "summary": "User Logout",
+    "description": "Revokes the user's access and refresh tokens.",
+    "security": [{"Bearer": []}],
     "responses": {
-        "200": {
-            "description": "Revoke the current JWT session."
-        }
+        "200": {"description": "Logout successful"}
     }
 })
 @jwt_required()
@@ -242,13 +282,12 @@ def logout():
 
 @auth_bp.route("/revoke-all", methods=["POST"])
 @swag_from({
-    "tags": [
-        "Auth"
-    ],
+    "tags": ["Auth"],
+    "summary": "Revoke All Sessions",
+    "description": "Revokes all active JWT sessions for the authenticated user.",
+    "security": [{"Bearer": []}],
     "responses": {
-        "200": {
-            "description": "Revoke all active sessions for the authenticated user."
-        }
+        "200": {"description": "All sessions revoked successfully"}
     }
 })
 @jwt_required()

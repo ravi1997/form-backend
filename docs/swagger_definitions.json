@@ -3644,20 +3644,62 @@
   "LoginRequest": {
     "properties": {
       "identifier": {
-        "description": "Username, email, or employee ID",
-        "title": "Identifier",
-        "type": "string"
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Username, email, or employee ID (for password login)",
+        "title": "Identifier"
       },
       "password": {
-        "minLength": 8,
-        "title": "Password",
-        "type": "string"
+        "anyOf": [
+          {
+            "minLength": 8,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Password (for password login)",
+        "title": "Password"
+      },
+      "mobile": {
+        "anyOf": [
+          {
+            "maxLength": 15,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Mobile number (for OTP login)",
+        "title": "Mobile"
+      },
+      "otp": {
+        "anyOf": [
+          {
+            "maxLength": 6,
+            "minLength": 4,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "OTP (for OTP login)",
+        "title": "Otp"
       }
     },
-    "required": [
-      "identifier",
-      "password"
-    ],
     "title": "LoginRequest",
     "type": "object"
   },
