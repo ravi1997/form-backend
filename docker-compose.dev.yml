@@ -1,0 +1,24 @@
+version: "3.9"
+
+# Development overrides — merged on top of docker-compose.yml via:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  backend:
+    environment:
+      - APP_ENV=development
+      - FLASK_DEBUG=1
+    # Mount source so changes are reflected without rebuilding
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    # Use Flask dev server instead of gunicorn for hot-reload
+    command: [ "python", "-m", "flask", "--app", "app", "run", "--host", "0.0.0.0", "--port", "6000", "--debug" ]
+    restart: "no"
+
+  celery:
+    environment:
+      - APP_ENV=development
+    volumes:
+      - .:/app
+    restart: "no"

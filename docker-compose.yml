@@ -1,0 +1,118 @@
+# docker-compose.yml — form-backend (RIDP-integrated)
+# Networks: 
+#  - ridp_app_network: for Nginx gateway & observability
+#  - ridp_data_network: for shared-postgres, shared-mongo, shared-redis
+
+x-app-env: &app-env
+  env_file:
+    - .env
+  networks:
+    - ridp_app_network
+    - ridp_data_network
+
+services:
+  # ── Flask Application ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forms_backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8051}:6000"
+    <<: *app-env
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - ELASTICSEARCH_URL=http://forms_elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    labels:
+      - ridp.managed=true
+      - ridp.app=form-backend
+
+  # ── Celery Worker ─────────────────────────────────────────────────────────
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forms_worker
+    restart: unless-stopped
+    command: celery -A config.celery worker --loglevel=info --concurrency=4
+    <<: *app-env
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+    volumes:
+      - ./logs:/app/logs
+    labels:
+      - ridp.managed=true
+      - ridp.app=form-backend
+
+  # ── Celery Beat Scheduler ─────────────────────────────────────────────────
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forms_beat
+    restart: unless-stopped
+    command: celery -A config.celery beat --loglevel=info
+    <<: *app-env
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+    labels:
+      - ridp.managed=true
+      - ridp.app=form-backend
+
+  # ── Active Redis EventBus Listener ────────────────────────────────────────
+  event-listener:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: forms_event_listener
+    restart: unless-stopped
+    command: python workers/event_listener.py
+    <<: *app-env
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+    labels:
+      - ridp.managed=true
+      - ridp.app=form-backend
+
+  # ── Elasticsearch (standalone — not in shared-infra) ──────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    container_name: forms_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - ridp_app_network
+      - ridp_data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    labels:
+      - ridp.managed=true
+      - ridp.app=form-backend
+
+networks:
+  ridp_app_network:
+    external: true
+    name: ridp_app_network
+  ridp_data_network:
+    external: true
+    name: ridp_data_network
+
+volumes:
+  es_data:
