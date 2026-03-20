@@ -1,0 +1,79 @@
+"""
+Analytics Routes
+Provides system-wide statistics for administrators.
+"""
+
+import logging
+from flask import Blueprint, jsonify, current_app, request
+from flasgger import swag_from
+from flask_jwt_extended import jwt_required
+from models import Form, FormResponse
+from datetime import datetime, timezone
+from utils.security import require_roles
+from utils.response_helper import success_response, error_response
+
+analytics_bp = Blueprint("analytics_bp", __name__)
+logger = logging.getLogger(__name__)
+
+
+@analytics_bp.route("/dashboard", methods=["GET"])
+@swag_from({
+    "tags": ["Analytics"],
+    "responses": {
+        "200": {"description": "Success"}
+    }
+})
+@require_roles("admin", "superadmin", "manager")
+def get_dashboard_stats():
+    """
+    Compute and return system-wide dashboard statistics.
+    Restricted to privileged users to prevent sensitive data leakage.
+    """
+    try:
+        total_forms = Form.objects().count()
+        published_forms = Form.objects(status="published").count()
+        total_responses = FormResponse.objects(is_deleted=False).count()
+
+        # Recent Activity: Last 5 Submissions
+        recent_activity = []
+        recent_submissions = (
+            FormResponse.objects(is_deleted=False)
+            .order_by("-submitted_at")
+            .limit(5)
+        )
+
+        for r in recent_submissions:
+            try:
+                # Safely handle potentially missing form references
+                form_title = r.form.title if r.form else "Unknown/Deleted Form"
+                timestamp = (
+                    r.submitted_at.isoformat()
+                    if r.submitted_at
+                    else datetime.now(timezone.utc).isoformat()
+                )
+                recent_activity.append(
+                    {
+                        "type": "New Submission",
+                        "details": f"Response received for '{form_title}'",
+                        "timestamp": timestamp,
+                        "id": str(r.id),
+                    }
+                )
+            except Exception as inner_e:
+                current_app.logger.warning(
+                    f"Skipping corrupt activity record {r.id}: {inner_e}"
+                )
+                continue
+
+        return success_response(
+            data={
+                "total_forms": total_forms,
+                "active_forms": published_forms,
+                "total_responses": total_responses,
+                "recent_activity": recent_activity,
+            }
+        )
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to generate dashboard statistics: {e}")
+        return error_response(message="Failed to generate analytics", status_code=500)
