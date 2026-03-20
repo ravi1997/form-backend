@@ -150,7 +150,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
     if not form.versions:
         return [{"error": "Form has no versions defined"}], {}
 
-    active_v = getattr(form, "active_version", None)
+    active_v = getattr(form, "active_version_id", None)
     if active_v:
         latest_version = next(
             (v for v in form.versions if v.version == active_v), form.versions[-1]

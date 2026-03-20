@@ -286,6 +286,13 @@ class Form(BaseDocument, SoftDeleteMixin):
     def is_published(self) -> bool:
         return self.status == "published"
 
+    @property
+    def active_version_id(self):
+        raw_value = self._data.get("active_version")
+        if raw_value is None:
+            return None
+        return str(getattr(raw_value, "id", raw_value))
+
     def clean(self):
         if self.publish_at and self.expires_at and self.publish_at > self.expires_at:
             raise ValidationError("publish_at cannot be after expires_at.")
@@ -309,6 +316,13 @@ class Project(BaseDocument, SoftDeleteMixin):
     active_version = ReferenceField("Version")
     tags = ListField(StringField())
     triggers = ListField(EmbeddedDocumentField(Trigger))
+
+    @property
+    def active_version_id(self):
+        raw_value = self._data.get("active_version")
+        if raw_value is None:
+            return None
+        return str(getattr(raw_value, "id", raw_value))
 
     def add_sub_project(self, sub_project: "Project") -> None:
         self.sub_projects.append(sub_project)

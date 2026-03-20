@@ -6,6 +6,8 @@ Delegates all business logic to FormService.
 """
 
 import traceback
+import re
+from datetime import datetime, timezone
 from flask import current_app, request, jsonify
 from flask_jwt_extended import jwt_required
 from mongoengine import DoesNotExist
@@ -13,7 +15,9 @@ from mongoengine import DoesNotExist
 from utils.response_helper import success_response, error_response
 from utils.security_helpers import get_current_user, require_permission, require_org_match
 from tasks.form_tasks import async_clone_form, async_publish_form
-from services.form_service import FormService
+from services.form_service import FormService, FormCreateSchema, FormUpdateSchema
+from routes.v1.form.helper import has_form_permission, apply_translations
+from models.Form import Form
 
 form_service = FormService()
 
@@ -49,8 +53,21 @@ def create_form():
     data = request.get_json(silent=True) or {}
     current_user = get_current_user()
     try:
+        if not current_user:
+            return error_response(message="User not found", status_code=401)
+
+        if not current_user.organization_id:
+            return error_response(
+                message="Current user has no organization_id; form creation requires tenant context",
+                status_code=400,
+            )
+
         data.setdefault("created_by", str(current_user.id))
         data.setdefault("editors", [str(current_user.id)])
+        data.setdefault("organization_id", current_user.organization_id)
+        if not data.get("slug") and data.get("title"):
+            slug = re.sub(r"[^a-z0-9]+", "-", data["title"].strip().lower()).strip("-")
+            data["slug"] = slug or f"form-{str(current_user.id)[:8]}"
         schema = FormCreateSchema(**data)
         form = form_service.create(schema)
         current_app.logger.info(f"Form created by user {current_user.id}")
@@ -174,7 +191,10 @@ def update_form(form_id):
     data = request.get_json(silent=True) or {}
     current_user = get_current_user()
     try:
-        schema = FormUpdateSchema(**data)
+        existing_form = form_service.get_by_id(form_id, organization_id=current_user.organization_id)
+        merged_data = existing_form.model_dump()
+        merged_data.update(data)
+        schema = FormUpdateSchema(**merged_data)
         updated = form_service.update(form_id, schema, organization_id=current_user.organization_id)
         return success_response(data={"form_id": str(updated.id)}, message="Form updated")
     except Exception as e:

@@ -17,13 +17,17 @@ class TenantIsolatedSoftDeleteQuerySet(QuerySet):
     Automatically filters out deleted documents AND strictly enforces organization_id boundaries based on the active JWT user context.
     """
     def __call__(self, q_obj=None, **query):
+        model = getattr(self, "_document", None)
+        if model is None:
+            return super().__call__(q_obj, **query)
+
         # 1. Enforce Soft Delete
-        if "is_deleted" not in query and "is_deleted" in self._model._fields:
+        if "is_deleted" not in query and "is_deleted" in model._fields:
             query["is_deleted"] = False
             
         # 2. Enforce Tenant Isolation Boundary
         if has_request_context() and current_user:
-            if "organization_id" in self._model._fields and "organization_id" not in query:
+            if "organization_id" in model._fields and "organization_id" not in query:
                 # Superadmins bypass automatic isolation for cross-tenant operations
                 if "superadmin" not in getattr(current_user, "roles", []):
                     query["organization_id"] = getattr(current_user, "organization_id", None)

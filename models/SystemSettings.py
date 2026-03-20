@@ -1,4 +1,5 @@
 from mongoengine import StringField, IntField, BooleanField
+from mongoengine.errors import NotUniqueError
 from models.base import BaseDocument
 
 
@@ -71,9 +72,26 @@ class SystemSettings(BaseDocument):
     def get_or_create_default(cls):
         """Return the singleton settings doc, creating it if absent."""
         doc = cls.objects(env_key="default").first()
-        if not doc:
-            doc = cls(env_key="default")
-            doc.save()
+        if doc:
+            return doc
+
+        try:
+            cls._get_collection().update_one(
+                {"env_key": "default"},
+                {"$setOnInsert": {"env_key": "default"}},
+                upsert=True,
+            )
+        except NotUniqueError:
+            pass
+
+        doc = cls.objects(env_key="default").first()
+        if doc:
+            return doc
+
+        raw_doc = cls._get_collection().find_one({"env_key": "default"})
+        if raw_doc:
+            return cls._from_son(raw_doc)
+
         return doc
 
     def to_dict(self):

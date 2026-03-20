@@ -91,6 +91,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,  # 10MB
             "backupCount": 10,
             "encoding": "utf8",
+            "filters": ["sensitive_filter"],
         },
         "audit_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -100,6 +101,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,
             "backupCount": 10,
             "encoding": "utf8",
+            "filters": ["sensitive_filter"],
         },
         "performance_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -109,6 +111,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,
             "backupCount": 10,
             "encoding": "utf8",
+            "filters": ["sensitive_filter"],
         },
         "access_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -118,6 +121,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,
             "backupCount": 10,
             "encoding": "utf8",
+            "filters": ["sensitive_filter"],
         },
         "app_file": {
             "class": "logging.handlers.RotatingFileHandler",

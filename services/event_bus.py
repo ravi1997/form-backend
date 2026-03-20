@@ -3,6 +3,7 @@ import logging
 import time
 import uuid
 import socket
+from datetime import datetime
 from typing import Any, Callable, Dict
 from services.redis_service import redis_service
 from flask import has_request_context
@@ -24,7 +25,7 @@ class EventBus:
             envelope = {
                 "event_id": str(uuid.uuid4()),
                 "timestamp": str(time.time()),
-                "payload": json.dumps(payload),
+                "payload": json.dumps(payload, default=self._json_default),
                 "trace_id": format(trace.get_current_span().get_span_context().trace_id, '032x') if trace.get_current_span().is_recording() else None,
                 "span_id": format(trace.get_current_span().get_span_context().span_id, '016x') if trace.get_current_span().is_recording() else None
             }
@@ -51,6 +52,12 @@ class EventBus:
         if b_key in message_data:
             return message_data.get(b_key, default)
         return default
+
+    @staticmethod
+    def _json_default(value: Any) -> Any:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
 
     def publish_to_dlq(self, topic: str, payload: Dict[str, Any], error_message: str):
         """Publish failed events to a dead letter queue."""

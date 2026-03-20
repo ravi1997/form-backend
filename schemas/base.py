@@ -46,3 +46,6 @@ class PaginatedResult(BaseModel):
     page: int
     page_size: int
     has_next: bool
+
+    def to_dict(self):
+        return self.model_dump()

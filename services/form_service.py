@@ -67,7 +67,9 @@ class FormService(BaseService):
 
         try:
             # Semantic Version logic
-            current_version = form_doc.active_version
+            current_version = None
+            if form_doc.active_version_id:
+                current_version = Version.objects(id=form_doc.active_version_id).first()
             major, minor, patch = 1, 0, 0
             if current_version:
                 major = (

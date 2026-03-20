@@ -31,7 +31,8 @@ def has_form_permission(user, form, action):
         return False
 
     # 2. Superadmin / Admin escape hatch
-    if user.role in ["superadmin", "admin"]:
+    user_roles = getattr(user, "roles", []) or []
+    if "superadmin" in user_roles or "admin" in user_roles:
         return True
         
     # 3. Creator always has permission

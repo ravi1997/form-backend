@@ -98,9 +98,17 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
         
         # This is a bit expensive, but critical for security.
         # Future: Cache sensitive field lists per form_id
-        if form_doc and form_doc.active_version:
+        active_version_id = getattr(form_doc, "active_version_id", None) if form_doc else None
+        if active_version_id:
             from models.Form import FormVersion
-            version_doc = FormVersion.objects(version=form_doc.active_version).first()
+            version_raw = FormVersion._get_collection().find_one(
+                {"version": str(active_version_id)}
+            )
+            version_doc = (
+                FormVersion.objects(id=version_raw["_id"]).first()
+                if version_raw
+                else None
+            )
             if version_doc:
                 for section in version_doc.sections:
                     for question in section.questions:

@@ -106,10 +106,16 @@ class FormResponseService(BaseService):
             raise ValidationError("Form is inactive or archived")
 
         # 1. Fetch the active FormVersion
-        if not form.active_version:
-             raise ValidationError("No active version found for this form")
+        active_version_id = form.active_version_id
+        if not active_version_id:
+            raise ValidationError("No active version found for this form")
              
-        version_doc = FormVersion.objects(form=form.id, version=form.active_version).first()
+        version_raw = FormVersion._get_collection().find_one(
+            {"form": str(form.id), "version": str(active_version_id)}
+        )
+        version_doc = (
+            FormVersion.objects(id=version_raw["_id"]).first() if version_raw else None
+        )
         if not version_doc:
              raise ValidationError("Active form version definition not found")
 

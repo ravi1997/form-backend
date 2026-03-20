@@ -113,6 +113,8 @@ def register():
 def login():
     """Authenticate via password or OTP and issue JWT tokens."""
     data = request.get_json(force=True, silent=True) or {}
+    if not isinstance(data, dict):
+        return error_response(message="Invalid JSON payload", status_code=400)
     password = data.get("password")
     mobile = data.get("mobile")
     otp = data.get("otp")
@@ -147,12 +149,12 @@ def login():
             "refresh_token": token_data.refresh_token, 
             "user": UserOut.model_validate(user_schema.model_dump()).model_dump()
         }
-        resp = success_response(data=data, message="Login successful")
+        resp, status_code = success_response(data=data, message="Login successful")
         
         # Set HttpOnly cookies for better security
         set_access_cookies(resp, token_data.access_token)
         current_app.logger.info(f"Login successful for user id={user_doc.id}")
-        return resp
+        return resp, status_code
     except (UnauthorizedError, ValidationError) as e:
         raise
     except Exception:
@@ -269,9 +271,9 @@ def logout():
     try:
         auth_service.revoke_token_payload(get_jwt())
 
-        resp = success_response(message="Successfully logged out")
+        resp, status_code = success_response(message="Successfully logged out")
         unset_jwt_cookies(resp)
-        return resp
+        return resp, status_code
     except Exception:
         return error_response(message="Logout failed", status_code=500)
 
@@ -293,9 +295,9 @@ def revoke_all():
         user_id = get_jwt_identity()
         auth_service.revoke_all_user_sessions(user_id)
         
-        resp = success_response(message="All sessions revoked successfully")
+        resp, status_code = success_response(message="All sessions revoked successfully")
         unset_jwt_cookies(resp)
-        return resp
+        return resp, status_code
     except Exception as e:
         logger.error(f"Global revocation failed: {e}")
         return error_response(message="Failed to revoke all sessions", status_code=500)

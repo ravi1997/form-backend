@@ -16,7 +16,12 @@ celery_app = Celery(
     "forms_backend",
     broker=broker_url,
     backend=result_backend,
-    include=["tasks.notification_tasks", "tasks.services"],
+    include=[
+        "tasks.notification_tasks",
+        "tasks.services",
+        "tasks.form_tasks",
+        "tasks.ai_tasks",
+    ],
 )
 
 # ── Tracing ────────────────────────────────────────────────────────────
@@ -46,6 +51,12 @@ celery_app.conf.update(
     result_expires=86400,  # Results expire in 24 hours
     # Task routing and priority setting
     task_queues=(
+        Queue(
+            "celery",
+            Exchange("celery"),
+            routing_key="celery",
+            queue_arguments={"x-max-priority": 10},
+        ),
         Queue(
             "sms",
             Exchange("sms"),
@@ -77,7 +88,16 @@ celery_app.conf.update(
             queue_arguments={"x-max-priority": 10},
         ),
     ),
+    task_default_queue="celery",
+    task_default_exchange="celery",
+    task_default_routing_key="celery",
     task_routes={
+        "tasks.form_tasks.async_clone_form": {"queue": "celery"},
+        "tasks.form_tasks.async_publish_form": {"queue": "celery"},
+        "tasks.form_tasks.async_recalculate_materialized_view": {"queue": "celery"},
+        "tasks.ai_tasks.async_generate_form_summary": {"queue": "celery"},
+        "tasks.ai_tasks.async_index_response_vector": {"queue": "celery"},
+        "tasks.ai_tasks.async_export_to_olap": {"queue": "celery"},
         "tasks.services.process_sms": {"queue": "sms"},
         "tasks.services.process_mail": {"queue": "mail"},
         "tasks.services.process_ehospital": {"queue": "ehospital"},
@@ -89,3 +109,26 @@ celery_app.conf.update(
         "queue_order_strategy": "priority",
     },
 )
+
+
+_flask_app = None
+
+
+def get_flask_app():
+    global _flask_app
+    if _flask_app is None:
+        from app import create_app
+
+        _flask_app = create_app()
+    return _flask_app
+
+
+class FlaskContextTask(celery_app.Task):
+    abstract = True
+
+    def __call__(self, *args, **kwargs):
+        with get_flask_app().app_context():
+            return super().__call__(*args, **kwargs)
+
+
+celery_app.Task = FlaskContextTask
