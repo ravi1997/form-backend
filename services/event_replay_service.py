@@ -30,11 +30,16 @@ class EventReplayService:
             messages = redis_service.cache.client.xrange(topic, min=start_id, max='+')
             
             for message_id, message_data in messages:
-                payload_str = message_data.get(b'payload', b'{}').decode('utf-8')
-                payload = json.loads(payload_str)
+                payload_raw = self._message_get(message_data, "payload", "{}")
+                if isinstance(payload_raw, bytes):
+                    payload_raw = payload_raw.decode("utf-8")
+                payload = json.loads(payload_raw or "{}")
                 
                 # Filter by tenant if provided
-                msg_org_id = message_data.get(b'organization_id', b'unknown').decode('utf-8')
+                msg_org_raw = self._message_get(message_data, "organization_id", "unknown")
+                if isinstance(msg_org_raw, bytes):
+                    msg_org_raw = msg_org_raw.decode("utf-8")
+                msg_org_id = str(msg_org_raw)
                 if organization_id and msg_org_id != organization_id:
                     continue
                 
@@ -62,7 +67,11 @@ class EventReplayService:
         elif topic == "webhook.failed":
             # 3. Retry Webhook Delivery
             from services.webhook_service import webhook_service
-            webhook_service.trigger_webhook(payload["webhook_id"], payload["data"])
+            webhook_service.trigger_webhook(
+                payload.get("webhook_id"),
+                payload.get("data", {}),
+                organization_id=organization_id,
+            )
 
     def retry_dlq(self, topic: str, organization_id: str = None) -> int:
         """Moves messages from DLQ back to the main stream for reprocessing."""
@@ -71,8 +80,16 @@ class EventReplayService:
         count = 0
         
         for message_id, message_data in messages:
-            payload_str = message_data.get(b'payload', b'{}').decode('utf-8')
-            payload = json.loads(payload_str)
+            payload_raw = self._message_get(message_data, "payload", "{}")
+            if isinstance(payload_raw, bytes):
+                payload_raw = payload_raw.decode("utf-8")
+            payload = json.loads(payload_raw or "{}")
+            msg_org_raw = self._message_get(message_data, "organization_id", "unknown")
+            if isinstance(msg_org_raw, bytes):
+                msg_org_raw = msg_org_raw.decode("utf-8")
+            msg_org_id = str(msg_org_raw)
+            if organization_id and msg_org_id != organization_id:
+                continue
             
             # Remove the DLQ error before republishing
             if "dlq_error" in payload:
@@ -83,5 +100,14 @@ class EventReplayService:
             count += 1
             
         return count
+
+    @staticmethod
+    def _message_get(message_data: dict, key: str, default: Any = None) -> Any:
+        if key in message_data:
+            return message_data.get(key, default)
+        b_key = key.encode("utf-8")
+        if b_key in message_data:
+            return message_data.get(b_key, default)
+        return default
 
 event_replay_service = EventReplayService()

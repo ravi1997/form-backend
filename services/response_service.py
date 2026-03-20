@@ -31,7 +31,7 @@ class FormResponseService(BaseService):
         from config.settings import settings
         from utils.encryption import batch_decrypt_values
         
-        cache_key = f"decrypted_response:{response_id}"
+        cache_key = f"decrypted_response:{organization_id}:{response_id}"
         
         if settings.CACHE_ENABLED:
             cached = redis_service.cache.get(cache_key)
@@ -69,7 +69,10 @@ class FormResponseService(BaseService):
         result = super().update(doc_id, update_schema, organization_id)
         
         if settings.CACHE_ENABLED:
-            redis_service.cache.delete(f"decrypted_response:{doc_id}")
+            keys_to_delete = [f"decrypted_response:{doc_id}"]
+            if organization_id:
+                keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
+            redis_service.cache.delete(*keys_to_delete)
             
         return result
 
@@ -81,7 +84,10 @@ class FormResponseService(BaseService):
         super().delete(doc_id, organization_id, hard_delete)
         
         if settings.CACHE_ENABLED:
-            redis_service.cache.delete(f"decrypted_response:{doc_id}")
+            keys_to_delete = [f"decrypted_response:{doc_id}"]
+            if organization_id:
+                keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
+            redis_service.cache.delete(*keys_to_delete)
 
     def validate_payload(self, form_id: str, payload_data: Dict[str, Any]) -> bool:
         """

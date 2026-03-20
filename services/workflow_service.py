@@ -35,10 +35,9 @@ class WorkflowInstanceService(BaseService):
     def _safe_evaluate_condition(self, expression: str, context: dict) -> bool:
         """Safely parses conditional gates using AST to prevent eval() RCE."""
         try:
-            # Note: A true production sandbox limits supported nodes deeply.
-            # This implements the requested foundational safety layer off string eval.
             tree = ast.parse(expression, mode='eval')
-            return bool(compile(tree, '<string>', 'eval'))
+            compiled = compile(tree, '<string>', 'eval')
+            return bool(eval(compiled, {"__builtins__": {}}, context))
         except Exception:
             return False
 

@@ -28,14 +28,29 @@ class EventBus:
                 "trace_id": format(trace.get_current_span().get_span_context().trace_id, '032x') if trace.get_current_span().is_recording() else None,
                 "span_id": format(trace.get_current_span().get_span_context().span_id, '016x') if trace.get_current_span().is_recording() else None
             }
-            if has_request_context() and current_user:
-                envelope["organization_id"] = getattr(current_user, "organization_id", "unknown")
+            if payload.get("organization_id"):
+                envelope["organization_id"] = str(payload.get("organization_id"))
+            elif has_request_context():
+                try:
+                    if current_user:
+                        envelope["organization_id"] = getattr(current_user, "organization_id", "unknown")
+                except Exception:
+                    pass
             
             # XADD stores the payload in the stream map with max length limiting
             redis_service.cache.client.xadd(topic, envelope, maxlen=100000)
             logger.info(f"Streamed event to {topic}: {payload.get('id', 'unknown')}")
         except Exception as e:
             logger.error(f"Failed to publish stream event {topic}: {e}")
+
+    @staticmethod
+    def _message_get(message_data: dict, key: str, default: Any = None) -> Any:
+        if key in message_data:
+            return message_data.get(key, default)
+        b_key = key.encode("utf-8")
+        if b_key in message_data:
+            return message_data.get(b_key, default)
+        return default
 
     def publish_to_dlq(self, topic: str, payload: Dict[str, Any], error_message: str):
         """Publish failed events to a dead letter queue."""
@@ -80,8 +95,10 @@ class EventBus:
                 time.sleep(2)  # Backoff on connection drop
 
     def _handle_message(self, topic: str, group_name: str, message_id: str, message_data: dict, handler: Callable):
-        payload_str = message_data.get(b'payload', b'{}').decode('utf-8')
-        data = json.loads(payload_str)
+        payload_raw = self._message_get(message_data, "payload", "{}")
+        if isinstance(payload_raw, bytes):
+            payload_raw = payload_raw.decode("utf-8")
+        data = json.loads(payload_raw or "{}")
         try:
             handler(data)
             redis_service.cache.client.xack(topic, group_name, message_id)
@@ -92,7 +109,8 @@ class EventBus:
         try:
             # Check PEL (Pending Entries List)
             pending = redis_service.cache.client.xpending(topic, group_name)
-            if not pending or pending['pending'] == 0:
+            pending_count = pending.get("pending", 0) if isinstance(pending, dict) else 0
+            if not pending or pending_count == 0:
                 return
 
             # Claim long-pending messages (idle > 60s)
@@ -105,11 +123,13 @@ class EventBus:
                     # Since xautoclaim doesn't directly give us retry count like xpending does, we do a quick PEL check for this item
                     pel_item = redis_service.cache.client.xpending_range(topic, group_name, message_id, message_id, 1)
                     if pel_item:
-                        delivery_count = pel_item[0]['deliv']
+                        delivery_count = pel_item[0].get("times_delivered") or pel_item[0].get("deliv", 0)
                         if delivery_count > max_retries:
                             logger.warning(f"Message {message_id} exceeded max retries. Moving to DLQ.")
-                            payload_str = message_data.get(b'payload', b'{}').decode('utf-8')
-                            self.publish_to_dlq(topic, json.loads(payload_str), "Max retries exceeded")
+                            payload_raw = self._message_get(message_data, "payload", "{}")
+                            if isinstance(payload_raw, bytes):
+                                payload_raw = payload_raw.decode("utf-8")
+                            self.publish_to_dlq(topic, json.loads(payload_raw or "{}"), "Max retries exceeded")
                             redis_service.cache.client.xack(topic, group_name, message_id)
                             continue
 

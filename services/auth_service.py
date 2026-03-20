@@ -21,6 +21,7 @@ from models.TokenBlocklist import TokenBlocklist
 from models.SystemSettings import SystemSettings
 from schemas.auth import TokenResponse
 from services.redis_service import redis_service
+from utils.exceptions import UnauthorizedError
 
 logger = get_logger(__name__)
 
@@ -58,9 +59,15 @@ class AuthService(BaseService):
         access_expires = timedelta(minutes=params["access_mins"])
         refresh_expires = timedelta(days=params["refresh_days"])
 
+        roles = list(getattr(user, "roles", []) or [])
+        organization_id = getattr(user, "organization_id", None)
+
         access_token = create_access_token(
             identity=str(user.id),
-            additional_claims={"roles": getattr(user, "roles", [])},
+            additional_claims={
+                "roles": roles,
+                "organization_id": organization_id,
+            },
             expires_delta=access_expires
         )
 
@@ -74,6 +81,31 @@ class AuthService(BaseService):
             refresh_token=refresh_token,
             expires_in=params["access_mins"] * 60,
         )
+
+    def create_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+        """
+        Backward-compatible helper used by tests and internal callers.
+        """
+        identity = data.get("sub")
+        if not identity:
+            raise UnauthorizedError("Missing subject for token creation")
+        claims = {k: v for k, v in data.items() if k != "sub"}
+        return create_access_token(identity=identity, additional_claims=claims, expires_delta=expires_delta)
+
+    def validate_token(self, token: str):
+        payload = decode_token(token)
+        if self.check_global_revocation(payload["sub"], payload["iat"]) or self.is_token_revoked(payload["jti"]):
+            raise UnauthorizedError("Token has been revoked")
+
+        from schemas.auth import TokenPayload
+
+        return TokenPayload.model_validate(payload)
+
+    def authenticate_user(self, identifier: str, password: str) -> User:
+        user = User.authenticate(identifier, password)
+        if not user:
+            raise UnauthorizedError("Invalid credentials")
+        return user
 
     def revoke_token(self, token: str) -> None:
         """
@@ -101,6 +133,24 @@ class AuthService(BaseService):
                 
         except Exception as e:
             logger.error(f"Failed to revoke token: {e}")
+
+    def revoke_token_payload(self, payload: Dict[str, Any]) -> None:
+        """
+        Revoke a token when its decoded JWT payload is already available.
+        """
+        try:
+            from datetime import datetime, timezone
+
+            jti = payload["jti"]
+            exp_timestamp = payload["exp"]
+            expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+            ttl = int(exp_timestamp - datetime.now(timezone.utc).timestamp())
+            if ttl > 0:
+                redis_service.cache.set(f"revoked_token:{jti}", "1", ttl=ttl)
+            if not TokenBlocklist.objects(jti=jti).first():
+                TokenBlocklist(jti=jti, expires_at=expires_at).save()
+        except Exception as e:
+            logger.error(f"Failed to revoke decoded token payload: {e}")
 
     def is_token_revoked(self, jti: str) -> bool:
         """Checks if a JTI exists in the blocklist (Redis first, then DB)."""

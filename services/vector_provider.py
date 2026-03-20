@@ -1,6 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
+
+import requests
+
 from config.settings import settings
 
 logger = logging.getLogger(__name__)

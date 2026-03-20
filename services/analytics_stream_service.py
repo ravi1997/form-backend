@@ -75,19 +75,31 @@ class AnalyticsStreamService:
     def get_submission_trends(self, organization_id: str, days: int = 7) -> List[Dict[str, Any]]:
         """Queries the OLAP engine for daily submission counts."""
         conn = self._get_connection()
-        query = f"""
-            SELECT CAST(submitted_at AS DATE) as day, count(*) as count
-            FROM submission_analytics
-            WHERE organization_id = '{organization_id}'
-              AND submitted_at >= now() - INTERVAL {days} DAY
-            GROUP BY day
-            ORDER BY day DESC
-        """
         if self.engine_type == "duckdb":
-            res = conn.execute(query).fetchall()
+            safe_days = max(int(days), 1)
+            res = conn.execute(
+                """
+                SELECT CAST(submitted_at AS DATE) as day, count(*) as count
+                FROM submission_analytics
+                WHERE organization_id = ?
+                  AND submitted_at >= NOW() - (? * INTERVAL 1 DAY)
+                GROUP BY day
+                ORDER BY day DESC
+                """,
+                [organization_id, safe_days],
+            ).fetchall()
             return [{"day": str(r[0]), "count": r[1]} for r in res]
         elif self.engine_type == "clickhouse":
-            res = conn.execute(query)
+            safe_days = max(int(days), 1)
+            query = """
+                SELECT toDate(submitted_at) as day, count(*) as count
+                FROM submission_analytics
+                WHERE organization_id = %(organization_id)s
+                  AND submitted_at >= now() - INTERVAL %(days)s DAY
+                GROUP BY day
+                ORDER BY day DESC
+            """
+            res = conn.execute(query, {"organization_id": organization_id, "days": safe_days})
             return [{"day": str(r[0]), "count": r[1]} for r in res]
         return []
 

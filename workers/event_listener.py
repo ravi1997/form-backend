@@ -1,4 +1,5 @@
 import logging
+import threading
 from app import create_app
 from services import event_bus
 from models import Form
@@ -51,8 +52,22 @@ def start_consumers():
     app = create_app()
     with app.app_context():
         logger.info("Initializing Redis EventBus listeners...")
-        event_bus.subscribe("form.submitted", handle_form_submitted)
-        event_bus.subscribe("form.indexed", handle_form_indexed)
+        listeners = [
+            ("form.submitted", handle_form_submitted),
+            ("form.indexed", handle_form_indexed),
+        ]
+        threads = []
+        for topic, handler in listeners:
+            thread = threading.Thread(
+                target=event_bus.subscribe,
+                args=(topic, handler),
+                daemon=True,
+            )
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
 
 if __name__ == "__main__":
     start_consumers()
