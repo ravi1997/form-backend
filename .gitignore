@@ -239,6 +239,13 @@ temp/
 *.tmp
 *.temp
 
+# ------------------------------------------------------------------------------
+# Playwright Artifacts
+# ------------------------------------------------------------------------------
+tests-playwright/node_modules/
+tests-playwright/test-results/
+tests-playwright/playwright-report/
+
 # Cache directories
 .cache/
 __pycache__/
