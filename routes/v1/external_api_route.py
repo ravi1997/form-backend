@@ -7,10 +7,22 @@ external_api_bp = Blueprint("external_api", __name__)
 
 @external_api_bp.route("/uhid/<string:uhid>", methods=["GET"])
 @swag_from({
-    "tags": ["External_Api"],
+    "tags": [
+        "External_Api"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "uhid",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
 })
 @jwt_required()
 def get_uhid_details(uhid):
@@ -22,10 +34,22 @@ def get_uhid_details(uhid):
 
 @external_api_bp.route("/employee/<string:employee_id>", methods=["GET"])
 @swag_from({
-    "tags": ["External_Api"],
+    "tags": [
+        "External_Api"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "employee_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
 })
 @jwt_required()
 def get_employee_details(employee_id):
@@ -37,9 +61,13 @@ def get_employee_details(employee_id):
 
 @external_api_bp.route("/mail", methods=["POST"])
 @swag_from({
-    "tags": ["External_Api"],
+    "tags": [
+        "External_Api"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 @jwt_required()
@@ -53,9 +81,13 @@ def send_mail():
 
 @external_api_bp.route("/sms", methods=["POST"])
 @swag_from({
-    "tags": ["External_Api"],
+    "tags": [
+        "External_Api"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 @jwt_required()

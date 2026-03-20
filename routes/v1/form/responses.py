@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from routes.v1.form import form_bp
@@ -10,6 +11,31 @@ from mongoengine import DoesNotExist
 response_service = FormResponseService()
 
 @form_bp.route("/<form_id>/responses", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/FormResponseCreateSchema"
+            }
+        }
+    ]
+})
 @jwt_required()
 def submit_response(form_id):
     """
@@ -55,6 +81,24 @@ def submit_response(form_id):
         return jsonify({"error": str(e)}), 400
 
 @form_bp.route("/<form_id>/responses", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def list_responses(form_id):
     """

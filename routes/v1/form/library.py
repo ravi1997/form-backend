@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import CustomFieldTemplate, Question, Form
@@ -9,6 +10,16 @@ library_bp = Blueprint("library", __name__)
 
 
 @library_bp.route("/", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Library"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def list_field_templates():
     try:
@@ -58,6 +69,16 @@ def list_field_templates():
 
 
 @library_bp.route("/", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Library"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def save_field_template():
     try:
@@ -139,6 +160,24 @@ def save_field_template():
 
 
 @library_bp.route("/<template_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Library"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "template_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_field_template(template_id):
     try:
@@ -181,6 +220,24 @@ def get_field_template(template_id):
 
 
 @library_bp.route("/<template_id>", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Library"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "template_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def delete_field_template(template_id):
     try:

@@ -22,9 +22,13 @@ ENV_FILE_PATH = os.path.join(os.getcwd(), ".env")
 
 @env_config_bp.route("/", methods=["GET"])
 @swag_from({
-    "tags": ["Env_Config"],
+    "tags": [
+        "Env_Config"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Retrieve all backend environment configurations. SUPERADMIN ONLY."
+        }
     }
 })
 @require_roles(Role.SUPERADMIN.value)
@@ -42,9 +46,13 @@ def get_env_configs():
 
 @env_config_bp.route("/", methods=["PUT", "POST"])
 @swag_from({
-    "tags": ["Env_Config"],
+    "tags": [
+        "Env_Config"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Update backend environment configurations. SUPERADMIN ONLY."
+        }
     }
 })
 @require_roles(Role.SUPERADMIN.value)

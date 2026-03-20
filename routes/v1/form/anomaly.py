@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 """
 Anomaly Detection Routes
 
@@ -19,6 +20,24 @@ anomaly_bp = Blueprint("anomaly", __name__, url_prefix="/api/v1/ai/forms")
 
 
 @anomaly_bp.route("/<form_id>/detect-anomalies", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def detect_anomalies(form_id: str):
     """
@@ -114,6 +133,30 @@ def detect_anomalies(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/anomalies/<response_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "response_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_anomaly_details(form_id: str, response_id: str):
     """
@@ -177,6 +220,24 @@ def get_anomaly_details(form_id: str, response_id: str):
 
 
 @anomaly_bp.route("/<form_id>/anomaly-stats", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_anomaly_stats(form_id: str):
     """
@@ -213,6 +274,30 @@ def get_anomaly_stats(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/anomalies/<response_id>/feedback", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "response_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def submit_anomaly_feedback(form_id: str, response_id: str):
     """
@@ -253,6 +338,24 @@ def submit_anomaly_feedback(form_id: str, response_id: str):
 
 
 @anomaly_bp.route("/<form_id>/thresholds/update-baseline", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def update_anomaly_baseline(form_id: str):
     """
@@ -286,6 +389,24 @@ def update_anomaly_baseline(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/thresholds/history", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_threshold_history(form_id: str):
     """
@@ -313,6 +434,24 @@ def get_threshold_history(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/thresholds/latest", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_latest_threshold(form_id: str):
     """
@@ -349,6 +488,24 @@ def get_latest_threshold(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/thresholds/manual", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def set_manual_threshold(form_id: str):
     """
@@ -401,6 +558,24 @@ def set_manual_threshold(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/detect-anomalies/batch", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Anomaly"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def detect_anomalies_batch(form_id: str):
     """

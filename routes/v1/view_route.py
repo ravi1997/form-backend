@@ -12,9 +12,13 @@ logger = logging.getLogger(__name__)
 # -------------------- index --------------------
 @view_bp.route("/", methods=["GET"])
 @swag_from({
-    "tags": ["View"],
+    "tags": [
+        "View"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 def index():
@@ -28,10 +32,22 @@ def index():
 
 @view_bp.route("/<form_id>", methods=["GET"])
 @swag_from({
-    "tags": ["View"],
+    "tags": [
+        "View"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
 })
 def view_form(form_id):
     logger.info(f"--- View Form branch started for id: {form_id} ---")

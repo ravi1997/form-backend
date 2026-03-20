@@ -32,13 +32,26 @@ logger = logging.getLogger(__name__)
 
 @auth_bp.route("/register", methods=["POST"])
 @swag_from({
-    "tags": ["Auth"],
-    "summary": "Register User",
-    "description": "Register a new user account.",
+    "tags": [
+        "Auth"
+    ],
     "responses": {
-        "201": {"description": "User registered successfully"},
-        "400": {"description": "Validation error"}
-    }
+        "200": {
+            "description": "Register a new user account.",
+            "schema": {
+                "$ref": "#/definitions/UserOut"
+            }
+        }
+    },
+    "parameters": [
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/UserCreateSchema"
+            }
+        }
+    ]
 })
 @limiter.limit("5 per minute")
 def register():
@@ -66,12 +79,16 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 @swag_from({
-    "tags": ["Auth"],
-    "summary": "User Login",
-    "description": "Authenticate via password or OTP and issue JWT tokens.",
+    "tags": [
+        "Auth"
+    ],
     "responses": {
-        "200": {"description": "Login successful"},
-        "401": {"description": "Invalid credentials"}
+        "200": {
+            "description": "Authenticate via password or OTP and issue JWT tokens.",
+            "schema": {
+                "$ref": "#/definitions/UserOut"
+            }
+        }
     }
 })
 @limiter.limit("5 per minute")
@@ -130,12 +147,13 @@ def login():
 
 @auth_bp.route("/request-otp", methods=["POST"])
 @swag_from({
-    "tags": ["Auth"],
-    "summary": "Request OTP",
-    "description": "Generate and send an OTP to the given mobile/email.",
+    "tags": [
+        "Auth"
+    ],
     "responses": {
-        "200": {"description": "OTP sent successfully"},
-        "400": {"description": "Missing identifier"}
+        "200": {
+            "description": "Generate and send an OTP to the given mobile/email."
+        }
     }
 })
 @limiter.limit("3 per minute")
@@ -159,12 +177,13 @@ def request_otp():
 
 @auth_bp.route("/refresh", methods=["POST"])
 @swag_from({
-    "tags": ["Auth"],
-    "summary": "Refresh Access Token",
-    "description": "Generates a new access token using a valid refresh token.",
+    "tags": [
+        "Auth"
+    ],
     "responses": {
-        "200": {"description": "Token refreshed"},
-        "401": {"description": "Invalid or expired refresh token"}
+        "200": {
+            "description": "Issue a new access token using a valid refresh token."
+        }
     }
 })
 @jwt_required(refresh=True)
@@ -195,11 +214,13 @@ def refresh():
 
 @auth_bp.route("/logout", methods=["POST"])
 @swag_from({
-    "tags": ["Auth"],
-    "summary": "User Logout",
-    "description": "Revokes the user's access and refresh tokens.",
+    "tags": [
+        "Auth"
+    ],
     "responses": {
-        "200": {"description": "Logout successful"}
+        "200": {
+            "description": "Revoke the current JWT session."
+        }
     }
 })
 @jwt_required()
@@ -220,6 +241,16 @@ def logout():
 
 
 @auth_bp.route("/revoke-all", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Auth"
+    ],
+    "responses": {
+        "200": {
+            "description": "Revoke all active sessions for the authenticated user."
+        }
+    }
+})
 @jwt_required()
 def revoke_all():
     """Revoke all active sessions for the authenticated user."""

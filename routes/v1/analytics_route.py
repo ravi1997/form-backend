@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 
 @analytics_bp.route("/dashboard", methods=["GET"])
 @swag_from({
-    "tags": ["Analytics"],
+    "tags": [
+        "Analytics"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 @require_roles("admin", "superadmin", "manager")

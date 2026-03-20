@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from routes.v1.form import form_bp
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -11,6 +12,16 @@ from utils.security import require_roles
 
 
 @form_bp.route("/slug-available", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Check if a form slug is already taken."
+        }
+    }
+})
 @jwt_required()
 def check_slug():
     """Check if a form slug is already taken."""
@@ -22,6 +33,24 @@ def check_slug():
 
 
 @form_bp.route("/<form_id>/share", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Grant editor/viewer/submitter permissions for a form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def share_form(form_id):
     """Admin only: Grant editor/viewer/submitter permissions for a form."""
@@ -39,6 +68,24 @@ def share_form(form_id):
 
 
 @form_bp.route("/<form_id>/archive", methods=["PATCH"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Change form status to 'archived'."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def archive_form(form_id):
     """Admin only: Change form status to 'archived'."""
@@ -51,6 +98,24 @@ def archive_form(form_id):
 
 
 @form_bp.route("/<form_id>/restore", methods=["PATCH"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Change form status from 'archived' back to 'draft'."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def restore_form(form_id):
     """Admin only: Change form status from 'archived' back to 'draft'."""
@@ -64,6 +129,24 @@ def restore_form(form_id):
 
 # -------------------- Delete All Responses --------------------
 @form_bp.route("/<form_id>/responses", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Purge all collected responses for a specific form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def delete_all_responses(form_id):
     """Admin only: Purge all collected responses for a specific form."""
@@ -77,6 +160,24 @@ def delete_all_responses(form_id):
 
 # -------------------- Toggle Public Access --------------------
 @form_bp.route("/<form_id>/toggle-public", methods=["PATCH"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Toggle between private and public access for a form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def toggle_form_public(form_id):
     """Admin only: Toggle between private and public access for a form."""
@@ -96,6 +197,24 @@ def toggle_form_public(form_id):
 
 # -------------------- Count Responses for Form --------------------
 @form_bp.route("/<form_id>/responses/count", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Get total submission count for a form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def count_responses(form_id):
     """Get total submission count for a form."""
@@ -109,6 +228,24 @@ def count_responses(form_id):
 
 # -------------------- Get Last Submission --------------------
 @form_bp.route("/<form_id>/responses/last", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Fetch the most recent response record for a form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def last_response(form_id):
     """Fetch the most recent response record for a form."""
@@ -126,6 +263,24 @@ def last_response(form_id):
 
 # -------------------- Duplicate Check for Response --------------------
 @form_bp.route("/<form_id>/check-duplicate", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Check if the current user has already submitted this exact data."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def check_duplicate_submission(form_id):
     """Check if the current user has already submitted this exact data."""

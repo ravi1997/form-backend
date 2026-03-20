@@ -25,6 +25,16 @@ def _no_model():
 
 
 @workflow_bp.route("/", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Workflow"
+    ],
+    "responses": {
+        "200": {
+            "description": "Create a new multi-step approval workflow."
+        }
+    }
+})
 @jwt_required()
 def create_workflow():
     """Create a new multi-step approval workflow."""
@@ -85,6 +95,16 @@ def create_workflow():
 
 
 @workflow_bp.route("/", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Workflow"
+    ],
+    "responses": {
+        "200": {
+            "description": "List all workflows for the current organization."
+        }
+    }
+})
 @jwt_required()
 def list_workflows():
     """List all workflows for the current organization."""
@@ -119,6 +139,24 @@ def list_workflows():
 
 
 @workflow_bp.route("/<workflow_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Workflow"
+    ],
+    "responses": {
+        "200": {
+            "description": "Get detailed workflow definition."
+        }
+    },
+    "parameters": [
+        {
+            "name": "workflow_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_workflow(workflow_id):
     """Get detailed workflow definition."""
@@ -166,6 +204,24 @@ def get_workflow(workflow_id):
 
 
 @workflow_bp.route("/<workflow_id>", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Workflow"
+    ],
+    "responses": {
+        "200": {
+            "description": "Soft-delete a workflow."
+        }
+    },
+    "parameters": [
+        {
+            "name": "workflow_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def delete_workflow(workflow_id):
     """Soft-delete a workflow."""

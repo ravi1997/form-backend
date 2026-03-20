@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import jsonify, request, current_app
 from flask_jwt_extended import jwt_required
 from routes.v1.form import form_bp
@@ -12,6 +13,24 @@ from collections import Counter, defaultdict
 
 
 @form_bp.route("/<form_id>/analytics/summary", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_analytics_summary(form_id):
     try:
@@ -51,6 +70,24 @@ def get_analytics_summary(form_id):
 
 
 @form_bp.route("/<form_id>/analytics/timeline", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_analytics_timeline(form_id):
     try:
@@ -86,6 +123,24 @@ def get_analytics_timeline(form_id):
 
 
 @form_bp.route("/<form_id>/analytics/distribution", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_analytics_distribution(form_id):
     try:
@@ -168,6 +223,24 @@ def get_analytics_distribution(form_id):
 
 
 @form_bp.route("/<form_id>/analytics", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_full_analytics(form_id):
     """

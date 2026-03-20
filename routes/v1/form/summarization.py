@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 """
 Summarization Routes
 
@@ -30,6 +31,24 @@ summarization_bp = Blueprint("summarization", __name__, url_prefix="/api/v1/ai/f
 
 
 @summarization_bp.route("/<form_id>/summarize", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def summarize(form_id: str):
     """
@@ -158,6 +177,24 @@ def summarize(form_id: str):
 
 
 @summarization_bp.route("/<form_id>/summarize/stream", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def summarize_stream(form_id: str):
     """
@@ -313,6 +350,24 @@ def summarize_stream(form_id: str):
 
 
 @summarization_bp.route("/<form_id>/executive-summary", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def executive_summary(form_id: str):
     """
@@ -366,6 +421,24 @@ def executive_summary(form_id: str):
 
 
 @summarization_bp.route("/<form_id>/theme-summary", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def theme_summary(form_id: str):
     """
@@ -432,6 +505,24 @@ def theme_summary(form_id: str):
 
 
 @summarization_bp.route("/<form_id>/summary-comparison", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def summary_comparison(form_id: str):
     """
@@ -547,6 +638,24 @@ def summary_comparison(form_id: str):
 
 
 @summarization_bp.route("/<form_id>/summary-trends", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def summary_trends(form_id: str):
     """
@@ -585,6 +694,24 @@ def summary_trends(form_id: str):
 
 
 @summarization_bp.route("/<form_id>/summary-snapshots", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Summarization"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def list_summary_snapshots(form_id: str):
     """

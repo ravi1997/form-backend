@@ -1,0 +1,5229 @@
+{
+  "SoftDeleteBaseSchema": {
+    "description": "Base schema for documents supporting soft delete.",
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      }
+    },
+    "title": "SoftDeleteBaseSchema",
+    "type": "object"
+  },
+  "BaseEmbeddedSchema": {
+    "description": "Base schema for embedded documents.",
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      }
+    },
+    "title": "BaseEmbeddedSchema",
+    "type": "object"
+  },
+  "ApprovalLogSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "action_by": {
+        "title": "Action By",
+        "type": "string"
+      },
+      "action": {
+        "enum": [
+          "approve",
+          "reject",
+          "revert",
+          "claim"
+        ],
+        "title": "Action",
+        "type": "string"
+      },
+      "comment": {
+        "anyOf": [
+          {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Comment"
+      },
+      "timestamp": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Timestamp"
+      },
+      "step_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Step Name"
+      }
+    },
+    "required": [
+      "action_by",
+      "action"
+    ],
+    "title": "ApprovalLogSchema",
+    "type": "object"
+  },
+  "WorkflowInstanceSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "organization_id": {
+        "title": "Organization Id",
+        "type": "string"
+      },
+      "workflow_definition": {
+        "title": "Workflow Definition",
+        "type": "string"
+      },
+      "resource_type": {
+        "const": "form_response",
+        "default": "form_response",
+        "title": "Resource Type",
+        "type": "string"
+      },
+      "resource_id": {
+        "title": "Resource Id",
+        "type": "string"
+      },
+      "status": {
+        "default": "pending",
+        "enum": [
+          "pending",
+          "in_review",
+          "approved",
+          "rejected",
+          "reverted"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "current_step_order": {
+        "default": 1,
+        "title": "Current Step Order",
+        "type": "integer"
+      },
+      "history": {
+        "items": {
+          "$ref": "#/$defs/ApprovalLogSchema"
+        },
+        "title": "History",
+        "type": "array"
+      },
+      "started_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Started At"
+      },
+      "completed_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Completed At"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "organization_id",
+      "workflow_definition",
+      "resource_id"
+    ],
+    "title": "WorkflowInstanceSchema",
+    "type": "object"
+  },
+  "BaseSchema": {
+    "description": "Base schema for top-level documents with standard fields.",
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      }
+    },
+    "title": "BaseSchema",
+    "type": "object"
+  },
+  "ConditionSchemaStruct": {
+    "$ref": "#/$defs/ConditionSchemaStruct"
+  },
+  "ConditionSchema": {
+    "$ref": "#/$defs/ConditionSchemaStruct"
+  },
+  "TriggerSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "name": {
+        "maxLength": 255,
+        "title": "Name",
+        "type": "string"
+      },
+      "event_type": {
+        "enum": [
+          "on_load",
+          "on_submit",
+          "on_change",
+          "on_status_change",
+          "on_validate",
+          "on_approval_step",
+          "on_creation"
+        ],
+        "title": "Event Type",
+        "type": "string"
+      },
+      "condition": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ConditionSchemaStruct"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "action_type": {
+        "enum": [
+          "webhook",
+          "email",
+          "sms",
+          "notification",
+          "update_field",
+          "execute_script",
+          "hide_show",
+          "enable_disable",
+          "validation_error",
+          "calculation",
+          "api_call"
+        ],
+        "title": "Action Type",
+        "type": "string"
+      },
+      "action_config": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Action Config"
+      },
+      "custom_script": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Custom Script"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "order": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Order"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "name",
+      "event_type",
+      "action_type"
+    ],
+    "title": "TriggerSchema",
+    "type": "object"
+  },
+  "LogicComponentSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "visibility_condition": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ConditionSchemaStruct"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "is_disabled": {
+        "default": false,
+        "title": "Is Disabled",
+        "type": "boolean"
+      },
+      "on_change": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "On Change"
+      },
+      "field_api_call": {
+        "anyOf": [
+          {
+            "enum": [
+              "uhid",
+              "employee_id",
+              "form",
+              "otp",
+              "custom"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Field Api Call"
+      },
+      "custom_script": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Custom Script"
+      },
+      "conditional_logic": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Conditional Logic"
+      },
+      "action_config": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Action Config"
+      },
+      "triggers": {
+        "items": {
+          "$ref": "#/$defs/TriggerSchema"
+        },
+        "title": "Triggers",
+        "type": "array"
+      }
+    },
+    "title": "LogicComponentSchema",
+    "type": "object"
+  },
+  "UIComponentSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "style": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Style"
+      },
+      "visible_header": {
+        "default": true,
+        "title": "Visible Header",
+        "type": "boolean"
+      },
+      "visible_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Visible Name"
+      }
+    },
+    "title": "UIComponentSchema",
+    "type": "object"
+  },
+  "OptionSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "is_default": {
+        "default": false,
+        "title": "Is Default",
+        "type": "boolean"
+      },
+      "is_disabled": {
+        "default": false,
+        "title": "Is Disabled",
+        "type": "boolean"
+      },
+      "option_code": {
+        "anyOf": [
+          {
+            "maxLength": 100,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Option Code"
+      },
+      "option_label": {
+        "maxLength": 255,
+        "title": "Option Label",
+        "type": "string"
+      },
+      "option_value": {
+        "maxLength": 255,
+        "title": "Option Value",
+        "type": "string"
+      },
+      "order": {
+        "default": 0,
+        "title": "Order",
+        "type": "integer"
+      },
+      "visibility_condition": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ConditionSchemaStruct"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "required": [
+      "option_label",
+      "option_value"
+    ],
+    "title": "OptionSchema",
+    "type": "object"
+  },
+  "ConditionalValidationSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "logical_operator": {
+        "default": "AND",
+        "title": "Logical Operator",
+        "type": "string"
+      },
+      "conditions": {
+        "items": {
+          "$ref": "#/$defs/ConditionSchemaStruct"
+        },
+        "title": "Conditions",
+        "type": "array"
+      },
+      "error_message": {
+        "title": "Error Message",
+        "type": "string"
+      }
+    },
+    "required": [
+      "error_message"
+    ],
+    "title": "ConditionalValidationSchema",
+    "type": "object"
+  },
+  "ValidationSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_required": {
+        "default": false,
+        "title": "Is Required",
+        "type": "boolean"
+      },
+      "logical_operator": {
+        "default": "AND",
+        "title": "Logical Operator",
+        "type": "string"
+      },
+      "required_conditions": {
+        "items": {
+          "$ref": "#/$defs/ConditionSchemaStruct"
+        },
+        "title": "Required Conditions",
+        "type": "array"
+      },
+      "min_length": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Min Length"
+      },
+      "max_length": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Length"
+      },
+      "min_value": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Min Value"
+      },
+      "max_value": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Value"
+      },
+      "min_word_count": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Min Word Count"
+      },
+      "max_word_count": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Word Count"
+      },
+      "regex": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Regex"
+      },
+      "error_message": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Error Message"
+      },
+      "date_min": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Date Min"
+      },
+      "date_max": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Date Max"
+      },
+      "disable_past_dates": {
+        "default": false,
+        "title": "Disable Past Dates",
+        "type": "boolean"
+      },
+      "disable_future_dates": {
+        "default": false,
+        "title": "Disable Future Dates",
+        "type": "boolean"
+      },
+      "disable_weekends": {
+        "default": false,
+        "title": "Disable Weekends",
+        "type": "boolean"
+      },
+      "allowed_file_types": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Allowed File Types",
+        "type": "array"
+      },
+      "max_files": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Files"
+      },
+      "max_file_size": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max File Size"
+      },
+      "min_selection": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Min Selection"
+      },
+      "max_selection": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Max Selection"
+      },
+      "is_unique": {
+        "default": false,
+        "title": "Is Unique",
+        "type": "boolean"
+      },
+      "requires_confirmation": {
+        "default": false,
+        "title": "Requires Confirmation",
+        "type": "boolean"
+      },
+      "input_mask": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Input Mask"
+      },
+      "custom_validations": {
+        "items": {
+          "$ref": "#/$defs/ConditionalValidationSchema"
+        },
+        "title": "Custom Validations",
+        "type": "array"
+      }
+    },
+    "title": "ValidationSchema",
+    "type": "object"
+  },
+  "QuestionLogicSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "visibility_condition": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ConditionSchemaStruct"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "is_disabled": {
+        "default": false,
+        "title": "Is Disabled",
+        "type": "boolean"
+      },
+      "on_change": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "On Change"
+      },
+      "field_api_call": {
+        "anyOf": [
+          {
+            "enum": [
+              "uhid",
+              "employee_id",
+              "form",
+              "otp",
+              "custom"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Field Api Call"
+      },
+      "custom_script": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Custom Script"
+      },
+      "conditional_logic": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Conditional Logic"
+      },
+      "action_config": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Action Config"
+      },
+      "triggers": {
+        "items": {
+          "$ref": "#/$defs/TriggerSchema"
+        },
+        "title": "Triggers",
+        "type": "array"
+      },
+      "calculated_value": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Calculated Value"
+      }
+    },
+    "title": "QuestionLogicSchema",
+    "type": "object"
+  },
+  "QuestionUISchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "style": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Style"
+      },
+      "visible_header": {
+        "default": false,
+        "title": "Visible Header",
+        "type": "boolean"
+      },
+      "visible_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Visible Name"
+      },
+      "placeholder": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Placeholder"
+      }
+    },
+    "title": "QuestionUISchema",
+    "type": "object"
+  },
+  "ResponseTemplateSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "name": {
+        "maxLength": 255,
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "structure": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Structure"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "ResponseTemplateSchema",
+    "type": "object"
+  },
+  "QuestionSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "label": {
+        "maxLength": 255,
+        "title": "Label",
+        "type": "string"
+      },
+      "field_type": {
+        "enum": [
+          "input",
+          "textarea",
+          "number",
+          "email",
+          "mobile",
+          "url",
+          "password"
+        ],
+        "title": "Field Type",
+        "type": "string"
+      },
+      "help_text": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Help Text"
+      },
+      "default_value": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Default Value"
+      },
+      "order": {
+        "default": 0,
+        "minimum": 0,
+        "title": "Order",
+        "type": "integer"
+      },
+      "variable_name": {
+        "anyOf": [
+          {
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Variable Name"
+      },
+      "is_repeatable": {
+        "default": false,
+        "title": "Is Repeatable",
+        "type": "boolean"
+      },
+      "repeat_min": {
+        "default": 0,
+        "minimum": 0,
+        "title": "Repeat Min",
+        "type": "integer"
+      },
+      "repeat_max": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Repeat Max"
+      },
+      "keep_last_value": {
+        "default": false,
+        "title": "Keep Last Value",
+        "type": "boolean"
+      },
+      "is_hidden": {
+        "default": false,
+        "title": "Is Hidden",
+        "type": "boolean"
+      },
+      "is_read_only": {
+        "default": false,
+        "title": "Is Read Only",
+        "type": "boolean"
+      },
+      "validation": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ValidationSchema"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "logic": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/QuestionLogicSchema"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "ui": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/QuestionUISchema"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "response_templates": {
+        "items": {
+          "$ref": "#/$defs/ResponseTemplateSchema"
+        },
+        "title": "Response Templates",
+        "type": "array"
+      },
+      "options": {
+        "items": {
+          "$ref": "#/$defs/OptionSchema"
+        },
+        "title": "Options",
+        "type": "array"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "label",
+      "field_type"
+    ],
+    "title": "QuestionSchema",
+    "type": "object"
+  },
+  "SectionLogicSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "visibility_condition": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ConditionSchemaStruct"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "is_disabled": {
+        "default": false,
+        "title": "Is Disabled",
+        "type": "boolean"
+      },
+      "on_change": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "On Change"
+      },
+      "field_api_call": {
+        "anyOf": [
+          {
+            "enum": [
+              "uhid",
+              "employee_id",
+              "form",
+              "otp",
+              "custom"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Field Api Call"
+      },
+      "custom_script": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Custom Script"
+      },
+      "conditional_logic": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Conditional Logic"
+      },
+      "action_config": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Action Config"
+      },
+      "triggers": {
+        "items": {
+          "$ref": "#/$defs/TriggerSchema"
+        },
+        "title": "Triggers",
+        "type": "array"
+      },
+      "is_repeatable": {
+        "default": false,
+        "title": "Is Repeatable",
+        "type": "boolean"
+      },
+      "repeat_min": {
+        "default": 0,
+        "minimum": 0,
+        "title": "Repeat Min",
+        "type": "integer"
+      },
+      "repeat_max": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Repeat Max"
+      }
+    },
+    "title": "SectionLogicSchema",
+    "type": "object"
+  },
+  "SectionUISchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "style": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Style"
+      },
+      "visible_header": {
+        "default": true,
+        "title": "Visible Header",
+        "type": "boolean"
+      },
+      "visible_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Visible Name"
+      },
+      "layout_type": {
+        "default": "flex",
+        "enum": [
+          "flex",
+          "grid-cols-2",
+          "tabbed",
+          "custom",
+          "grid-cols-3",
+          "full-width",
+          "cards",
+          "card"
+        ],
+        "title": "Layout Type",
+        "type": "string"
+      }
+    },
+    "title": "SectionUISchema",
+    "type": "object"
+  },
+  "SectionSchemaStruct": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "title": {
+        "maxLength": 255,
+        "title": "Title",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "help_text": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Help Text"
+      },
+      "order": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Order"
+      },
+      "logic": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SectionLogicSchema"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "ui": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SectionUISchema"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      },
+      "questions": {
+        "items": {
+          "$ref": "#/$defs/QuestionSchema"
+        },
+        "title": "Questions",
+        "type": "array"
+      },
+      "sections": {
+        "items": {
+          "$ref": "#/$defs/SectionSchemaStruct"
+        },
+        "title": "Sections",
+        "type": "array"
+      },
+      "response_templates": {
+        "items": {
+          "$ref": "#/$defs/ResponseTemplateSchema"
+        },
+        "title": "Response Templates",
+        "type": "array"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "title": "SectionSchemaStruct",
+    "type": "object"
+  },
+  "SectionSchema": {
+    "$ref": "#/$defs/SectionSchemaStruct"
+  },
+  "VersionSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "form": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Form"
+      },
+      "project": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Project"
+      },
+      "major": {
+        "default": 1,
+        "minimum": 0,
+        "title": "Major",
+        "type": "integer"
+      },
+      "minor": {
+        "default": 0,
+        "minimum": 0,
+        "title": "Minor",
+        "type": "integer"
+      },
+      "patch": {
+        "default": 0,
+        "minimum": 0,
+        "title": "Patch",
+        "type": "integer"
+      },
+      "version_string": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Version String"
+      }
+    },
+    "title": "VersionSchema",
+    "type": "object"
+  },
+  "FormVersionSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "form": {
+        "title": "Form",
+        "type": "string"
+      },
+      "version": {
+        "title": "Version",
+        "type": "string"
+      },
+      "sections": {
+        "items": {
+          "$ref": "#/$defs/SectionSchemaStruct"
+        },
+        "title": "Sections",
+        "type": "array"
+      },
+      "translations": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Translations"
+      },
+      "status": {
+        "default": "draft",
+        "enum": [
+          "draft",
+          "published",
+          "archived"
+        ],
+        "title": "Status",
+        "type": "string"
+      }
+    },
+    "required": [
+      "form",
+      "version"
+    ],
+    "title": "FormVersionSchema",
+    "type": "object"
+  },
+  "ProjectVersionSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "project": {
+        "title": "Project",
+        "type": "string"
+      },
+      "version": {
+        "title": "Version",
+        "type": "string"
+      },
+      "forms": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Forms",
+        "type": "array"
+      },
+      "sub_projects": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Sub Projects",
+        "type": "array"
+      },
+      "status": {
+        "default": "draft",
+        "enum": [
+          "draft",
+          "published",
+          "archived"
+        ],
+        "title": "Status",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project",
+      "version"
+    ],
+    "title": "ProjectVersionSchema",
+    "type": "object"
+  },
+  "FormSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "title": {
+        "maxLength": 255,
+        "title": "Title",
+        "type": "string"
+      },
+      "slug": {
+        "maxLength": 255,
+        "pattern": "^[a-z0-9-]+$",
+        "title": "Slug",
+        "type": "string"
+      },
+      "organization_id": {
+        "title": "Organization Id",
+        "type": "string"
+      },
+      "created_by": {
+        "title": "Created By",
+        "type": "string"
+      },
+      "status": {
+        "default": "draft",
+        "enum": [
+          "draft",
+          "published",
+          "archived"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "ui_type": {
+        "default": "flex",
+        "enum": [
+          "flex",
+          "grid-cols-2",
+          "tabbed",
+          "custom",
+          "grid-cols-3",
+          "full-width",
+          "cards",
+          "card"
+        ],
+        "title": "Ui Type",
+        "type": "string"
+      },
+      "active_version": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Active Version"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "help_text": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Help Text"
+      },
+      "expires_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Expires At"
+      },
+      "publish_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Publish At"
+      },
+      "is_template": {
+        "default": false,
+        "title": "Is Template",
+        "type": "boolean"
+      },
+      "is_public": {
+        "default": false,
+        "title": "Is Public",
+        "type": "boolean"
+      },
+      "supported_languages": {
+        "default": [
+          "en"
+        ],
+        "items": {
+          "type": "string"
+        },
+        "title": "Supported Languages",
+        "type": "array"
+      },
+      "default_language": {
+        "default": "en",
+        "title": "Default Language",
+        "type": "string"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "editors": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Editors",
+        "type": "array"
+      },
+      "viewers": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Viewers",
+        "type": "array"
+      },
+      "submitters": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Submitters",
+        "type": "array"
+      },
+      "approval_enabled": {
+        "default": false,
+        "title": "Approval Enabled",
+        "type": "boolean"
+      },
+      "style": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Style"
+      },
+      "response_templates": {
+        "items": {
+          "$ref": "#/$defs/ResponseTemplateSchema"
+        },
+        "title": "Response Templates",
+        "type": "array"
+      },
+      "triggers": {
+        "items": {
+          "$ref": "#/$defs/TriggerSchema"
+        },
+        "title": "Triggers",
+        "type": "array"
+      }
+    },
+    "required": [
+      "title",
+      "slug",
+      "organization_id",
+      "created_by"
+    ],
+    "title": "FormSchema",
+    "type": "object"
+  },
+  "ProjectSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "title": {
+        "maxLength": 255,
+        "title": "Title",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "help_text": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Help Text"
+      },
+      "organization_id": {
+        "title": "Organization Id",
+        "type": "string"
+      },
+      "status": {
+        "default": "draft",
+        "enum": [
+          "draft",
+          "published",
+          "archived"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "sub_projects": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Sub Projects",
+        "type": "array"
+      },
+      "forms": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Forms",
+        "type": "array"
+      },
+      "active_version": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Active Version"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "triggers": {
+        "items": {
+          "$ref": "#/$defs/TriggerSchema"
+        },
+        "title": "Triggers",
+        "type": "array"
+      }
+    },
+    "required": [
+      "title",
+      "organization_id"
+    ],
+    "title": "ProjectSchema",
+    "type": "object"
+  },
+  "UserGroupSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "name": {
+        "maxLength": 255,
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "members": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Members",
+        "type": "array"
+      },
+      "owners": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Owners",
+        "type": "array"
+      },
+      "organization_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Organization Id"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "UserGroupSchema",
+    "type": "object"
+  },
+  "AccessEntrySchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "grantee_type": {
+        "enum": [
+          "user",
+          "group"
+        ],
+        "title": "Grantee Type",
+        "type": "string"
+      },
+      "grantee_user": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Grantee User"
+      },
+      "grantee_group": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Grantee Group"
+      },
+      "permissions": {
+        "items": {
+          "enum": [
+            "view",
+            "edit",
+            "delete",
+            "publish",
+            "export_data",
+            "manage_access",
+            "approve_submissions"
+          ],
+          "type": "string"
+        },
+        "title": "Permissions",
+        "type": "array"
+      }
+    },
+    "required": [
+      "grantee_type"
+    ],
+    "title": "AccessEntrySchema",
+    "type": "object"
+  },
+  "ApprovalStepSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "step_name": {
+        "maxLength": 255,
+        "title": "Step Name",
+        "type": "string"
+      },
+      "order": {
+        "default": 1,
+        "title": "Order",
+        "type": "integer"
+      },
+      "approvers": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Approvers",
+        "type": "array"
+      },
+      "approver_groups": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Approver Groups",
+        "type": "array"
+      },
+      "approval_type": {
+        "default": "any_one",
+        "enum": [
+          "sequential",
+          "parallel",
+          "maker-checker",
+          "any_one"
+        ],
+        "title": "Approval Type",
+        "type": "string"
+      },
+      "min_approvals_required": {
+        "default": 1,
+        "minimum": 1,
+        "title": "Min Approvals Required",
+        "type": "integer"
+      },
+      "on_approve_script": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "On Approve Script"
+      },
+      "on_reject_script": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "On Reject Script"
+      }
+    },
+    "required": [
+      "step_name"
+    ],
+    "title": "ApprovalStepSchema",
+    "type": "object"
+  },
+  "ApprovalWorkflowSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "name": {
+        "maxLength": 255,
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "initiator_groups": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Initiator Groups",
+        "type": "array"
+      },
+      "steps": {
+        "items": {
+          "$ref": "#/$defs/ApprovalStepSchema"
+        },
+        "title": "Steps",
+        "type": "array"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "ApprovalWorkflowSchema",
+    "type": "object"
+  },
+  "ResourceAccessControlSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "resource_type": {
+        "enum": [
+          "form",
+          "project",
+          "submission",
+          "view"
+        ],
+        "title": "Resource Type",
+        "type": "string"
+      },
+      "resource_id": {
+        "title": "Resource Id",
+        "type": "string"
+      },
+      "access_level": {
+        "default": "private",
+        "enum": [
+          "private",
+          "group",
+          "organization",
+          "public"
+        ],
+        "title": "Access Level",
+        "type": "string"
+      },
+      "entries": {
+        "items": {
+          "$ref": "#/$defs/AccessEntrySchema"
+        },
+        "title": "Entries",
+        "type": "array"
+      },
+      "approval_workflow": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Approval Workflow"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      }
+    },
+    "required": [
+      "resource_type",
+      "resource_id"
+    ],
+    "title": "ResourceAccessControlSchema",
+    "type": "object"
+  },
+  "FormBlueprintSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "category": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Category"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "sections": {
+        "items": {
+          "$ref": "#/$defs/SectionSchemaStruct"
+        },
+        "title": "Sections",
+        "type": "array"
+      },
+      "response_templates": {
+        "items": {
+          "$ref": "#/$defs/ResponseTemplateSchema"
+        },
+        "title": "Response Templates",
+        "type": "array"
+      },
+      "icon": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Icon"
+      },
+      "estimated_completion_time": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Estimated Completion Time"
+      },
+      "industry": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Industry"
+      },
+      "usage_count": {
+        "default": 0,
+        "title": "Usage Count",
+        "type": "integer"
+      },
+      "is_official": {
+        "default": false,
+        "title": "Is Official",
+        "type": "boolean"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "FormBlueprintSchema",
+    "type": "object"
+  },
+  "ProjectBlueprintSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      },
+      "form_blueprints": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Form Blueprints",
+        "type": "array"
+      },
+      "hierarchy_definition": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Hierarchy Definition"
+      },
+      "is_template": {
+        "default": true,
+        "title": "Is Template",
+        "type": "boolean"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "ProjectBlueprintSchema",
+    "type": "object"
+  },
+  "LoginRequest": {
+    "properties": {
+      "identifier": {
+        "description": "Username, email, or employee ID",
+        "title": "Identifier",
+        "type": "string"
+      },
+      "password": {
+        "minLength": 8,
+        "title": "Password",
+        "type": "string"
+      }
+    },
+    "required": [
+      "identifier",
+      "password"
+    ],
+    "title": "LoginRequest",
+    "type": "object"
+  },
+  "TokenResponse": {
+    "properties": {
+      "access_token": {
+        "title": "Access Token",
+        "type": "string"
+      },
+      "refresh_token": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Refresh Token"
+      },
+      "token_type": {
+        "default": "bearer",
+        "title": "Token Type",
+        "type": "string"
+      },
+      "expires_in": {
+        "title": "Expires In",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "access_token",
+      "expires_in"
+    ],
+    "title": "TokenResponse",
+    "type": "object"
+  },
+  "TokenPayload": {
+    "properties": {
+      "sub": {
+        "title": "Sub",
+        "type": "string"
+      },
+      "jti": {
+        "title": "Jti",
+        "type": "string"
+      },
+      "exp": {
+        "title": "Exp",
+        "type": "integer"
+      },
+      "iat": {
+        "title": "Iat",
+        "type": "integer"
+      },
+      "roles": {
+        "default": [],
+        "items": {
+          "type": "string"
+        },
+        "title": "Roles",
+        "type": "array"
+      }
+    },
+    "required": [
+      "sub",
+      "jti",
+      "exp",
+      "iat"
+    ],
+    "title": "TokenPayload",
+    "type": "object"
+  },
+  "SystemSettingsSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "env_key": {
+        "default": "default",
+        "title": "Env Key",
+        "type": "string"
+      },
+      "jwt_access_token_expires_minutes": {
+        "default": 60,
+        "title": "Jwt Access Token Expires Minutes",
+        "type": "integer"
+      },
+      "jwt_refresh_token_expires_days": {
+        "default": 30,
+        "title": "Jwt Refresh Token Expires Days",
+        "type": "integer"
+      },
+      "max_failed_login_attempts": {
+        "default": 5,
+        "title": "Max Failed Login Attempts",
+        "type": "integer"
+      },
+      "account_lock_duration_hours": {
+        "default": 24,
+        "title": "Account Lock Duration Hours",
+        "type": "integer"
+      },
+      "password_expiration_days": {
+        "default": 90,
+        "title": "Password Expiration Days",
+        "type": "integer"
+      },
+      "otp_expiration_minutes": {
+        "default": 5,
+        "title": "Otp Expiration Minutes",
+        "type": "integer"
+      },
+      "max_otp_resends": {
+        "default": 5,
+        "title": "Max Otp Resends",
+        "type": "integer"
+      },
+      "max_upload_size_mb": {
+        "default": 10,
+        "title": "Max Upload Size Mb",
+        "type": "integer"
+      },
+      "allowed_upload_extensions": {
+        "default": "pdf,docx,xlsx,jpg,jpeg,png,gif,svg,mp4,mp3",
+        "title": "Allowed Upload Extensions",
+        "type": "string"
+      },
+      "cache_enabled": {
+        "default": true,
+        "title": "Cache Enabled",
+        "type": "boolean"
+      },
+      "cache_default_ttl_seconds": {
+        "default": 300,
+        "title": "Cache Default Ttl Seconds",
+        "type": "integer"
+      },
+      "cache_form_schema_ttl_seconds": {
+        "default": 3600,
+        "title": "Cache Form Schema Ttl Seconds",
+        "type": "integer"
+      },
+      "cache_user_session_ttl_seconds": {
+        "default": 1800,
+        "title": "Cache User Session Ttl Seconds",
+        "type": "integer"
+      },
+      "cache_query_result_ttl_seconds": {
+        "default": 300,
+        "title": "Cache Query Result Ttl Seconds",
+        "type": "integer"
+      },
+      "cache_dashboard_widget_ttl_seconds": {
+        "default": 120,
+        "title": "Cache Dashboard Widget Ttl Seconds",
+        "type": "integer"
+      },
+      "cache_api_response_ttl_seconds": {
+        "default": 60,
+        "title": "Cache Api Response Ttl Seconds",
+        "type": "integer"
+      },
+      "llm_provider": {
+        "default": "ollama",
+        "title": "Llm Provider",
+        "type": "string"
+      },
+      "llm_api_url": {
+        "default": "http://ollama:11434/v1",
+        "title": "Llm Api Url",
+        "type": "string"
+      },
+      "llm_model": {
+        "default": "llama3",
+        "title": "Llm Model",
+        "type": "string"
+      },
+      "ollama_api_url": {
+        "default": "http://localhost:11434",
+        "title": "Ollama Api Url",
+        "type": "string"
+      },
+      "ollama_embedding_model": {
+        "default": "nomic-embed-text",
+        "title": "Ollama Embedding Model",
+        "type": "string"
+      },
+      "ollama_pool_size": {
+        "default": 5,
+        "title": "Ollama Pool Size",
+        "type": "integer"
+      },
+      "ollama_pool_timeout_seconds": {
+        "default": 30,
+        "title": "Ollama Pool Timeout Seconds",
+        "type": "integer"
+      },
+      "ollama_connection_timeout_seconds": {
+        "default": 10,
+        "title": "Ollama Connection Timeout Seconds",
+        "type": "integer"
+      },
+      "redis_host": {
+        "default": "localhost",
+        "title": "Redis Host",
+        "type": "string"
+      },
+      "redis_port": {
+        "default": 6379,
+        "title": "Redis Port",
+        "type": "integer"
+      },
+      "redis_db": {
+        "default": 0,
+        "title": "Redis Db",
+        "type": "integer"
+      },
+      "redis_max_connections": {
+        "default": 50,
+        "title": "Redis Max Connections",
+        "type": "integer"
+      },
+      "redis_socket_timeout_seconds": {
+        "default": 5,
+        "title": "Redis Socket Timeout Seconds",
+        "type": "integer"
+      },
+      "cors_enabled": {
+        "default": true,
+        "title": "Cors Enabled",
+        "type": "boolean"
+      },
+      "debug_mode": {
+        "default": false,
+        "title": "Debug Mode",
+        "type": "boolean"
+      },
+      "rate_limit_enabled": {
+        "default": true,
+        "title": "Rate Limit Enabled",
+        "type": "boolean"
+      },
+      "rate_limit_requests_per_minute": {
+        "default": 100,
+        "title": "Rate Limit Requests Per Minute",
+        "type": "integer"
+      },
+      "updated_by": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated By"
+      }
+    },
+    "title": "SystemSettingsSchema",
+    "type": "object"
+  },
+  "PaginatedResult": {
+    "properties": {
+      "items": {
+        "items": {},
+        "title": "Items",
+        "type": "array"
+      },
+      "total": {
+        "title": "Total",
+        "type": "integer"
+      },
+      "page": {
+        "title": "Page",
+        "type": "integer"
+      },
+      "page_size": {
+        "title": "Page Size",
+        "type": "integer"
+      },
+      "has_next": {
+        "title": "Has Next",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "items",
+      "total",
+      "page",
+      "page_size",
+      "has_next"
+    ],
+    "title": "PaginatedResult",
+    "type": "object"
+  },
+  "AnalyticsStateSchema": {
+    "description": "[Phase 12: Polyglot Persistence Readiness]\nDefines the structural format for routing form responses downstream via \nChange Data Capture (CDC) or Redpanda/Kafka streams. \nThis schema ensures that dynamic form fields ($group mechanics) are flattened \nidentically so ClickHouse or Snowflake consumers can reliably parse mutations.",
+    "properties": {
+      "event_timestamp": {
+        "title": "Event Timestamp",
+        "type": "number"
+      },
+      "tenant_id": {
+        "title": "Tenant Id",
+        "type": "string"
+      },
+      "form_id": {
+        "title": "Form Id",
+        "type": "string"
+      },
+      "response_id": {
+        "title": "Response Id",
+        "type": "string"
+      },
+      "flattened_fields": {
+        "additionalProperties": true,
+        "title": "Flattened Fields",
+        "type": "object"
+      },
+      "action_type": {
+        "title": "Action Type",
+        "type": "string"
+      }
+    },
+    "required": [
+      "event_timestamp",
+      "tenant_id",
+      "form_id",
+      "response_id",
+      "flattened_fields",
+      "action_type"
+    ],
+    "title": "AnalyticsStateSchema",
+    "type": "object"
+  },
+  "FormResponseSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "project": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Project"
+      },
+      "form": {
+        "title": "Form",
+        "type": "string"
+      },
+      "form_version": {
+        "title": "Form Version",
+        "type": "string"
+      },
+      "organization_id": {
+        "title": "Organization Id",
+        "type": "string"
+      },
+      "data": {
+        "additionalProperties": true,
+        "title": "Data",
+        "type": "object"
+      },
+      "submitted_by": {
+        "title": "Submitted By",
+        "type": "string"
+      },
+      "submitted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Submitted At"
+      },
+      "ip_address": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ip Address"
+      },
+      "user_agent": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "User Agent"
+      },
+      "status": {
+        "default": "submitted",
+        "enum": [
+          "submitted",
+          "processed",
+          "error",
+          "archived"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "review_status": {
+        "default": "pending",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ],
+        "title": "Review Status",
+        "type": "string"
+      },
+      "meta_data": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Meta Data"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      }
+    },
+    "required": [
+      "form",
+      "form_version",
+      "organization_id",
+      "data",
+      "submitted_by"
+    ],
+    "title": "FormResponseSchema",
+    "type": "object"
+  },
+  "DynamicViewDefinitionSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "organization_id": {
+        "title": "Organization Id",
+        "type": "string"
+      },
+      "view_name": {
+        "maxLength": 255,
+        "title": "View Name",
+        "type": "string"
+      },
+      "description": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Description"
+      },
+      "form": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Form"
+      },
+      "project": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Project"
+      },
+      "pipeline": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "title": "Pipeline",
+        "type": "array"
+      },
+      "tags": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Tags",
+        "type": "array"
+      }
+    },
+    "required": [
+      "organization_id",
+      "view_name",
+      "pipeline"
+    ],
+    "title": "DynamicViewDefinitionSchema",
+    "type": "object"
+  },
+  "UserSchema": {
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "username": {
+        "anyOf": [
+          {
+            "maxLength": 50,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Username"
+      },
+      "email": {
+        "anyOf": [
+          {
+            "pattern": "^\\S+@\\S+\\.\\S+$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Email"
+      },
+      "employee_id": {
+        "anyOf": [
+          {
+            "maxLength": 30,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Employee Id"
+      },
+      "mobile": {
+        "anyOf": [
+          {
+            "maxLength": 15,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mobile"
+      },
+      "department": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Department"
+      },
+      "organization_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Organization Id"
+      },
+      "user_type": {
+        "enum": [
+          "employee",
+          "general"
+        ],
+        "title": "User Type",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "is_admin": {
+        "default": false,
+        "title": "Is Admin",
+        "type": "boolean"
+      },
+      "is_email_verified": {
+        "default": false,
+        "title": "Is Email Verified",
+        "type": "boolean"
+      },
+      "roles": {
+        "items": {
+          "enum": [
+            "superadmin",
+            "admin",
+            "user",
+            "creator",
+            "editor",
+            "publisher",
+            "deo",
+            "manager",
+            "general"
+          ],
+          "type": "string"
+        },
+        "title": "Roles",
+        "type": "array"
+      },
+      "failed_login_attempts": {
+        "default": 0,
+        "title": "Failed Login Attempts",
+        "type": "integer"
+      },
+      "otp_resend_count": {
+        "default": 0,
+        "title": "Otp Resend Count",
+        "type": "integer"
+      },
+      "lock_until": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Lock Until"
+      },
+      "last_login": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Last Login"
+      }
+    },
+    "required": [
+      "user_type"
+    ],
+    "title": "UserSchema",
+    "type": "object"
+  },
+  "UserCreateSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "username": {
+        "anyOf": [
+          {
+            "maxLength": 50,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Username"
+      },
+      "email": {
+        "anyOf": [
+          {
+            "pattern": "^\\S+@\\S+\\.\\S+$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Email"
+      },
+      "employee_id": {
+        "anyOf": [
+          {
+            "maxLength": 30,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Employee Id"
+      },
+      "mobile": {
+        "anyOf": [
+          {
+            "maxLength": 15,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mobile"
+      },
+      "department": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Department"
+      },
+      "organization_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Organization Id"
+      },
+      "user_type": {
+        "enum": [
+          "employee",
+          "general"
+        ],
+        "title": "User Type",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "is_admin": {
+        "default": false,
+        "title": "Is Admin",
+        "type": "boolean"
+      },
+      "is_email_verified": {
+        "default": false,
+        "title": "Is Email Verified",
+        "type": "boolean"
+      },
+      "roles": {
+        "items": {
+          "enum": [
+            "superadmin",
+            "admin",
+            "user",
+            "creator",
+            "editor",
+            "publisher",
+            "deo",
+            "manager",
+            "general"
+          ],
+          "type": "string"
+        },
+        "title": "Roles",
+        "type": "array"
+      },
+      "failed_login_attempts": {
+        "default": 0,
+        "title": "Failed Login Attempts",
+        "type": "integer"
+      },
+      "otp_resend_count": {
+        "default": 0,
+        "title": "Otp Resend Count",
+        "type": "integer"
+      },
+      "lock_until": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Lock Until"
+      },
+      "last_login": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Last Login"
+      },
+      "password": {
+        "minLength": 8,
+        "title": "Password",
+        "type": "string"
+      }
+    },
+    "required": [
+      "user_type",
+      "password"
+    ],
+    "title": "UserCreateSchema",
+    "type": "object"
+  },
+  "UserUpdateSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "username": {
+        "anyOf": [
+          {
+            "maxLength": 50,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Username"
+      },
+      "email": {
+        "anyOf": [
+          {
+            "pattern": "^\\S+@\\S+\\.\\S+$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Email"
+      },
+      "employee_id": {
+        "anyOf": [
+          {
+            "maxLength": 30,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Employee Id"
+      },
+      "mobile": {
+        "anyOf": [
+          {
+            "maxLength": 15,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mobile"
+      },
+      "department": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Department"
+      },
+      "organization_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Organization Id"
+      },
+      "user_type": {
+        "enum": [
+          "employee",
+          "general"
+        ],
+        "title": "User Type",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "is_admin": {
+        "default": false,
+        "title": "Is Admin",
+        "type": "boolean"
+      },
+      "is_email_verified": {
+        "default": false,
+        "title": "Is Email Verified",
+        "type": "boolean"
+      },
+      "roles": {
+        "items": {
+          "enum": [
+            "superadmin",
+            "admin",
+            "user",
+            "creator",
+            "editor",
+            "publisher",
+            "deo",
+            "manager",
+            "general"
+          ],
+          "type": "string"
+        },
+        "title": "Roles",
+        "type": "array"
+      },
+      "failed_login_attempts": {
+        "default": 0,
+        "title": "Failed Login Attempts",
+        "type": "integer"
+      },
+      "otp_resend_count": {
+        "default": 0,
+        "title": "Otp Resend Count",
+        "type": "integer"
+      },
+      "lock_until": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Lock Until"
+      },
+      "last_login": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Last Login"
+      },
+      "password": {
+        "anyOf": [
+          {
+            "minLength": 8,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Password"
+      }
+    },
+    "required": [
+      "user_type"
+    ],
+    "title": "UserUpdateSchema",
+    "type": "object"
+  },
+  "UserOut": {
+    "description": "Schema for public API responses. \nExcludes internal security counters.",
+    "properties": {
+      "id": {
+        "title": "Id",
+        "type": "string"
+      },
+      "created_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Created At"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "is_deleted": {
+        "default": false,
+        "title": "Is Deleted",
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Deleted At"
+      },
+      "username": {
+        "anyOf": [
+          {
+            "maxLength": 50,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Username"
+      },
+      "email": {
+        "anyOf": [
+          {
+            "pattern": "^\\S+@\\S+\\.\\S+$",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Email"
+      },
+      "employee_id": {
+        "anyOf": [
+          {
+            "maxLength": 30,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Employee Id"
+      },
+      "mobile": {
+        "anyOf": [
+          {
+            "maxLength": 15,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mobile"
+      },
+      "department": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Department"
+      },
+      "organization_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Organization Id"
+      },
+      "user_type": {
+        "enum": [
+          "employee",
+          "general"
+        ],
+        "title": "User Type",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "title": "Is Active",
+        "type": "boolean"
+      },
+      "is_admin": {
+        "default": false,
+        "title": "Is Admin",
+        "type": "boolean"
+      },
+      "is_email_verified": {
+        "default": false,
+        "title": "Is Email Verified",
+        "type": "boolean"
+      },
+      "roles": {
+        "items": {
+          "enum": [
+            "superadmin",
+            "admin",
+            "user",
+            "creator",
+            "editor",
+            "publisher",
+            "deo",
+            "manager",
+            "general"
+          ],
+          "type": "string"
+        },
+        "title": "Roles",
+        "type": "array"
+      },
+      "failed_login_attempts": {
+        "default": 0,
+        "title": "Failed Login Attempts",
+        "type": "integer"
+      },
+      "otp_resend_count": {
+        "default": 0,
+        "title": "Otp Resend Count",
+        "type": "integer"
+      },
+      "lock_until": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Lock Until"
+      },
+      "last_login": {
+        "anyOf": [
+          {
+            "format": "date-time",
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Last Login"
+      }
+    },
+    "required": [
+      "id",
+      "user_type"
+    ],
+    "title": "UserOut",
+    "type": "object"
+  }
+}

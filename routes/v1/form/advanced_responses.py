@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from models import Form, FormResponse
@@ -9,6 +10,16 @@ advanced_responses_bp = Blueprint("advanced_responses", __name__)
 
 
 @advanced_responses_bp.route("/fetch/external", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def fetch_external_form_data():
     """
@@ -62,6 +73,24 @@ def fetch_external_form_data():
 
 
 @advanced_responses_bp.route("/<form_id>/fetch/same", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def fetch_same_form_data(form_id):
     """
@@ -105,6 +134,24 @@ def fetch_same_form_data(form_id):
 
 
 @advanced_responses_bp.route("/<form_id>/responses/questions", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def fetch_specific_questions(form_id):
     """
@@ -151,6 +198,24 @@ def fetch_specific_questions(form_id):
 
 
 @advanced_responses_bp.route("/<form_id>/responses/meta", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def fetch_response_meta(form_id):
     """
@@ -198,6 +263,16 @@ def fetch_response_meta(form_id):
 
 
 @advanced_responses_bp.route("/micro-info", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def micro_info():
     """
@@ -207,6 +282,24 @@ def micro_info():
 
 
 @advanced_responses_bp.route("/<form_id>/access-control", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_form_access_control(form_id):
     """
@@ -274,6 +367,24 @@ def get_form_access_control(form_id):
 
 
 @advanced_responses_bp.route("/<form_id>/access-policy", methods=["POST", "PUT"])
+@swag_from({
+    "tags": [
+        "Advanced_Responses"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def update_access_policy(form_id):
     """

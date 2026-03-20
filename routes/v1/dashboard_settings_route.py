@@ -29,9 +29,13 @@ dashboard_service = DashboardService()
 
 @dashboard_settings_bp.route("/settings", methods=["GET"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Get user dashboard settings."
+        }
     }
 })
 @jwt_required()
@@ -52,9 +56,13 @@ def get_dashboard_settings():
 
 @dashboard_settings_bp.route("/settings", methods=["PUT"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Update user dashboard settings."
+        }
     }
 })
 @jwt_required()
@@ -76,9 +84,13 @@ def update_dashboard_settings():
 
 @dashboard_settings_bp.route("/reset", methods=["POST"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Reset user dashboard settings to defaults."
+        }
     }
 })
 @jwt_required()
@@ -108,9 +120,13 @@ def reset_dashboard_settings():
 
 @dashboard_settings_bp.route("/widgets", methods=["GET"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Get list of available widget types."
+        }
     }
 })
 @jwt_required()
@@ -126,9 +142,13 @@ def get_available_widgets():
 
 @dashboard_settings_bp.route("/widgets", methods=["POST"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 @jwt_required()
@@ -140,10 +160,22 @@ def add_widget():
 
 @dashboard_settings_bp.route("/widgets/<widget_id>", methods=["DELETE"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "widget_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
 })
 @jwt_required()
 def remove_widget(widget_id):
@@ -181,10 +213,22 @@ def remove_widget(widget_id):
 
 @dashboard_settings_bp.route("/widgets/<widget_id>", methods=["PUT"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "widget_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
 })
 @jwt_required()
 def update_widget(widget_id):
@@ -254,9 +298,13 @@ def update_widget(widget_id):
 
 @dashboard_settings_bp.route("/widgets/positions", methods=["PUT"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 @jwt_required()
@@ -332,9 +380,13 @@ def update_widget_positions():
 
 @dashboard_settings_bp.route("/layout", methods=["PUT"])
 @swag_from({
-    "tags": ["Dashboard_Settings"],
+    "tags": [
+        "Dashboard_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Success"
+        }
     }
 })
 @jwt_required()

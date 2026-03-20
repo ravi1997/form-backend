@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 import json
 import re
 
@@ -500,6 +501,16 @@ from flask_jwt_extended import jwt_required
 
 
 @form_bp.route("/conditions/evaluate", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def evaluate_conditions_endpoint():
     """

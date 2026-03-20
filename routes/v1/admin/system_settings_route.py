@@ -19,9 +19,13 @@ system_settings_bp = Blueprint("system_settings", __name__)
 
 @system_settings_bp.route("/", methods=["GET"])
 @swag_from({
-    "tags": ["System_Settings"],
+    "tags": [
+        "System_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Retrieve the global system configuration."
+        }
     }
 })
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
@@ -37,10 +41,23 @@ def get_system_settings():
 
 @system_settings_bp.route("/", methods=["PUT"])
 @swag_from({
-    "tags": ["System_Settings"],
+    "tags": [
+        "System_Settings"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Update the global system configuration."
+        }
+    },
+    "parameters": [
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/SystemSettingsUpdateSchema"
+            }
+        }
+    ]
 })
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def update_system_settings():

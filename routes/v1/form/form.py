@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 """
 Core Form CRUD Routes
 Delegates all business logic to FormService.
@@ -23,6 +24,25 @@ form_service = FormService()
 
 
 @form_bp.route("/", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Create a new form. Sets the current user as creator and editor."
+        }
+    },
+    "parameters": [
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/FormCreateSchema"
+            }
+        }
+    ]
+})
 @jwt_required()
 def create_form():
     """Create a new form. Sets the current user as creator and editor."""
@@ -41,6 +61,16 @@ def create_form():
 
 
 @form_bp.route("/", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "List forms belonging to the current user's organization."
+        }
+    }
+})
 @jwt_required()
 def list_forms():
     """List forms belonging to the current user's organization."""
@@ -65,6 +95,24 @@ def list_forms():
 
 
 @form_bp.route("/<form_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Retrieve a single form, applying optional language filters."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 @require_permission("form", "view")
 def get_form(form_id):
@@ -94,6 +142,31 @@ def get_form(form_id):
 
 
 @form_bp.route("/<form_id>", methods=["PUT"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Update an existing form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/FormUpdateSchema"
+            }
+        }
+    ]
+})
 @jwt_required()
 @require_permission("form", "edit")
 def update_form(form_id):
@@ -110,6 +183,24 @@ def update_form(form_id):
 
 
 @form_bp.route("/<form_id>", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Soft delete a form."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 @require_permission("form", "delete_form")
 def delete_form(form_id):
@@ -128,6 +219,24 @@ def delete_form(form_id):
 
 
 @form_bp.route("/<form_id>/publish", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Publish a form asynchronously."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 @require_permission("form", "edit")
 def publish_form(form_id):
@@ -158,6 +267,24 @@ def publish_form(form_id):
 
 
 @form_bp.route("/<form_id>/clone", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Clone a form asynchronously."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 @require_permission("form", "view")
 def clone_form(form_id):
@@ -189,6 +316,16 @@ def clone_form(form_id):
 
 
 @form_bp.route("/templates", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "List templates accessible to the current user."
+        }
+    }
+})
 @jwt_required()
 def list_form_templates():
     """List templates accessible to the current user."""
@@ -210,6 +347,24 @@ def list_form_templates():
 
 
 @form_bp.route("/templates/<template_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Retrieve a single template."
+        }
+    },
+    "parameters": [
+        {
+            "name": "template_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_form_template_endpoint(template_id):
     """Retrieve a single template."""
@@ -231,6 +386,24 @@ def get_form_template_endpoint(template_id):
 
 
 @form_bp.route("/<form_id>/translations", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Update translation strings for a given language code."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def update_form_translations(form_id):
     """Update translation strings for a given language code."""

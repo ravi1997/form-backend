@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from routes.v1.form.helper import get_current_user, has_form_permission
 from routes.v1.form import form_bp
 from flask import current_app, request, jsonify, send_file
@@ -9,6 +10,36 @@ import os
 
 
 @form_bp.route("/<form_id>/files/<question_id>/<filename>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Serve uploaded files. Can be accessed by users with view permissions or for public forms"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "question_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "filename",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 def get_file(form_id, question_id, filename):
     """Serve uploaded files. Can be accessed by users with view permissions or for public forms"""
     try:
@@ -64,6 +95,16 @@ def get_file(form_id, question_id, filename):
 
 @jwt_required()
 @form_bp.route("/upload", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 def upload_file_endpoint():
     try:
         if "file" not in request.files:
@@ -108,6 +149,16 @@ def upload_file_endpoint():
 
 
 @form_bp.route("/signatures", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def upload_signature_endpoint():
     try:

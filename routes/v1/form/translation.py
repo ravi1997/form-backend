@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from models import Form
@@ -12,6 +13,16 @@ translation_bp = Blueprint("translation", __name__)
 
 
 @translation_bp.route("", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def get_translations():
     form_id = request.args.get("form_id")
@@ -49,6 +60,16 @@ def get_translations():
 
 
 @translation_bp.route("", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def save_translations():
     data = request.get_json()
@@ -81,6 +102,16 @@ def save_translations():
 
 
 @translation_bp.route("/languages", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def list_languages():
     languages = [
@@ -101,6 +132,16 @@ def list_languages():
 
 
 @translation_bp.route("/preview", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def preview_translation():
     data = request.get_json()
@@ -116,6 +157,16 @@ def preview_translation():
 
 
 @translation_bp.route("/jobs", methods=["GET", "POST"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def handle_jobs():
     if request.method == "GET":
@@ -166,6 +217,24 @@ def handle_jobs():
 
 
 @translation_bp.route("/jobs/<job_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "job_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_job_status(job_id):
     try:
@@ -176,6 +245,24 @@ def get_job_status(job_id):
 
 
 @translation_bp.route("/jobs/<job_id>/cancel", methods=["PATCH"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "job_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def cancel_job(job_id):
     try:
@@ -190,6 +277,24 @@ def cancel_job(job_id):
 
 
 @translation_bp.route("/jobs/<job_id>", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "job_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def delete_job(job_id):
     try:
@@ -201,6 +306,24 @@ def delete_job(job_id):
 
 
 @translation_bp.route("/jobs/<job_id>/content", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Translation"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "job_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_translated_content(job_id):
     try:

@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from datetime import datetime, timezone
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required
@@ -10,6 +11,24 @@ from utils.security import require_roles
 
 # -------------------- Schedule Form Expiration --------------------
 @form_bp.route("/<form_id>/expire", methods=["PATCH"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Set a date when the form automatically becomes unavailable."
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def set_form_expiration(form_id):
     """Admin only: Set a date when the form automatically becomes unavailable."""
@@ -36,6 +55,16 @@ def set_form_expiration(form_id):
 
 
 @form_bp.route("/expired", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: List all forms that have passed their expiration date."
+        }
+    }
+})
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def list_expired_forms():
     """Admin only: List all forms that have passed their expiration date."""

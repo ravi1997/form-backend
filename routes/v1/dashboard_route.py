@@ -19,10 +19,23 @@ dashboard_service = DashboardService()
 
 @dashboard_bp.route("/", methods=["POST"])
 @swag_from({
-    "tags": ["Dashboard"],
+    "tags": [
+        "Dashboard"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Create a new Dashboard configuration."
+        }
+    },
+    "parameters": [
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/DashboardCreateSchema"
+            }
+        }
+    ]
 })
 @jwt_required()
 @require_permission("dashboard", "create")
@@ -132,10 +145,22 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str):
 
 @dashboard_bp.route("/<slug>", methods=["GET"])
 @swag_from({
-    "tags": ["Dashboard"],
+    "tags": [
+        "Dashboard"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Get dashboard details AND fetch data for widgets."
+        }
+    },
+    "parameters": [
+        {
+            "name": "slug",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
 })
 @jwt_required()
 @require_permission("dashboard", "view")
@@ -162,10 +187,29 @@ def get_dashboard(slug):
 
 @dashboard_bp.route("/<dashboard_id>", methods=["PUT"])
 @swag_from({
-    "tags": ["Dashboard"],
+    "tags": [
+        "Dashboard"
+    ],
     "responses": {
-        "200": {"description": "Success"}
-    }
+        "200": {
+            "description": "Update Dashboard configuration."
+        }
+    },
+    "parameters": [
+        {
+            "name": "dashboard_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "body",
+            "in": "body",
+            "schema": {
+                "$ref": "#/definitions/DashboardUpdateSchema"
+            }
+        }
+    ]
 })
 @jwt_required()
 @require_permission("dashboard", "edit")

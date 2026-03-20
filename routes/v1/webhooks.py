@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+from flasgger import swag_from
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timezone
 from services.webhook_service import WebhookService
@@ -11,6 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 @webhooks_bp.route("/deliver", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "Trigger webhook delivery. Restricted to managers and above."
+        }
+    }
+})
 @require_roles("admin", "superadmin", "manager")
 def deliver_webhook():
     """Trigger webhook delivery. Restricted to managers and above."""
@@ -54,6 +65,24 @@ def deliver_webhook():
 
 
 @webhooks_bp.route("/<delivery_id>/status", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "View status of a specific delivery."
+        }
+    },
+    "parameters": [
+        {
+            "name": "delivery_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_webhook_status(delivery_id: str):
     """View status of a specific delivery."""
@@ -67,7 +96,35 @@ def get_webhook_status(delivery_id: str):
 
 
 @webhooks_bp.route("/history", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "View system-wide or specific delivery history. Manager restricted."
+        }
+    }
+})
 @webhooks_bp.route("/<delivery_id>/history", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "View system-wide or specific delivery history. Manager restricted."
+        }
+    },
+    "parameters": [
+        {
+            "name": "delivery_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles("admin", "superadmin", "manager")
 def get_webhook_history(delivery_id=None):
     """View system-wide or specific delivery history. Manager restricted."""
@@ -91,6 +148,24 @@ def get_webhook_history(delivery_id=None):
 
 
 @webhooks_bp.route("/<delivery_id>/retry", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Manually retry a failed delivery."
+        }
+    },
+    "parameters": [
+        {
+            "name": "delivery_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles("admin", "superadmin")
 def retry_webhook(delivery_id: str):
     """Admin only: Manually retry a failed delivery."""
@@ -104,6 +179,24 @@ def retry_webhook(delivery_id: str):
 
 
 @webhooks_bp.route("/<delivery_id>/cancel", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Cancel a pending/retrying delivery."
+        }
+    },
+    "parameters": [
+        {
+            "name": "delivery_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @require_roles("admin", "superadmin")
 def cancel_webhook(delivery_id: str):
     """Admin only: Cancel a pending/retrying delivery."""
@@ -115,6 +208,16 @@ def cancel_webhook(delivery_id: str):
 
 
 @webhooks_bp.route("/test", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Test webhook delivery to a specific URL."
+        }
+    }
+})
 @require_roles("admin", "superadmin")
 @limiter.limit("5 per minute")
 def test_webhook():
@@ -141,6 +244,16 @@ def test_webhook():
 
 
 @webhooks_bp.route("/logs", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Webhooks"
+    ],
+    "responses": {
+        "200": {
+            "description": "Admin only: Retrieve low-level delivery logs."
+        }
+    }
+})
 @require_roles("admin", "superadmin")
 def get_webhook_logs():
     """Admin only: Retrieve low-level delivery logs."""

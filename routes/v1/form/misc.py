@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from datetime import datetime, timezone
 from routes.v1.form.helper import get_current_user
 from routes.v1.form import form_bp
@@ -13,6 +14,24 @@ import json
 
 # -------------------- Public Anonymous Submission --------------------
 @form_bp.route("/<form_id>/public-submit", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 def submit_public_response(form_id):
     data = request.get_json()
     try:
@@ -91,6 +110,24 @@ def submit_public_response(form_id):
 
 
 @form_bp.route("/<string:form_id>/history", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def form_submission_history(form_id):
     current_user = get_current_user()
@@ -169,6 +206,24 @@ def form_submission_history(form_id):
 
 # -------------------- Workflow Next Action Check --------------------
 @form_bp.route("/<form_id>/next-action", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def check_next_action(form_id):
     """

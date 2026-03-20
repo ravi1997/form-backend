@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from models import Form, FormResponse
@@ -16,6 +17,16 @@ ai_bp = Blueprint("ai", __name__)
 
 
 @ai_bp.route("/health", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 def ai_health_check():
     logger = current_app.logger
     logger.info("--- AI Health Check branch started ---")
@@ -138,6 +149,30 @@ def simple_sentiment_analyzer(text: str) -> Tuple[str, int]:
 
 
 @ai_bp.route("/<form_id>/responses/<response_id>/analyze", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "response_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     logger = current_app.logger
@@ -212,6 +247,30 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/responses/<response_id>/moderate", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "response_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     logger = current_app.logger
@@ -333,6 +392,16 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/generate", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def generate_form_ai() -> Tuple[Any, int]:
     logger = current_app.logger
@@ -363,6 +432,16 @@ def generate_form_ai() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/suggestions", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def get_field_suggestions() -> Tuple[Any, int]:
     """
@@ -416,6 +495,24 @@ def get_field_suggestions() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/validate-design", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def validate_form_design(form_id: str) -> Tuple[Any, int]:
     """
@@ -437,6 +534,16 @@ def validate_form_design(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/templates", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def list_ai_templates() -> Tuple[Any, int]:
     """
@@ -454,6 +561,24 @@ def list_ai_templates() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/templates/<template_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "template_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_ai_template(template_id: str) -> Tuple[Any, int]:
     """
@@ -523,6 +648,24 @@ def get_ai_template(template_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/sentiment", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
     logger = current_app.logger
@@ -575,6 +718,24 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/search", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def ai_powered_search(form_id: str) -> Tuple[Any, int]:
     logger = current_app.logger
@@ -847,6 +1008,24 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/anomalies", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
     logger = current_app.logger
@@ -970,6 +1149,24 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/anomaly-detect", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
     logger = current_app.logger
@@ -1300,6 +1497,24 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/security-scan", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
     """
@@ -1409,6 +1624,16 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/cross-analysis", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def compare_forms_ai() -> Tuple[Any, int]:
     """
@@ -1502,6 +1727,24 @@ def compare_forms_ai() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/summarize", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
     """
@@ -1761,6 +2004,24 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/export", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
     """
@@ -2092,6 +2353,24 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/cache/invalidate", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
     """
@@ -2177,6 +2456,24 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/cache", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Ai"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def clear_form_cache(form_id: str) -> Tuple[Any, int]:
     """

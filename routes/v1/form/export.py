@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 import csv
 import io
 import json
@@ -81,6 +82,24 @@ def generate_form_csv(form, responses):
 
 # -------------------- Export to CSV --------------------
 @form_bp.route("/<form_id>/export/csv", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def export_responses_csv(form_id):
     try:
@@ -104,6 +123,24 @@ def export_responses_csv(form_id):
 
 
 @form_bp.route("/<form_id>/export/json", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def export_form_with_responses(form_id):
     try:
@@ -132,6 +169,16 @@ def export_form_with_responses(form_id):
 
 # -------------------- Bulk Export --------------------
 @form_bp.route("/export/bulk", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Form"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 @jwt_required()
 def export_bulk_responses():
     try:

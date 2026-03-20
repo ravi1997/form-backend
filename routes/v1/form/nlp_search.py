@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 """
 NLP Search Routes
 
@@ -31,6 +32,24 @@ nlp_search_bp = Blueprint("nlp_search", __name__, url_prefix="/api/v1/ai/forms")
 
 
 @nlp_search_bp.route("/<form_id>/nlp-search", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def nlp_search(form_id: str):
     """
@@ -237,6 +256,24 @@ def nlp_search(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/semantic-search", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def semantic_search(form_id: str):
     """
@@ -402,6 +439,24 @@ def semantic_search(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/semantic-search/stream", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def semantic_search_stream(form_id: str):
     """
@@ -563,6 +618,24 @@ def semantic_search_stream(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-stats", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def search_stats(form_id: str):
     """
@@ -604,6 +677,24 @@ def search_stats(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/query-suggestions", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def query_suggestions(form_id: str):
     """
@@ -664,6 +755,16 @@ def query_suggestions(form_id: str):
 
 
 @nlp_search_bp.route("/health", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    }
+})
 def health_check():
     """
     Health check for NLP search service.
@@ -691,6 +792,24 @@ def health_check():
 
 
 @nlp_search_bp.route("/<form_id>/search-history", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_search_history(form_id: str):
     """
@@ -763,6 +882,24 @@ def get_search_history(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-history", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def save_search_history(form_id: str):
     """
@@ -830,6 +967,24 @@ def save_search_history(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-history", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def clear_search_history(form_id: str):
     """
@@ -877,6 +1032,30 @@ def clear_search_history(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-history/<search_id>", methods=["DELETE"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        },
+        {
+            "name": "search_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def delete_search_history_item(form_id: str, search_id: str):
     """
@@ -924,6 +1103,24 @@ def delete_search_history_item(form_id: str, search_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/popular-queries", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Nlp_Search"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_popular_queries(form_id: str):
     """

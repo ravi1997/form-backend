@@ -42,4 +42,37 @@ limiter = Limiter(
     storage_uri=limiter_storage
 )
 talisman = Talisman()
-swagger = Swagger()
+
+# --- Swagger Global Configuration ---
+template = {
+    "swagger": "2.0",
+    "info": {
+        "title": "Forms Backend API",
+        "description": "Comprehensive API for managing forms, responses, and AI analysis.",
+        "version": "1.0.0"
+    },
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\""
+        }
+    }
+}
+
+# Try to load generated definitions for Flasgger
+# This provides all Pydantic models as OpenAPI definitions
+try:
+    import json
+    import os
+    # Try multiple possible paths to accommodate different launch contexts
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    def_path = os.path.join(base_path, "docs/swagger_definitions.json")
+    if os.path.exists(def_path):
+        with open(def_path, "r") as f:
+            template["definitions"] = json.load(f)
+except Exception:
+    pass
+
+swagger = Swagger(template=template)

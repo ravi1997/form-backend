@@ -19,9 +19,13 @@ sms_bp = Blueprint("sms", __name__, url_prefix="/api/v1/sms")
 
 @sms_bp.route("/single", methods=["POST"])
 @swag_from({
-    "tags": ["Sms"],
+    "tags": [
+        "Sms"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Forward a single SMS request to the external provider."
+        }
     }
 })
 @require_roles("admin", "superadmin", "manager")
@@ -59,9 +63,13 @@ def send_single_sms():
 
 @sms_bp.route("/otp", methods=["POST"])
 @swag_from({
-    "tags": ["Sms"],
+    "tags": [
+        "Sms"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Manually send an OTP. Restrict to admins to prevent spam."
+        }
     }
 })
 @require_roles("admin", "superadmin") # Internal service tool
@@ -91,9 +99,13 @@ def send_otp():
 
 @sms_bp.route("/notify", methods=["POST"])
 @swag_from({
-    "tags": ["Sms"],
+    "tags": [
+        "Sms"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Send triggered notifications."
+        }
     }
 })
 @require_roles("admin", "superadmin", "manager")
@@ -123,9 +135,13 @@ def send_notification():
 
 @sms_bp.route("/health", methods=["GET"])
 @swag_from({
-    "tags": ["Sms"],
+    "tags": [
+        "Sms"
+    ],
     "responses": {
-        "200": {"description": "Success"}
+        "200": {
+            "description": "Verify SMS provider connectivity."
+        }
     }
 })
 @jwt_required()

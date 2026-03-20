@@ -1,4 +1,5 @@
 from . import form_bp
+from flasgger import swag_from
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from models import Form
@@ -9,6 +10,24 @@ permissions_bp = Blueprint("permissions", __name__)
 
 
 @permissions_bp.route("/<form_id>/permissions", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Permissions"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def get_form_permissions(form_id):
     try:
@@ -32,6 +51,24 @@ def get_form_permissions(form_id):
 
 
 @permissions_bp.route("/<form_id>/permissions", methods=["POST"])
+@swag_from({
+    "tags": [
+        "Permissions"
+    ],
+    "responses": {
+        "200": {
+            "description": "Success"
+        }
+    },
+    "parameters": [
+        {
+            "name": "form_id",
+            "in": "path",
+            "type": "string",
+            "required": true
+        }
+    ]
+})
 @jwt_required()
 def update_form_permissions(form_id):
     try:
