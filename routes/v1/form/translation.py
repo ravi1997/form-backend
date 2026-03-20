@@ -231,7 +231,7 @@ def handle_jobs():
             "name": "job_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -259,7 +259,7 @@ def get_job_status(job_id):
             "name": "job_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -291,7 +291,7 @@ def cancel_job(job_id):
             "name": "job_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -320,7 +320,7 @@ def delete_job(job_id):
             "name": "job_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

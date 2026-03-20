@@ -27,7 +27,7 @@ from collections import Counter, defaultdict
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -84,7 +84,7 @@ def get_analytics_summary(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -137,7 +137,7 @@ def get_analytics_timeline(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -237,7 +237,7 @@ def get_analytics_distribution(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

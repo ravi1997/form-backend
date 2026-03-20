@@ -34,7 +34,7 @@ anomaly_bp = Blueprint("anomaly", __name__, url_prefix="/api/v1/ai/forms")
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -49,8 +49,8 @@ def detect_anomalies(form_id: str):
             "response_ids": ["id1", "id2"],  // Optional
             "detection_types": ["spam", "outlier", "impossible_value", "duplicate"],
             "sensitivity": "auto" | "low" | "medium" | "high",
-            "use_dynamic_thresholds": true,  // Use thresholds from database
-            "save_results": true
+            "use_dynamic_thresholds": True,  // Use thresholds from database
+            "save_results": True
         }
 
     Returns:
@@ -147,13 +147,13 @@ def detect_anomalies(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "response_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -234,7 +234,7 @@ def get_anomaly_details(form_id: str, response_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -288,13 +288,13 @@ def get_anomaly_stats(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "response_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -352,7 +352,7 @@ def submit_anomaly_feedback(form_id: str, response_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -403,7 +403,7 @@ def update_anomaly_baseline(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -448,7 +448,7 @@ def get_threshold_history(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -469,7 +469,7 @@ def get_latest_threshold(form_id: str):
             "baseline_stats": {...},
             "response_count": 150,
             "created_by": "user_123",
-            "is_manual": false
+            "is_manual": False
         }
     """
     get_current_user()
@@ -502,7 +502,7 @@ def get_latest_threshold(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -572,7 +572,7 @@ def set_manual_threshold(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -587,7 +587,7 @@ def detect_anomalies_batch(form_id: str):
             "scan_config": {
                 "detection_types": ["spam", "outlier"],  // Optional
                 "sensitivity": "medium",  // Optional: "auto", "low", "medium", "high"
-                "use_dynamic_thresholds": false  // Optional
+                "use_dynamic_thresholds": False  // Optional
             },
             "batch_id": "batch_123"  // Optional: Custom batch ID
         }

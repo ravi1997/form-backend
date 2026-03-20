@@ -24,7 +24,7 @@ permissions_bp = Blueprint("permissions", __name__)
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -65,7 +65,7 @@ def get_form_permissions(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

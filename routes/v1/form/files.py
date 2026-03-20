@@ -24,19 +24,19 @@ import os
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "question_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "filename",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

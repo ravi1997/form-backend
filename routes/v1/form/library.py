@@ -174,7 +174,7 @@ def save_field_template():
             "name": "template_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -234,7 +234,7 @@ def get_field_template(template_id):
             "name": "template_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

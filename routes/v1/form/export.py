@@ -96,7 +96,7 @@ def generate_form_csv(form, responses):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -137,7 +137,7 @@ def export_responses_csv(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

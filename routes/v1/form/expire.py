@@ -25,7 +25,7 @@ from utils.security import require_roles
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

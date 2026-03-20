@@ -267,11 +267,7 @@ def refresh():
 def logout():
     """Revoke the current JWT session."""
     try:
-        # Revoke the access token
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            auth_service.revoke_token(token)
+        auth_service.revoke_token_payload(get_jwt())
 
         resp = success_response(message="Successfully logged out")
         unset_jwt_cookies(resp)

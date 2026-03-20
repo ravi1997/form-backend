@@ -153,7 +153,7 @@ def list_workflows():
             "name": "workflow_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -218,7 +218,7 @@ def get_workflow(workflow_id):
             "name": "workflow_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

@@ -44,7 +44,7 @@ def get_event_health():
             "name": "org_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

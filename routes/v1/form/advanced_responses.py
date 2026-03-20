@@ -87,7 +87,7 @@ def fetch_external_form_data():
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -148,7 +148,7 @@ def fetch_same_form_data(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -212,7 +212,7 @@ def fetch_specific_questions(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -296,7 +296,7 @@ def micro_info():
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -381,7 +381,7 @@ def get_form_access_control(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

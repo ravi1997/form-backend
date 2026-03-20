@@ -45,7 +45,7 @@ summarization_bp = Blueprint("summarization", __name__, url_prefix="/api/v1/ai/f
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -62,9 +62,9 @@ def summarize(form_id: str):
             "config": {},
             "max_points": 5,
             "detail_level": "standard",
-            "include_examples": true,
+            "include_examples": True,
             "fallback_models": ["llama3.1", "mistral:7b", "gemma:2b"],
-            "save_snapshot": true
+            "save_snapshot": True
         }
     """
     user = get_current_user()
@@ -191,7 +191,7 @@ def summarize(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -208,14 +208,14 @@ def summarize_stream(form_id: str):
             "config": {},
             "max_points": 5,
             "detail_level": "standard",
-            "include_examples": true,
+            "include_examples": True,
             "fallback_models": ["llama3.1", "mistral:7b", "gemma:2b"]
         }
 
     Returns Server-Sent Events (SSE) stream:
-        data: { "content": "partial text", "done": false }
+        data: { "content": "partial text", "done": False }
         ...
-        data: { "content": "", "done": true, "model_used": "llama3.2", "responses_analyzed": 150 }
+        data: { "content": "", "done": True, "model_used": "llama3.2", "responses_analyzed": 150 }
     """
     get_current_user()
     data = request.get_json() or {}
@@ -364,7 +364,7 @@ def summarize_stream(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -380,7 +380,7 @@ def executive_summary(form_id: str):
             "tone": "formal",
             "max_points": 5,
             "detail_level": "standard",
-            "include_examples": true,
+            "include_examples": True,
             "fallback_models": ["llama3.1", "mistral:7b", "gemma:2b"]
         }
     """
@@ -435,7 +435,7 @@ def executive_summary(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -447,11 +447,11 @@ def theme_summary(form_id: str):
     Request Body:
         {
             "themes": ["delivery", "product", "support", "pricing"],
-            "include_quote_examples": true,
-            "sentiment_per_theme": true,
+            "include_quote_examples": True,
+            "sentiment_per_theme": True,
             "max_points": 5,
             "detail_level": "standard",
-            "include_examples": true,
+            "include_examples": True,
             "fallback_models": ["llama3.1", "mistral:7b", "gemma:2b"]
         }
     """
@@ -519,7 +519,7 @@ def theme_summary(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -652,7 +652,7 @@ def summary_comparison(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -708,7 +708,7 @@ def summary_trends(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

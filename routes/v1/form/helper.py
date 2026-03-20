@@ -26,6 +26,10 @@ def has_form_permission(user, form, action):
     user_roles = user.roles or []
     user_dept = getattr(user, "department", None)
 
+    # Enforce tenant isolation before evaluating role or policy permissions.
+    if getattr(user, "organization_id", None) != getattr(form, "organization_id", None):
+        return False
+
     # Superadmin always has all permissions
     if hasattr(user, "is_superadmin_check") and user.is_superadmin_check():
         return True

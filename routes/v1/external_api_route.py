@@ -20,7 +20,7 @@ external_api_bp = Blueprint("external_api", __name__)
             "name": "uhid",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -47,7 +47,7 @@ def get_uhid_details(uhid):
             "name": "employee_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

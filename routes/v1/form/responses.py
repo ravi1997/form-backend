@@ -25,7 +25,7 @@ response_service = FormResponseService()
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "body",
@@ -48,7 +48,7 @@ def submit_response(form_id):
         form = Form.objects.get(id=form_id, is_deleted=False)
         
         # 1. Permission Check
-        if not has_form_permission(form, current_user, "submit"):
+        if not has_form_permission(current_user, form, "submit"):
             return jsonify({"error": "You do not have permission to submit to this form"}), 403
             
         # 2. Validation & Service Call
@@ -95,7 +95,7 @@ def submit_response(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -111,7 +111,7 @@ def list_responses(form_id):
     try:
         form = Form.objects.get(id=form_id, is_deleted=False)
         
-        if not has_form_permission(form, current_user, "view_responses"):
+        if not has_form_permission(current_user, form, "view_responses"):
             return jsonify({"error": "You do not have permission to view responses for this form"}), 403
             
         result = response_service.list_by_form(

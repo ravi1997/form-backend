@@ -79,7 +79,7 @@ def deliver_webhook():
             "name": "delivery_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -95,7 +95,7 @@ def get_webhook_status(delivery_id: str):
         return jsonify({"error": str(e)}), 500
 
 
-@webhooks_bp.route("/history", methods=["GET"])
+@webhooks_bp.route("/history", methods=["GET"], endpoint="get_webhook_history")
 @swag_from({
     "tags": [
         "Webhooks"
@@ -106,7 +106,7 @@ def get_webhook_status(delivery_id: str):
         }
     }
 })
-@webhooks_bp.route("/<delivery_id>/history", methods=["GET"])
+@webhooks_bp.route("/<delivery_id>/history", methods=["GET"], endpoint="get_webhook_history_by_id")
 @swag_from({
     "tags": [
         "Webhooks"
@@ -121,7 +121,7 @@ def get_webhook_status(delivery_id: str):
             "name": "delivery_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -162,7 +162,7 @@ def get_webhook_history(delivery_id=None):
             "name": "delivery_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -193,7 +193,7 @@ def retry_webhook(delivery_id: str):
             "name": "delivery_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

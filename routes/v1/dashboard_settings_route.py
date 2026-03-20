@@ -173,7 +173,7 @@ def add_widget():
             "name": "widget_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -226,7 +226,7 @@ def remove_widget(widget_id):
             "name": "widget_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -243,7 +243,7 @@ def update_widget(widget_id):
             "position": {"x": 0, "y": 4},  // Optional new position
             "size": {"w": 2, "h": 2},      // Optional new size
             "config": {...},               // Optional config updates
-            "is_visible": true             // Optional visibility
+            "is_visible": True             // Optional visibility
         }
 
     Returns:

@@ -40,7 +40,7 @@ def ai_health_check():
         "status": "healthy" | "degraded" | "unavailable",
         "ollama": {
             "status": "healthy" | "degraded" | "unavailable",
-            "available": true,
+            "available": True,
             "models": ["llama3.2", "nomic-embed-text"],
             "default_model": "llama3.2",
             "embedding_model": "nomic-embed-text",
@@ -163,13 +163,13 @@ def simple_sentiment_analyzer(text: str) -> Tuple[str, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "response_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -261,13 +261,13 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "response_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -509,7 +509,7 @@ def get_field_suggestions() -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -575,7 +575,7 @@ def list_ai_templates() -> Tuple[Any, int]:
             "name": "template_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -662,7 +662,7 @@ def get_ai_template(template_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -732,7 +732,7 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -754,7 +754,7 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
     
     Payload: {
         "query": "search query text",
-        "nocache": false (optional, default: false)
+        "nocache": False (optional, default: False)
     }
     """
     try:
@@ -1022,7 +1022,7 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1163,7 +1163,7 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1511,7 +1511,7 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1741,7 +1741,7 @@ def compare_forms_ai() -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1755,8 +1755,8 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
     Payload: {
         "response_ids": ["id1", "id2", ...] (optional, defaults to all responses),
         "max_bullet_points": 3,
-        "include_sentiment": true,
-        "nocache": false (optional, default: false)
+        "include_sentiment": True,
+        "nocache": False (optional, default: False)
     }
     """
     try:
@@ -2018,7 +2018,7 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -2032,8 +2032,8 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
 
     Payload: {
         "format": "pdf" | "excel" | "csv" | "json",
-        "include_raw_data": true,
-        "include_charts": true
+        "include_raw_data": True,
+        "include_charts": True
     }
 
     Returns JSON data that can be converted to the requested format by the frontend.
@@ -2367,7 +2367,7 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -2470,7 +2470,7 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })

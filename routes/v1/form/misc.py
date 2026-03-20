@@ -10,6 +10,7 @@ from models import Form, FormResponse
 from utils.exceptions import NotFoundError, ValidationError, ForbiddenError, ServiceError
 from utils.response_helper import success_response, error_response
 import json
+from utils.script_engine import execute_safe_script
 
 
 # -------------------- Public Anonymous Submission --------------------
@@ -28,7 +29,7 @@ import json
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -77,6 +78,7 @@ def submit_public_response(form_id):
 
         response = FormResponse(
             form=form.id,
+            organization_id=form.organization_id,
             submitted_by="anonymous",
             data=cleaned_data,
             submitted_at=datetime.now(timezone.utc),
@@ -124,7 +126,7 @@ def submit_public_response(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -220,7 +222,7 @@ def form_submission_history(form_id):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -240,24 +242,19 @@ def check_next_action(form_id):
     current_app.logger.info(f"--- Check Next Action for form_id: {form_id} ---")
     try:
         from models.Workflow import FormWorkflow
-
-        try:
-            from utils.script_engine import execute_safe_script
-        except ImportError:
-
-            def execute_safe_script(script, input_data=None, additional_globals=None):
-                ctx = dict(additional_globals or {})
-                try:
-                    exec(compile(script, "<string>", "exec"), ctx)
-                except Exception:
-                    pass
-                return {"result": ctx.get("result", False)}
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({"error": "Unauthorized"}), 401
 
         # Verify form exists
-        form = Form.objects(id=form_id).first()
+        form = Form.objects(
+            id=form_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        ).first()
         if not form:
             current_app.logger.warning(
-                f"Check Next Action failed: Form {form_id} not found"
+                f"Check Next Action failed: Form {form_id} not found in org {current_user.organization_id}"
             )
             return jsonify({"error": "Form not found"}), 404
 
@@ -266,7 +263,12 @@ def check_next_action(form_id):
 
         if response_id:
             # Check workflows for a specific response
-            response = FormResponse.objects(id=response_id, form=form.id).first()
+            response = FormResponse.objects(
+                id=response_id,
+                form=form.id,
+                organization_id=current_user.organization_id,
+                is_deleted=False,
+            ).first()
             if not response:
                 current_app.logger.warning(
                     f"Check Next Action failed: Response {response_id} not found"

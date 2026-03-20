@@ -46,7 +46,7 @@ nlp_search_bp = Blueprint("nlp_search", __name__, url_prefix="/api/v1/ai/forms")
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -60,9 +60,9 @@ def nlp_search(form_id: str):
             "query": "Show me all users who were unhappy with delivery",
             "options": {
                 "max_results": 50,
-                "include_sentiment": true,
-                "semantic_search": true,
-                "cache_results": true,
+                "include_sentiment": True,
+                "semantic_search": True,
+                "cache_results": True,
                 "fallback_models": ["llama3.1", "mistral:7b", "gemma:2b"]
             },
             "filters": {
@@ -93,7 +93,7 @@ def nlp_search(form_id: str):
             "results_count": 15,
             "results": [...],
             "processing_time_ms": 245,
-            "cached": false,
+            "cached": False,
             "filters_applied": {...}
         }
     """
@@ -270,7 +270,7 @@ def nlp_search(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -453,7 +453,7 @@ def semantic_search(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -479,9 +479,9 @@ def semantic_search_stream(form_id: str):
         }
 
     Returns Server-Sent Events (SSE) stream:
-        data: { "content": "partial text", "done": false }
+        data: { "content": "partial text", "done": False }
         ...
-        data: { "content": "", "done": true, "model_used": "llama3.2", "results_count": 8 }
+        data: { "content": "", "done": True, "model_used": "llama3.2", "results_count": 8 }
     """
     get_current_user()
     data = request.get_json()
@@ -632,7 +632,7 @@ def semantic_search_stream(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -645,7 +645,7 @@ def search_stats(form_id: str):
         {
             "total_responses": 250,
             "indexed_responses": 250,
-            "ollama_available": true,
+            "ollama_available": True,
             "supported_query_types": ["sentiment", "topic", "semantic", "time"]
         }
     """
@@ -691,7 +691,7 @@ def search_stats(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -714,9 +714,9 @@ def query_suggestions(form_id: str):
             "form_id": "form123",
             "query": "del",
             "suggestions": [
-                {"text": "delivery", "count": 98, "match_score": 0.92, "is_form_term": false},
-                {"text": "delivered", "count": 45, "match_score": 0.88, "is_form_term": false},
-                {"text": "delay", "count": 23, "match_score": 0.75, "is_form_term": true}
+                {"text": "delivery", "count": 98, "match_score": 0.92, "is_form_term": False},
+                {"text": "delivered", "count": 45, "match_score": 0.88, "is_form_term": False},
+                {"text": "delay", "count": 23, "match_score": 0.75, "is_form_term": True}
             ],
             "total_suggestions": 3
         }
@@ -806,7 +806,7 @@ def health_check():
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -830,7 +830,7 @@ def get_search_history(form_id: str):
                     "timestamp": "2024-01-15T10:30:00Z",
                     "results_count": 15,
                     "search_type": "nlp",
-                    "cached": false
+                    "cached": False
                 }
             ],
             "total": 50,
@@ -896,7 +896,7 @@ def get_search_history(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -911,7 +911,7 @@ def save_search_history(form_id: str):
             "results_count": 15,
             "parsed_intent": {...},
             "search_type": "nlp",
-            "cached": false
+            "cached": False
         }
 
     Returns:
@@ -981,7 +981,7 @@ def save_search_history(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1046,13 +1046,13 @@ def clear_search_history(form_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "search_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1117,7 +1117,7 @@ def delete_search_history_item(form_id: str, search_id: str):
             "name": "form_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -1140,7 +1140,7 @@ def get_popular_queries(form_id: str):
                 {"query": "product quality", "count": 32},
                 {"query": "customer support", "count": 28}
             ],
-            "cached": true
+            "cached": True
         }
     """
     get_current_user()

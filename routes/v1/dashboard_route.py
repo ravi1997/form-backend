@@ -158,7 +158,7 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str):
             "name": "slug",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -200,7 +200,7 @@ def get_dashboard(slug):
             "name": "dashboard_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "body",

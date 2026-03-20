@@ -121,7 +121,7 @@ def list_users():
             "name": "user_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -190,7 +190,7 @@ def create_user():
             "name": "user_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         },
         {
             "name": "body",
@@ -228,7 +228,7 @@ def update_user_by_id(user_id):
             "name": "user_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -257,7 +257,7 @@ def delete_user_by_id(user_id):
             "name": "user_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
@@ -287,7 +287,7 @@ def lock_user_account(user_id):
             "name": "user_id",
             "in": "path",
             "type": "string",
-            "required": true
+            "required": True
         }
     ]
 })
