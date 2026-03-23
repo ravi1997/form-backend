@@ -80,9 +80,7 @@ class ResponseTemplateSchema(BaseEmbeddedSchema):
 
 class QuestionSchema(BaseEmbeddedSchema):
     label: str = Field(..., max_length=255)
-    field_type: Literal[
-        "input", "textarea", "number", "email", "mobile", "url", "password"
-    ]
+    field_type: str # Allow all from FIELD_TYPE_CHOICES
     help_text: Optional[str] = None
     default_value: Optional[str] = None
     order: int = Field(default=0, ge=0)
@@ -113,16 +111,7 @@ class SectionLogicSchema(LogicComponentSchema):
 
 
 class SectionUISchema(UIComponentSchema):
-    layout_type: Literal[
-        "flex",
-        "grid-cols-2",
-        "tabbed",
-        "custom",
-        "grid-cols-3",
-        "full-width",
-        "cards",
-        "card",
-    ] = "flex"
+    layout_type: str = "flex" # Allow all from UI_TYPE_CHOICES
 
 
 SectionSchemaStruct = ForwardRef("SectionSchemaStruct")

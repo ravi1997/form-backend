@@ -24,6 +24,7 @@ class UserSchema(SoftDeleteBaseSchema):
             "admin",
             "user",
             "creator",
+            "approver",
             "editor",
             "publisher",
             "deo",

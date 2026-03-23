@@ -25,7 +25,7 @@ class SoftDeleteBaseSchema(BaseSchema):
 class InboundPayloadSchema:
     """Schema mixin for rigorous inbound payload constraints."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
 
 class BaseEmbeddedSchema(BaseModel):
@@ -46,6 +46,7 @@ class PaginatedResult(BaseModel):
     page: int
     page_size: int
     has_next: bool
+    success: bool = True
 
     def to_dict(self):
         return self.model_dump()
