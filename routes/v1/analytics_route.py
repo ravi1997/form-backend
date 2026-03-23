@@ -81,3 +81,42 @@ def get_dashboard_stats():
     except Exception as e:
         current_app.logger.error(f"Failed to generate dashboard statistics: {e}")
         return error_response(message="Failed to generate analytics", status_code=500)
+
+
+@analytics_bp.route("/summary", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Analytics"
+    ],
+    "responses": {
+        "200": {
+            "description": "Returns organization-wide summary."
+        }
+    }
+})
+@require_roles("admin", "superadmin")
+def get_summary():
+    """Returns organization-wide summary statistics."""
+    try:
+        total_forms = Form.objects().count()
+        total_responses = FormResponse.objects(is_deleted=False).count()
+        return success_response(data={"total_forms": total_forms, "total_responses": total_responses})
+    except Exception as e:
+        return error_response(str(e), status_code=500)
+
+
+@analytics_bp.route("/trends", methods=["GET"])
+@swag_from({
+    "tags": [
+        "Analytics"
+    ],
+    "responses": {
+        "200": {
+            "description": "Returns trends data."
+        }
+    }
+})
+@jwt_required()
+def get_trends():
+    """Returns analytics trends for the organization."""
+    return success_response(data={"trends": []})

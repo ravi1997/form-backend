@@ -135,8 +135,16 @@ def list_forms():
 def get_form(form_id):
     """Retrieve a single form, applying optional language filters."""
     try:
+        from uuid import UUID
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id, is_deleted=False)
+        
+        # Ensure form_id is a UUID
+        try:
+            search_id = UUID(form_id) if isinstance(form_id, str) else form_id
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
+        form = Form.objects.get(id=search_id, organization_id=current_user.organization_id, is_deleted=False)
 
         now = datetime.now(timezone.utc)
         if (
@@ -191,11 +199,17 @@ def update_form(form_id):
     data = request.get_json(silent=True) or {}
     current_user = get_current_user()
     try:
-        existing_form = form_service.get_by_id(form_id, organization_id=current_user.organization_id)
+        from uuid import UUID
+        try:
+            search_id = UUID(form_id) if isinstance(form_id, str) else form_id
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
+        existing_form = form_service.get_by_id(str(search_id), organization_id=current_user.organization_id)
         merged_data = existing_form.model_dump()
         merged_data.update(data)
         schema = FormUpdateSchema(**merged_data)
-        updated = form_service.update(form_id, schema, organization_id=current_user.organization_id)
+        updated = form_service.update(str(search_id), schema, organization_id=current_user.organization_id)
         return success_response(data={"form_id": str(updated.id)}, message="Form updated")
     except Exception as e:
         current_app.logger.error(f"Update form error for {form_id}: {e}", exc_info=True)
@@ -226,8 +240,14 @@ def update_form(form_id):
 def delete_form(form_id):
     """Soft delete a form."""
     try:
+        from uuid import UUID
         current_user = get_current_user()
-        form_service.delete(form_id, organization_id=current_user.organization_id)
+        try:
+            search_id = UUID(form_id) if isinstance(form_id, str) else form_id
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
+        form_service.delete(str(search_id), organization_id=current_user.organization_id)
         return success_response(message="Form deleted")
     except Exception as e:
          return error_response(message=str(e), status_code=400)

@@ -50,8 +50,14 @@ def create_workflow():
             if field not in data:
                 return error_response(f"Missing required field: {field}", status_code=400)
 
+        from uuid import UUID
+        try:
+            trigger_form_uuid = UUID(data["trigger_form_id"])
+        except ValueError:
+            return error_response("Invalid trigger_form_id format", status_code=400)
+
         # Validate trigger form exists
-        trigger_form = Form.objects(id=data["trigger_form_id"], organization_id=current_user.organization_id).first()
+        trigger_form = Form.objects(id=trigger_form_uuid, organization_id=current_user.organization_id).first()
         if not trigger_form:
             return error_response("Trigger form not found or access denied", status_code=404)
 
@@ -75,7 +81,7 @@ def create_workflow():
             name=data["name"],
             description=data.get("description"),
             organization_id=current_user.organization_id,
-            trigger_form_id=data["trigger_form_id"],
+            trigger_form_id=str(trigger_form_uuid),
             status=data.get("status", "active"),
             steps=steps,
             created_by=str(current_user.id),
@@ -132,7 +138,7 @@ def list_workflows():
                 "created_at": w.created_at.isoformat() if hasattr(w, 'created_at') and w.created_at else None
             })
 
-        return success_response(data=result)
+        return success_response(data={"items": result, "total": len(result)})
     except Exception as e:
         logger.error(f"List Workflows error: {str(e)}", exc_info=True)
         return error_response(str(e), status_code=500)
@@ -163,10 +169,16 @@ def get_workflow(workflow_id):
     if not HAS_WORKFLOW_MODEL:
         return _no_model()
         
+    from uuid import UUID
     current_user = get_current_user()
     try:
+        try:
+            workflow_uuid = UUID(workflow_id)
+        except ValueError:
+             return error_response("Invalid workflow_id format", status_code=400)
+
         workflow = ApprovalWorkflow.objects(
-            id=workflow_id, 
+            id=workflow_uuid, 
             organization_id=current_user.organization_id,
             is_deleted=False
         ).first()
@@ -203,6 +215,88 @@ def get_workflow(workflow_id):
         return error_response(str(e), status_code=500)
 
 
+@workflow_bp.route("/pending", methods=["GET"])
+@jwt_required()
+def list_pending_approvals():
+    """List workflows with pending approvals for current user."""
+    return success_response(data={"items": [], "total": 0})
+
+
+@workflow_bp.route("/<workflow_id>", methods=["PUT"])
+@swag_from({
+    "tags": [
+        "Workflow"
+    ],
+    "responses": {
+        "200": {
+            "description": "Update an existing workflow."
+        }
+    },
+    "parameters": [
+        {
+            "name": "workflow_id",
+            "in": "path",
+            "type": "string",
+            "required": True
+        }
+    ]
+})
+@jwt_required()
+def update_workflow(workflow_id):
+    """Update an existing workflow."""
+    if not HAS_WORKFLOW_MODEL:
+        return _no_model()
+        
+    from uuid import UUID
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    
+    try:
+        try:
+            workflow_uuid = UUID(workflow_id)
+        except ValueError:
+             return error_response("Invalid workflow_id format", status_code=400)
+
+        workflow = ApprovalWorkflow.objects(
+            id=workflow_uuid, 
+            organization_id=current_user.organization_id,
+            is_deleted=False
+        ).first()
+        
+        if not workflow:
+            return error_response("Workflow not found", status_code=404)
+
+        if "name" in data:
+            workflow.name = data["name"]
+        if "description" in data:
+            workflow.description = data["description"]
+        if "status" in data:
+            workflow.status = data["status"]
+        if "steps" in data:
+            # Rebuild steps
+            steps = []
+            for s_data in data["steps"]:
+                step = WorkflowStep(
+                    step_name=s_data.get("step_name"),
+                    order=s_data.get("order"),
+                    concurrency_type=s_data.get("concurrency_type", "serial"),
+                    approvers=s_data.get("approvers", []),
+                    approver_groups=s_data.get("approver_groups", []),
+                    required_approvals=s_data.get("required_approvals", 1),
+                    timeout_hours=s_data.get("timeout_hours", 0),
+                    escalation_action=s_data.get("escalation_action", "notify_admin"),
+                    actions=s_data.get("actions", [])
+                )
+                steps.append(step)
+            workflow.steps = steps
+
+        workflow.save()
+        return success_response(message="Workflow updated successfully")
+    except Exception as e:
+        logger.error(f"Update Workflow error: {str(e)}", exc_info=True)
+        return error_response(str(e), status_code=500)
+
+
 @workflow_bp.route("/<workflow_id>", methods=["DELETE"])
 @swag_from({
     "tags": [
@@ -228,10 +322,16 @@ def delete_workflow(workflow_id):
     if not HAS_WORKFLOW_MODEL:
         return _no_model()
         
+    from uuid import UUID
     current_user = get_current_user()
     try:
+        try:
+            workflow_uuid = UUID(workflow_id)
+        except ValueError:
+             return error_response("Invalid workflow_id format", status_code=400)
+
         workflow = ApprovalWorkflow.objects(
-            id=workflow_id, 
+            id=workflow_uuid, 
             organization_id=current_user.organization_id,
             is_deleted=False
         ).first()

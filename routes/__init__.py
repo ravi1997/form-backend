@@ -16,7 +16,6 @@ from routes.v1.external_api_route import external_api_bp
 from routes.v1.form.advanced_responses import advanced_responses_bp
 from routes.v1.admin.system_settings_route import system_settings_bp
 from routes.v1.admin.env_config_route import env_config_bp
-from routes.v1.form.summarization import summarization_bp
 from routes.v1.form.nlp_search import nlp_search_bp
 from routes.v1.admin.system_route import system_bp
 from routes.health import health_bp
@@ -39,7 +38,6 @@ def register_blueprints(app):
     # Auth & AI
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
     app.register_blueprint(ai_bp, url_prefix="/api/v1/ai")
-    app.register_blueprint(summarization_bp, url_prefix="/api/v1/ai/summarization")
     app.register_blueprint(nlp_search_bp, url_prefix="/api/v1/ai/search")
     
     # Dashboards & Analytics

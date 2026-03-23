@@ -239,6 +239,53 @@ def delete_user_by_id(user_id):
     return success_response(message="User account deactivated")
 
 
+@user_bp.route("/users/<user_id>/roles", methods=["PUT"])
+@swag_from({
+    "tags": [
+        "User"
+    ],
+    "responses": {
+        "200": {
+            "description": "Update user roles. Admin only.",
+            "schema": {
+                "$ref": "#/definitions/UserOut"
+            }
+        }
+    },
+    "parameters": [
+        {
+            "name": "user_id",
+            "in": "path",
+            "type": "string",
+            "required": True
+        }
+    ]
+})
+@require_roles("admin", "superadmin")
+def update_user_roles(user_id):
+    """Update user roles. Admin only."""
+    data = request.json or {}
+    roles = data.get("roles")
+    if roles is None:
+        return error_response(message="Roles are required", status_code=400)
+    
+    try:
+        from models.User import User
+        user = User.objects(id=user_id).first()
+        if not user:
+            raise NotFoundError("User not found")
+        
+        user.roles = roles
+        # If 'admin' or 'superadmin' is in roles, also set is_admin=True
+        if any(r in roles for r in ["admin", "superadmin"]):
+            user.is_admin = True
+        
+        user.save()
+        return success_response(data=UserOut.model_validate(user.to_dict()).model_dump(), message="Roles updated", success=True)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
 # ─── Account Security Management ───────────────────────────────────────────────
 
 

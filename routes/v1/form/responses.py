@@ -45,8 +45,14 @@ def submit_response(form_id):
     data = request.get_json()
     
     try:
+        from uuid import UUID
+        try:
+            form_uuid = UUID(form_id)
+        except ValueError:
+            return jsonify({"error": "Invalid form ID format"}), 400
+
         form = Form.objects.get(
-            id=form_id,
+            id=form_uuid,
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
@@ -143,7 +149,10 @@ def list_responses(form_id):
             page_size=page_size
         )
         
-        return jsonify(result.to_dict()), 200
+        return jsonify({
+            "success": True,
+            "data": result.to_dict()
+        }), 200
         
     except DoesNotExist:
         return jsonify({"error": "Form not found"}), 404

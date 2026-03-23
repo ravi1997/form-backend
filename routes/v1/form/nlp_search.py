@@ -54,51 +54,20 @@ nlp_search_bp = Blueprint("nlp_search", __name__, url_prefix="/api/v1/ai/forms")
 def nlp_search(form_id: str):
     """
     Natural language search across form responses with advanced filtering.
-
-    Request Body:
-        {
-            "query": "Show me all users who were unhappy with delivery",
-            "options": {
-                "max_results": 50,
-                "include_sentiment": True,
-                "semantic_search": True,
-                "cache_results": True,
-                "fallback_models": ["llama3.1", "mistral:7b", "gemma:2b"]
-            },
-            "filters": {
-                "date_range": {
-                    "start_date": "2025-01-01T00:00:00Z",
-                    "end_date": "2025-03-31T23:59:59Z"
-                },
-                "field_filters": [
-                    {"field": "q_rating", "operator": ">", "value": "3"},
-                    {"field": "q_satisfaction", "operator": "contains", "value": "positive"}
-                ],
-                "submitted_by": ["user1", "user2"],
-                "source": ["web", "mobile"]
-            },
-            "filter_mode": "and"  # "and" or "or"
-        }
-
-    Returns:
-        {
-            "query": "Show me all users who were unhappy with delivery",
-            "parsed_intent": {
-                "sentiment_filter": "negative",
-                "topic": "delivery",
-                "entities": ["delivery", "users"],
-                "date_range": {...},
-                "field_filters": [...]
-            },
-            "results_count": 15,
-            "results": [...],
-            "processing_time_ms": 245,
-            "cached": False,
-            "filters_applied": {...}
-        }
     """
     user = get_current_user()
     data = request.get_json()
+
+    from uuid import UUID
+    from models import Form
+    try:
+        form_uuid = UUID(form_id)
+        # Check permission/existence
+        form = Form.objects(id=form_uuid, organization_id=user.organization_id).first()
+        if not form:
+             return jsonify({"error": "Form not found"}), 404
+    except ValueError:
+        return jsonify({"error": "Invalid form ID format"}), 400
 
     if not data or "query" not in data:
         return jsonify({"error": "Query is required"}), 400
