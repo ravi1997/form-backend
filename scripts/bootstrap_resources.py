@@ -33,21 +33,30 @@ def bootstrap():
     print(f"\n⚙️  Bootstrapping database: {db_name}")
 
     # forms collection
-    db.forms.create_index("owner_id")
-    db.forms.create_index("created_at")
-    db.forms.create_index([("owner_id", 1), ("created_at", -1)])
-    print("   ✅ forms: indexes created")
+    try:
+        db.forms.create_index("owner_id")
+        db.forms.create_index("created_at")
+        db.forms.create_index([("owner_id", 1), ("created_at", -1)])
+        print("   ✅ forms: indexes created")
+    except Exception as e:
+        print(f"   ⚠️ forms indexes partially exist or failed: {e}")
 
     # submissions collection
-    db.submissions.create_index("form_id")
-    db.submissions.create_index("submitted_at")
-    db.submissions.create_index([("form_id", 1), ("submitted_at", -1)])
-    print("   ✅ submissions: indexes created")
+    try:
+        db.submissions.create_index("form_id")
+        db.submissions.create_index("submitted_at")
+        db.submissions.create_index([("form_id", 1), ("submitted_at", -1)])
+        print("   ✅ submissions: indexes created")
+    except Exception as e:
+        print(f"   ⚠️ submissions indexes partially exist or failed: {e}")
 
     # users collection
-    db.users.create_index("email", unique=True)
-    db.users.create_index("created_at")
-    print("   ✅ users: indexes created")
+    try:
+        db.users.create_index("email", unique=True)
+        db.users.create_index("created_at")
+        print("   ✅ users: indexes created")
+    except Exception as e:
+        print(f"   ⚠️ users indexes partially exist or failed: {e}")
 
     client.close()
     print(f"\n✅ Bootstrap complete for {db_name}.\n")

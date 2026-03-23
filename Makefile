@@ -29,11 +29,16 @@ build: ## Build application image (no cache)
 # ─────────────────────────────────────────────
 up: ## Start all services (production)
 	@echo "$(CYAN)Starting form-backend...$(RESET)"
+	@mkdir -p logs
 	@docker compose up -d
 	@echo "$(GREEN)✅ Running at http://localhost:$${PORT:-8051}$(RESET)"
 
 up-dev: ## Start in development mode (with live reload)
+	@echo "$(CYAN)Starting form-backend (DEV)...$(RESET)"
+	@mkdir -p logs
 	@docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)✅ Hot-reload enabled via bind-mount to /app$(RESET)"
+	@echo "$(GREEN)✅ Logs are being written to ./logs/$(RESET)"
 
 down: ## Stop all services
 	@docker compose down

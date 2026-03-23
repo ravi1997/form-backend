@@ -7,12 +7,15 @@ services:
   backend:
     environment:
       - APP_ENV=development
+      - FLASK_ENV=development
       - FLASK_DEBUG=1
-    # Mount source so changes are reflected without rebuilding
+      - PYTHONUNBUFFERED=1
+    # Bind-mount the entire source code directory for live reloading
     volumes:
       - .:/app
       - ./logs:/app/logs
-    # Use Flask dev server instead of gunicorn for hot-reload
+    # Use Flask's built-in development server with --debug for hot-reloading
+    # Listens on port 6000, mapped to host via docker-compose.yml (default 8051)
     command: [ "python", "-m", "flask", "--app", "app", "run", "--host", "0.0.0.0", "--port", "6000", "--debug" ]
     restart: "no"
 
@@ -21,4 +24,23 @@ services:
       - APP_ENV=development
     volumes:
       - .:/app
+      - ./logs:/app/logs
+    # Note: Standard Celery doesn't hot-reload automatically. 
+    # Use 'make restart' to pick up changes in worker code.
+    restart: "no"
+
+  celery-beat:
+    environment:
+      - APP_ENV=development
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    restart: "no"
+
+  event-listener:
+    environment:
+      - APP_ENV=development
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
     restart: "no"
