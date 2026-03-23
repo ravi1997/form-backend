@@ -10,6 +10,7 @@ ROLE_CHOICES = (
     "admin",
     "user",
     "creator",
+    "approver",
     "editor",
     "publisher",
     "deo",

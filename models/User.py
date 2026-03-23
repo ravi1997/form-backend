@@ -99,6 +99,12 @@ class User(BaseDocument, SoftDeleteMixin):
         logger.info(f"User {self.id} manually unlocked")
         self.save()
 
+    def is_admin_check(self) -> bool:
+        return self.is_admin or "admin" in self.roles or "superadmin" in self.roles
+
+    def is_superadmin_check(self) -> bool:
+        return "superadmin" in self.roles
+
     def increment_failed_logins(self, max_attempts=5, lock_hours=24):
         if self.is_locked():
             return
