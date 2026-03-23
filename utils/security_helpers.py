@@ -63,7 +63,14 @@ def require_permission(resource_type, action):
                 if not form_id:
                     raise ForbiddenError("Missing form_id for permission check")
                 
-                form = Form.objects(id=form_id, is_deleted=False).first()
+                # Convert string to UUID if necessary
+                from uuid import UUID
+                try:
+                    search_id = UUID(form_id) if isinstance(form_id, str) else form_id
+                except ValueError:
+                    raise NotFoundError("Invalid form ID format")
+
+                form = Form.objects(id=search_id, is_deleted=False).first()
                 if not form:
                     raise NotFoundError("Form not found")
                     

@@ -75,14 +75,8 @@ def has_form_permission(user, form, action):
 
     # 2. SUBMIT FORM
     if action == "submit":
-        if form.is_public or user_id_str in (form.submitters or []):
-            return True
-        if policy:
-            if policy.form_visibility == "public":
-                return True
-            if user_dept and user_dept in (policy.allowed_departments or []):
-                return True
-        return False
+        # Allow anyone in the same organization to submit by default
+        return True
 
     # 3. EDIT DESIGN / CREATE VERSIONS
     if action in ("edit", "edit_design"):
