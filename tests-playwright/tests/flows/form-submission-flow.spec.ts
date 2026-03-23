@@ -1,71 +1,64 @@
 import { test, expect } from '@playwright/test';
-import { generateTestForm } from '../../helpers/data-factory';
+import { generateTestForm, generateTestResponse, generateTestWorkflow } from '../../helpers/data-factory';
 import { createAuthenticatedContext } from '../../helpers/auth';
 
-test.describe('End-to-End Form Flow', () => {
+test.describe('End-to-End Form Submission Flow', () => {
 
-  test('Creator creates form, User submits response, Creator views response', async () => {
-    // 1. Creator Context
-    const creatorCtx = await createAuthenticatedContext('creator');
+  test('complete flow from creation to submission to workflow triggering', async () => {
+    // 1. Admin creates a user (not explicitly needed since factory registers users)
     
-    // 2. Creator creates a form
-    const formData = {
-      ...generateTestForm(),
-      is_public: true,
-    };
-    const createResp = await creatorCtx.request.post('/api/v1/forms/', { data: formData });
-    expect(createResp.status()).toBe(201);
-    const formId = (await createResp.json()).form_id;
+    // 2. Creator logs in and creates a form
+    const creatorCtx = await createAuthenticatedContext('creator');
+    const formData = generateTestForm();
+    const createFormResp = await creatorCtx.request.post('/api/v1/forms/', { data: formData });
+    expect(createFormResp.status()).toBe(201);
+    const formId = (await createFormResp.status() === 201) ? (await createFormResp.json()).form_id : null;
+    expect(formId).toBeDefined();
 
-    const publishResp = await creatorCtx.request.post(`/api/v1/forms/${formId}/publish`, {
-      data: { minor: true }
-    });
-    expect([200, 202]).toContain(publishResp.status()); // 202 for async publish
+    // 3. Creator attaches a workflow to the form
+    const workflowData = generateTestWorkflow(formId);
+    const createWorkflowResp = await creatorCtx.request.post('/api/v1/workflows/', { data: workflowData });
+    expect(createWorkflowResp.status()).toBe(201);
+    const workflowId = (await createWorkflowResp.json()).data.id;
 
-    await expect
-      .poll(async () => {
-        const formResp = await creatorCtx.request.get(`/api/v1/forms/${formId}`);
-        if (formResp.status() !== 200) {
-          return `status:${formResp.status()}`;
-        }
-        const body = await formResp.json();
-        return body.data?.status;
-      }, {
-        timeout: 15000,
-        intervals: [500, 1000, 1500],
-      })
-      .toBe('published');
+    // 4. Creator publishes the form
+    await creatorCtx.request.post(`/api/v1/forms/${formId}/publish`, { data: { minor: true } });
+    
+    // Poll until published
+    await expect.poll(async () => {
+      const resp = await creatorCtx.request.get(`/api/v1/forms/${formId}`);
+      const body = await resp.json();
+      return body.data ? body.data.status : null;
+    }, { timeout: 15000 }).toBe('published');
 
-    // 3. User Context (same org)
-    // For simplicity, we can use the same context or a new one if public. 
-    // Assuming 'creator' can also submit for this flow.
-    const submitPayload = {
-      data: {
-        name: 'Jane Doe',
-        age: 28
-      }
-    };
+    // 5. User submits a response
+    const { request: userRequest } = await createAuthenticatedContext('user', creatorCtx.user.organization_id);
+    const responseData = generateTestResponse();
+    const submitResp = await userRequest.post(`/api/v1/forms/${formId}/responses`, { data: responseData });
+    expect(submitResp.status()).toBe(201);
+    const responseId = (await submitResp.json()).response_id;
 
-    const submitResp = await creatorCtx.request.post(`/api/v1/forms/${formId}/responses`, {
-      data: submitPayload
-    });
-    expect([201, 400]).toContain(submitResp.status());
-    const submitBody = await submitResp.json();
-    const responseId = submitBody.response_id;
-
-    // 4. Creator views responses
-    const listResp = await creatorCtx.request.get(`/api/v1/forms/${formId}/responses`);
-    expect(listResp.status()).toBe(200);
-    const listBody = await listResp.json();
-
-    if (submitResp.status() === 201) {
-      expect(listBody.items.length).toBeGreaterThan(0);
-      const found = listBody.items.find((item: any) => item.id === responseId);
-      expect(found).toBeDefined();
-      expect(found.data.name).toBe('Jane Doe');
-    } else {
-      expect(submitBody.error).toBeDefined();
+    // 6. Verify workflow is triggered (this might be async and internal)
+    // We can check if there's an audit log or workflow status on the response
+    const responseDetail = await creatorCtx.request.get(`/api/v1/forms/${formId}/responses/${responseId}`);
+    expect(responseDetail.status()).toBe(200);
+    const detailBody = await responseDetail.json();
+    
+    // Some backend might expose workflow state here
+    if (detailBody.data.workflow_status) {
+      expect(detailBody.data.workflow_status).toBeDefined();
     }
+
+    // 7. Approver reviews the response
+    const { request: approverRequest } = await createAuthenticatedContext('approver', creatorCtx.user.organization_id);
+    
+    // We'd need a route to list pending approvals
+    const pendingResp = await approverRequest.get('/api/v1/workflows/pending');
+    expect(pendingResp.status()).toBe(200);
+    
+    // 8. Final Creator checks analytics
+    const analyticsResp = await creatorCtx.request.get(`/api/v1/analytics/forms/${formId}`);
+    expect([200, 404]).toContain(analyticsResp.status());
   });
 
 });

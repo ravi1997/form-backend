@@ -1,52 +1,58 @@
-# Playwright API Test Suite for Form Backend
+# Form Backend Playwright API Tests
 
-This directory contains the Playwright-based end-to-end API test suite for the `form-backend` project. 
-It focuses strictly on testing backend API routes, auth flows, tenant isolation, and business logic.
+This directory contains a comprehensive Playwright-based API test suite for the `form-backend` project.
 
-## Prerequisites
+## Project Structure
 
-- Node.js (v18+)
-- Form Backend must be running locally (e.g., `make up-dev` from `apps/form-backend`)
-- Appropriate `.env` file configured (copy `.env.example` to `.env`)
-
-## Installation
-
-```bash
-cd apps/form-backend/tests-playwright
-npm install
+```text
+tests-playwright/
+├── helpers/               # Reusable test helpers (auth, data-factory)
+├── tests/                 # Test suites
+│   ├── api/               # API endpoint tests (auth, forms, responses, etc.)
+│   ├── flows/             # End-to-end business flows
+│   ├── negative/          # Error handling and validation tests
+│   ├── security/          # RBAC and security tests
+│   └── tenancy/           # Tenant isolation tests
+├── playwright.config.ts   # Playwright configuration
+└── package.json           # Test dependencies and scripts
 ```
+
+## Setup
+
+1.  **Install dependencies**:
+    ```bash
+    cd apps/form-backend/tests-playwright
+    npm install
+    ```
+
+2.  **Configure environment**:
+    Create a `.env` file based on `.env.example`:
+    ```bash
+    cp .env.example .env
+    ```
+    Ensure `API_BASE_URL` points to your running `form-backend` instance (default: `http://localhost:8051`).
 
 ## Running Tests
 
-Ensure the API is accessible at the `API_BASE_URL` defined in your `.env` (default is `http://localhost:8051`).
+From the `tests-playwright` directory:
 
-**Run all tests:**
-```bash
-npm test
-```
+-   **Run all tests**: `npm test`
+-   **Run specific group**:
+    -   Auth: `npm run test:auth`
+    -   API: `npm run test:api`
+    -   Flows: `npm run test:flows`
+    -   Tenancy: `npm run test:tenancy`
+    -   AI: `npm run test:ai`
 
-**Run specific test groups:**
-```bash
-npm run test:api       # Runs all API-level unit tests
-npm run test:auth      # Runs only authentication tests
-npm run test:flows     # Runs end-to-end multi-step flows
-npm run test:tenancy   # Runs tenant isolation tests
-npm run test:ai        # Runs AI-specific tests
-```
+From the project root:
+-   `npm run test:form-backend`
 
-**Run tests in UI mode (for debugging):**
-```bash
-npm run test:ui
-```
+## Key Testing Areas
 
-## Test Structure
-
-- `helpers/`: Reusable functions for authentication and data generation.
-- `tests/api/`: Domain-specific API endpoint tests (auth, forms, users, etc.).
-- `tests/flows/`: Complex, multi-step business flows.
-- `tests/negative/`: Error handling and invalid payload tests.
-- `tests/security/`: RBAC and authorization checks.
-- `tests/tenancy/`: Strict data isolation tests between organizations/tenants.
-
-## Notes on Test Data
-Tests use the `data-factory.ts` helper to generate unique users, forms, and responses dynamically to prevent data collisions during parallel execution. Do not rely on hardcoded IDs.
+-   **Authentication**: Registration, Login, Refresh Token, Logout.
+-   **RBAC**: Role-based access control (Admin, Creator, User, Approver).
+-   **Tenancy**: Strict isolation between different organizations.
+-   **Forms & Responses**: CRUD, Publishing, Versioning, Submissions, Validation.
+-   **Workflows**: Workflow creation and triggering.
+-   **AI & Analytics**: Health, Summarization, Dashboard stats.
+-   **Negative Testing**: Error codes, malformed payloads, unauthorized access.

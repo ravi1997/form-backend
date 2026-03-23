@@ -23,7 +23,7 @@ test.describe('Authentication API', () => {
 
   test('should fail to register with invalid email', async ({ request }) => {
     const userData = generateTestUser();
-    userData.email = "invalid-email";
+    userData.email = "not-an-email";
     
     const response = await request.post('/api/v1/auth/register', {
       data: userData,
@@ -35,6 +35,19 @@ test.describe('Authentication API', () => {
     expect(response.status()).toBe(400);
     const body = await response.json();
     expect(body.success).toBe(false);
+  });
+
+  test('should fail to register if missing required fields', async ({ request }) => {
+    const userData = { email: "missing@fields.com" }; // missing username, password, etc.
+    
+    const response = await request.post('/api/v1/auth/register', {
+      data: userData,
+      headers: {
+        'X-Organization-ID': 'some-org',
+      },
+    });
+    
+    expect(response.status()).toBe(400);
   });
 
   test('should login successfully with valid credentials', async ({ request }) => {
@@ -75,13 +88,26 @@ test.describe('Authentication API', () => {
         password: 'wrongpassword'
       },
       headers: {
-        'X-Organization-ID': `playwright-org-invalid-${Date.now()}`,
+        'X-Organization-ID': 'some-org',
       },
     });
     
     expect(response.status()).toBe(401);
     const body = await response.json();
     expect(body.success).toBe(false);
+  });
+
+  test('should fail to login with missing password', async ({ request }) => {
+    const response = await request.post('/api/v1/auth/login', {
+      data: {
+        identifier: 'test@example.com'
+      },
+      headers: {
+        'X-Organization-ID': 'some-org',
+      },
+    });
+    
+    expect(response.status()).toBe(422);
   });
 
   test('should refresh token successfully', async () => {
@@ -113,6 +139,11 @@ test.describe('Authentication API', () => {
     
     const cookies = response.headers()['set-cookie'];
     expect(cookies).toContain('access_token_cookie=;');
+  });
+
+  test('should fail to access protected route without token', async ({ request }) => {
+    const response = await request.get('/api/v1/users/profile');
+    expect(response.status()).toBe(401);
   });
 
 });
