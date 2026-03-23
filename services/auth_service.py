@@ -60,6 +60,9 @@ class AuthService(BaseService):
         refresh_expires = timedelta(days=params["refresh_days"])
 
         roles = list(getattr(user, "roles", []) or [])
+        if getattr(user, "is_admin", False) and "admin" not in roles:
+            roles.append("admin")
+            
         organization_id = getattr(user, "organization_id", None)
 
         access_token = create_access_token(

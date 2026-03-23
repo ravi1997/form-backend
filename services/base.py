@@ -82,7 +82,8 @@ class BaseService:
             total=total,
             page=page,
             page_size=page_size,
-            has_next=(skip + page_size < total)
+            has_next=(skip + page_size < total),
+            success=True
         )
 
     def create(self, create_schema: TCreateSchema) -> TSchema:
