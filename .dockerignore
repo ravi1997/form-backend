@@ -14,7 +14,7 @@ build
 .venv
 venv
 env
-tests
-test
+# tests
+# test
 *.test.js
 *.spec.js

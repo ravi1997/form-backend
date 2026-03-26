@@ -81,6 +81,9 @@ def create_app():
     from middleware.request_id import setup_request_id
     setup_request_id(app)
     
+    from middleware.security_waf import waf
+    waf.init_app(app)
+    
     from middleware.tenant_db import setup_tenant_db
     setup_tenant_db(app)
 

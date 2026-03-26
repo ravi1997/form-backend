@@ -12,6 +12,7 @@ from flask_jwt_extended import jwt_required
 from mongoengine import DoesNotExist
 from models import Form
 from models import Form, FormResponse
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 
 # -------------------- Helper for Export --------------------
@@ -102,15 +103,19 @@ def generate_form_csv(form, responses):
 })
 @jwt_required()
 def export_responses_csv(form_id):
+    app_logger.info(f"Entering export_responses_csv for form_id: {form_id}")
     try:
         form = Form.objects.get(id=form_id)
         current_user = get_current_user()
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"Unauthorized CSV export attempt for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
             return jsonify({"error": "Unauthorized to export"}), 403
 
         responses = FormResponse.objects(form=form.id)
         csv_content = generate_form_csv(form, responses)
 
+        audit_logger.info(f"CSV export performed for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}. Responses: {responses.count()}")
+        app_logger.info(f"Successfully generated CSV export for form_id: {form_id}")
         return Response(
             csv_content,
             mimetype="text/csv",
@@ -119,7 +124,11 @@ def export_responses_csv(form_id):
             },
         )
     except DoesNotExist:
+        app_logger.warning(f"Form not found for CSV export: {form_id}")
         return jsonify({"error": "Form not found"}), 404
+    except Exception as e:
+        error_logger.error(f"Error in export_responses_csv for form_id {form_id}: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @form_bp.route("/<form_id>/export/json", methods=["GET"])
@@ -143,10 +152,12 @@ def export_responses_csv(form_id):
 })
 @jwt_required()
 def export_form_with_responses(form_id):
+    app_logger.info(f"Entering export_form_with_responses for form_id: {form_id}")
     try:
         form = Form.objects.get(id=form_id)
         current_user = get_current_user()
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"Unauthorized JSON export attempt for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
             return jsonify({"error": "Unauthorized"}), 403
 
         responses = FormResponse.objects(form=form.id)
@@ -162,9 +173,16 @@ def export_form_with_responses(form_id):
             },
             "responses": [r.to_mongo().to_dict() for r in responses],
         }
+        
+        audit_logger.info(f"JSON export performed for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}. Responses: {responses.count()}")
+        app_logger.info(f"Successfully generated JSON export for form_id: {form_id}")
         return Response(json.dumps(data, default=str), mimetype="application/json")
     except DoesNotExist:
+        app_logger.warning(f"Form not found for JSON export: {form_id}")
         return jsonify({"error": "Form not found"}), 404
+    except Exception as e:
+        error_logger.error(f"Error in export_form_with_responses for form_id {form_id}: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # -------------------- Bulk Export --------------------
@@ -181,16 +199,19 @@ def export_form_with_responses(form_id):
 })
 @jwt_required()
 def export_bulk_responses():
+    app_logger.info("Entering export_bulk_responses")
     try:
         data = request.get_json()
         form_ids = data.get("form_ids", [])
         if not form_ids:
+            app_logger.warning("Bulk export failed: Missing form_ids")
             return jsonify({"error": "Missing form_ids"}), 400
 
         current_user = get_current_user()
 
         # Memory buffer for ZIP
         zip_buffer = io.BytesIO()
+        exported_count = 0
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for fid in form_ids:
                 try:
@@ -210,9 +231,13 @@ def export_bulk_responses():
                 ).strip()
                 filename = f"{safe_title}_{fid[:8]}.csv"
                 zip_file.writestr(filename, csv_content)
+                exported_count += 1
 
         zip_buffer.seek(0)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        audit_logger.info(f"Bulk export performed by user: {getattr(current_user, 'id', 'unknown')}. Forms requested: {len(form_ids)}, Exported: {exported_count}")
+        app_logger.info(f"Successfully generated bulk export for {exported_count} forms")
         return Response(
             zip_buffer.getvalue(),
             mimetype="application/zip",
@@ -221,4 +246,6 @@ def export_bulk_responses():
             },
         )
     except Exception as e:
+        error_logger.error(f"Error in export_bulk_responses: {str(e)}")
         return jsonify({"error": str(e)}), 400
+

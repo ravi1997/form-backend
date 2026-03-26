@@ -12,6 +12,7 @@ import math
 import re
 import uuid
 from typing import Any, List, Tuple
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 ai_bp = Blueprint("ai", __name__)
 
@@ -28,8 +29,7 @@ ai_bp = Blueprint("ai", __name__)
     }
 })
 def ai_health_check():
-    logger = current_app.logger
-    logger.info("--- AI Health Check branch started ---")
+    app_logger.info("AI Health Check requested")
     """
     Health check endpoint for AI services.
     
@@ -82,7 +82,7 @@ def ai_health_check():
         return jsonify(response), 200
 
     except Exception as e:
-        current_app.logger.error(f"AI health check error: {str(e)}")
+        error_logger.error(f"AI health check error: {str(e)}")
         return (
             jsonify(
                 {
@@ -175,10 +175,7 @@ def simple_sentiment_analyzer(text: str) -> Tuple[str, int]:
 })
 @jwt_required()
 def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info(
-        f"--- Analyze Response AI branch started for form_id: {form_id}, response_id: {response_id} ---"
-    )
+    app_logger.info(f"Analyzing response {response_id} for form {form_id} using AI")
     """
     Perform AI tasks (Sentiment, PII detection) on a response.
     """
@@ -186,6 +183,9 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized AI analysis attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         response = FormResponse.objects.get(id=response_id, form=form.id)
@@ -239,10 +239,17 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
         )
 
         response.update(set__ai_results=ai_results)
+        audit_logger.info(
+            f"AI Sentiment analysis complete for response {response_id}. Sentiment: {sentiment}, PII Found: {len(pii_found['emails']) + len(pii_found['phones'])}"
+        )
 
         return jsonify({"message": "AI analysis complete", "results": ai_results}), 200
 
+    except DoesNotExist:
+        error_logger.warning(f"Form or Response not found: form={form_id}, resp={response_id}")
+        return jsonify({"error": "Form or Response not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error in analyze_response_ai: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -273,10 +280,7 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info(
-        f"--- Moderate Response AI branch started for form_id: {form_id}, response_id: {response_id} ---"
-    )
+    app_logger.info(f"Moderating response {response_id} for form {form_id} using AI")
     """
     Deep Content Moderation:
     - Extended PII (SSN, Credit Cards)
@@ -288,6 +292,9 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized moderation attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         response = FormResponse.objects.get(id=response_id, form=form.id)
@@ -376,6 +383,9 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
         current_results = getattr(response, "ai_results", {})
         current_results["moderation"] = moderation_results
         response.update(set__ai_results=current_results)
+        audit_logger.info(
+            f"AI Moderation complete for response {response_id}. Safe: {moderation_results['is_safe']}, Flags: {flags}"
+        )
 
         return (
             jsonify(
@@ -387,7 +397,11 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
             200,
         )
 
+    except DoesNotExist:
+        error_logger.warning(f"Form or Response not found: form={form_id}, resp={response_id}")
+        return jsonify({"error": "Form or Response not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error in moderate_response_ai: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -404,8 +418,7 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def generate_form_ai() -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info("--- Generate Form AI branch started ---")
+    app_logger.info("Generating form using AI")
     """
     AI Form Generation using local LLM.
     """
@@ -418,6 +431,7 @@ def generate_form_ai() -> Tuple[Any, int]:
             return jsonify({"error": "Prompt is required"}), 400
 
         form_structure = AIService.generate_form(prompt, current_form)
+        audit_logger.info(f"AI Form generated for prompt: {prompt[:50]}...")
 
         return (
             jsonify(
@@ -427,7 +441,7 @@ def generate_form_ai() -> Tuple[Any, int]:
         )
 
     except Exception as e:
-        current_app.logger.error(f"Generate AI Form Error: {str(e)}")
+        error_logger.error(f"Generate AI Form Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -447,12 +461,14 @@ def get_field_suggestions() -> Tuple[Any, int]:
     """
     AI Field Suggestions based on current form context.
     """
+    app_logger.info("Fetching AI field suggestions")
     try:
         data = request.get_json()
         current_form = data.get("current_form")
 
         if current_form:
             result = AIService.get_suggestions(current_form)
+            app_logger.info("AI field suggestions fetched from AIService")
             return jsonify(result), 200
 
         # Fallback to simulated suggestions if form context is missing
@@ -489,8 +505,10 @@ def get_field_suggestions() -> Tuple[Any, int]:
                 },
             ]
 
+        app_logger.info(f"AI field suggestions generated for theme: {theme}")
         return jsonify({"suggestions": suggestions}), 200
     except Exception as e:
+        error_logger.error(f"Error fetching AI field suggestions: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -518,6 +536,7 @@ def validate_form_design(form_id: str) -> Tuple[Any, int]:
     """
     Analyzes the form design for UX/logical issues.
     """
+    app_logger.info(f"Validating form design for form {form_id}")
     try:
         data = request.get_json()
         form_data = data.get("form")
@@ -526,10 +545,11 @@ def validate_form_design(form_id: str) -> Tuple[Any, int]:
             return jsonify({"error": "Form data is required"}), 400
 
         result = AIService.analyze_form(form_data)
+        app_logger.info(f"Form design validation complete for form {form_id}")
         return jsonify(result), 200
 
     except Exception as e:
-        current_app.logger.error(f"Validate Form Design Error: {str(e)}")
+        error_logger.error(f"Validate Form Design Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -549,6 +569,7 @@ def list_ai_templates() -> Tuple[Any, int]:
     """
     List available AI form templates.
     """
+    app_logger.info("Listing AI form templates")
     templates = [
         {"id": "patient_reg", "name": "Patient Registration", "category": "Medical"},
         {"id": "emp_boarding", "name": "Employee Onboarding", "category": "HR"},
@@ -584,6 +605,7 @@ def get_ai_template(template_id: str) -> Tuple[Any, int]:
     """
     Get a specific AI template structure.
     """
+    app_logger.info(f"Fetching AI template: {template_id}")
     # Base structure
     template = {"title": template_id.replace("_", " ").title(), "sections": []}
 
@@ -644,6 +666,7 @@ def get_ai_template(template_id: str) -> Tuple[Any, int]:
                 for opt in q["options"]:
                     opt["id"] = str(uuid.uuid4())
 
+    app_logger.info(f"AI template {template_id} fetched successfully")
     return jsonify({"template": template}), 200
 
 
@@ -668,10 +691,7 @@ def get_ai_template(template_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info(
-        f"--- Get Form Sentiment Trends branch started for form_id: {form_id} ---"
-    )
+    app_logger.info(f"Fetching sentiment trends for form {form_id}")
     """
     Get sentiment distribution and trends for all responses in a form.
     """
@@ -679,6 +699,9 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized sentiment trend fetch attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         responses = FormResponse.objects(form=form.id, deleted=False)
@@ -698,6 +721,7 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
             else:
                 counts["unprocessed"] += 1
 
+        app_logger.info(f"Sentiment trends calculated for form {form_id}")
         return (
             jsonify(
                 {
@@ -714,6 +738,7 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
         )
 
     except Exception as e:
+        error_logger.error(f"Error fetching sentiment trends for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -738,8 +763,7 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def ai_powered_search(form_id: str) -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info(f"--- AI Powered Search branch started for form_id: {form_id} ---")
+    app_logger.info(f"AI-Powered Search for form {form_id}")
     """
     AI-Powered Smart Search for form responses.
     Translates Natural Language queries into filters.
@@ -762,6 +786,8 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
         query = data.get("query", "").lower()
         nocache = data.get("nocache", False)
 
+        app_logger.info(f"Search query: {query}, nocache: {nocache}")
+
         if not query:
             return jsonify({"error": "Search query is required"}), 400
 
@@ -772,10 +798,14 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
             NLPSearchService.invalidate_cache(
                 form_id=form_id, pattern="by_query", query=query
             )
+            app_logger.info(f"Cache invalidated for query: {query}")
 
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized AI search attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         # Base filter
@@ -1004,6 +1034,7 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
         )
 
     except Exception as e:
+        error_logger.error(f"AI-Powered Search error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -1028,8 +1059,7 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info(f"--- Detect Form Anomalies branch started for form_id: {form_id} ---")
+    app_logger.info(f"Detecting form anomalies for form {form_id}")
     """
     Scans form responses for anomalies:
     1. Duplicate content (Spam detection)
@@ -1040,10 +1070,14 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized anomaly detection attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         responses = FormResponse.objects(form=form.id, deleted=False)
         if len(responses) < 3:
+            app_logger.info(f"Not enough data for anomaly detection in form {form_id}")
             return (
                 jsonify(
                     {
@@ -1132,6 +1166,9 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
                         }
                     )
 
+        audit_logger.info(
+            f"Anomaly detection complete for form {form_id}. Scanned {len(responses)}, Flagged {len(flagged)}"
+        )
         return (
             jsonify(
                 {
@@ -1145,6 +1182,7 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
         )
 
     except Exception as e:
+        error_logger.error(f"Anomaly detection error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -1169,10 +1207,7 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
-    logger = current_app.logger
-    logger.info(
-        f"--- Detect Predictive Anomalies branch started for form_id: {form_id} ---"
-    )
+    app_logger.info(f"Detecting predictive anomalies for form {form_id}")
     """
     Predictive Anomaly Detection for form responses.
     
@@ -1199,12 +1234,16 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized predictive anomaly detection attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         responses = FormResponse.objects(form=form.id, deleted=False)
         responses_list = list(responses)
 
         if len(responses_list) < 3:
+            app_logger.info(f"Not enough data for predictive anomaly detection in form {form_id}")
             return (
                 jsonify(
                     {
@@ -1451,6 +1490,9 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
         # Sort flagged responses by spam score (highest first)
         flagged_responses.sort(key=lambda x: x["spam_score"], reverse=True)
 
+        audit_logger.info(
+            f"Predictive anomaly detection complete for form {form_id}. Scanned {len(responses_list)}, Flagged {len(flagged_responses)}"
+        )
         return (
             jsonify(
                 {
@@ -1490,9 +1532,10 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
         )
 
     except Form.DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found for predictive anomaly detection")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Predictive Anomaly Detection Error: {str(e)}")
+        error_logger.error(f"Predictive Anomaly Detection Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -1517,6 +1560,7 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
+    app_logger.info(f"Scanning form security for form {form_id}")
     """
     Automated Security Scanning for Form Definitions.
     Analyzes questions, settings, and permissions for vulnerabilities.
@@ -1525,6 +1569,9 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "edit"):
+            error_logger.warning(
+                f"Unauthorized security scan attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         findings = []
@@ -1533,6 +1580,14 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
 
         # 1. Public Access Check
         is_public = getattr(form, "is_public", False)
+        if is_public:
+            findings.append(
+                {
+                    "severity": "LOW",
+                    "issue": "Form is Public",
+                    "detail": "Form is accessible without authentication.",
+                }
+            )
 
         # 2. Section/Question Scan
         sensitive_keywords = {
@@ -1614,12 +1669,11 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
             "scanned_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Store report in form if necessary (optional)
-        # form.update(set__security_report=report)
-
+        audit_logger.info(f"Security scan complete for form {form_id}. Score: {score}, Status: {status}")
         return jsonify(report), 200
 
     except Exception as e:
+        error_logger.error(f"Security scan error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -1640,6 +1694,7 @@ def compare_forms_ai() -> Tuple[Any, int]:
     Compare multiple forms' performance and sentiment.
     Payload: { "form_ids": ["id1", "id2"] }
     """
+    app_logger.info("Starting AI Cross-Analysis for multiple forms")
     try:
         data = request.get_json()
         form_ids = data.get("form_ids", [])
@@ -1648,6 +1703,7 @@ def compare_forms_ai() -> Tuple[Any, int]:
             return jsonify({"error": "form_ids list is required"}), 400
 
         current_user = get_current_user()
+        app_logger.info(f"Cross-analysis for forms: {form_ids}")
 
         results = []
         global_stats = {
@@ -1666,6 +1722,9 @@ def compare_forms_ai() -> Tuple[Any, int]:
                 if not has_form_permission(current_user, form, "view"):
                     # For security, we can either fail hard or skip.
                     # Failing hard is safer to prevent enumeration.
+                    error_logger.warning(
+                        f"Unauthorized cross-analysis access attempt by user {current_user.id} for form {fid}"
+                    )
                     return jsonify({"error": f"Unauthorized access to form {fid}"}), 403
 
                 responses = FormResponse.objects(form=fid, deleted=False)
@@ -1712,6 +1771,7 @@ def compare_forms_ai() -> Tuple[Any, int]:
                     forms_with_sentiment += 1
 
             except Form.DoesNotExist:
+                error_logger.warning(f"Form {fid} not found during cross-analysis")
                 return jsonify({"error": f"Form {fid} not found"}), 404
 
         global_stats["average_sentiment_score"] = (
@@ -1720,9 +1780,11 @@ def compare_forms_ai() -> Tuple[Any, int]:
             else 0
         )
 
+        app_logger.info("AI Cross-Analysis complete")
         return jsonify({"summary": global_stats, "details": results}), 200
 
     except Exception as e:
+        error_logger.error(f"AI Cross-Analysis Error: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -1759,6 +1821,7 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
         "nocache": False (optional, default: False)
     }
     """
+    app_logger.info(f"Summarizing form responses for form {form_id}")
     try:
         data = request.get_json() or {}
         response_ids = data.get("response_ids")
@@ -1771,10 +1834,14 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
             from services.summarization_service import SummarizationService
 
             SummarizationService.invalidate_cache(form_id=form_id, pattern="by_form")
+            app_logger.info(f"Summarization cache invalidated for form {form_id}")
 
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized summarization attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         # Get responses
@@ -1997,9 +2064,10 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
         )
 
     except Form.DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during summarization")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Summarization Error: {str(e)}")
+        error_logger.error(f"Summarization Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -2024,6 +2092,7 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
 })
 @jwt_required()
 def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
+    app_logger.info(f"Generating AI-powered export report for form {form_id}")
     """
     Generate AI-powered export reports for form analytics.
 
@@ -2060,6 +2129,9 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized export report attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         # Get all form responses
@@ -2330,6 +2402,7 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
         else:
             # For PDF, Excel, CSV - return JSON with data for frontend to convert
             # The frontend will handle the actual file generation
+            audit_logger.info(f"AI-powered export report generated for form {form_id} in {export_format} format")
             return (
                 jsonify(
                     {
@@ -2342,9 +2415,10 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
             )
 
     except Form.DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during export report generation")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Export Report Error: {str(e)}")
+        error_logger.error(f"Export Report Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -2394,6 +2468,7 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
         "invalidated_at": "2026-02-04T10:00:00Z"
     }
     """
+    app_logger.info(f"Invalidating cache for form {form_id}")
     try:
         data = request.get_json() or {}
         pattern = data.get("pattern", "all")
@@ -2402,6 +2477,9 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "edit"):
+            error_logger.warning(
+                f"Unauthorized cache invalidation attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         total_invalidated = 0
@@ -2436,6 +2514,9 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
             )
             total_invalidated += invalidated
 
+        audit_logger.info(
+            f"User {current_user.id} invalidated cache for form {form_id} with pattern {pattern}. Keys invalidated: {total_invalidated}"
+        )
         return (
             jsonify(
                 {
@@ -2449,9 +2530,10 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
         )
 
     except Form.DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during cache invalidation")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Cache Invalidation Error: {str(e)}")
+        error_logger.error(f"Cache Invalidation Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -2492,10 +2574,14 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
         "cleared_at": "2026-02-04T10:00:00Z"
     }
     """
+    app_logger.info(f"Clearing all cache for form {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
         if not has_form_permission(current_user, form, "edit"):
+            error_logger.warning(
+                f"Unauthorized cache clear attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         from services.nlp_service import NLPSearchService
@@ -2515,6 +2601,9 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
         )
         total_invalidated += summary_invalidated
 
+        audit_logger.info(
+            f"User {current_user.id} cleared all cache for form {form_id}. Keys invalidated: {total_invalidated}"
+        )
         return (
             jsonify(
                 {
@@ -2527,7 +2616,9 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
         )
 
     except Form.DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during cache clear")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Clear Cache Error: {str(e)}")
+        error_logger.error(f"Clear Cache Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
+

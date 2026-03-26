@@ -1,9 +1,6 @@
 from elasticsearch import Elasticsearch
 from config.settings import settings
-from logger import get_logger, error_logger
-
-logger = get_logger(__name__)
-
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 class SearchService:
     def __init__(self):
@@ -12,37 +9,46 @@ class SearchService:
 
     def init_index(self):
         """Initializes the Elasticsearch index with proper mappings."""
-        if not self.es.indices.exists(index=self.index_name):
-            mappings = {
-                "mappings": {
-                    "properties": {
-                        "title": {"type": "text"},
-                        "description": {"type": "text"},
-                        "slug": {"type": "keyword"},
-                        "status": {"type": "keyword"},
-                        "organization_id": {"type": "keyword"},
-                        "created_at": {"type": "date"},
-                        "tags": {"type": "keyword"},
+        app_logger.info(f"Checking if Elasticsearch index exists: {self.index_name}")
+        try:
+            if not self.es.indices.exists(index=self.index_name):
+                mappings = {
+                    "mappings": {
+                        "properties": {
+                            "title": {"type": "text"},
+                            "description": {"type": "text"},
+                            "slug": {"type": "keyword"},
+                            "status": {"type": "keyword"},
+                            "organization_id": {"type": "keyword"},
+                            "created_at": {"type": "date"},
+                            "tags": {"type": "keyword"},
+                        }
                     }
                 }
-            }
-            self.es.indices.create(index=self.index_name, body=mappings)
-            logger.info(f"Created Elasticsearch index: {self.index_name}")
+                self.es.indices.create(index=self.index_name, body=mappings)
+                audit_logger.info(f"Created Elasticsearch index: {self.index_name}")
+            else:
+                app_logger.debug(f"Elasticsearch index already exists: {self.index_name}")
+        except Exception as e:
+            error_logger.error(f"Failed to initialize Elasticsearch index {self.index_name}: {str(e)}", exc_info=True)
 
     def index_form(self, form_data: dict):
         """Indexes a form document into Elasticsearch."""
+        form_id = form_data.get("id")
+        app_logger.info(f"Indexing form {form_id} into Elasticsearch")
         try:
             res = self.es.index(
-                index=self.index_name, id=form_data["id"], body=form_data
+                index=self.index_name, id=form_id, body=form_data
             )
-            logger.info(f"Indexed form {form_data['id']}: {res['result']}")
+            audit_logger.info(f"Indexed form {form_id}: {res['result']}")
         except Exception as e:
-            error_logger.error(f"Failed to index form {form_data.get('id')}: {e}")
+            error_logger.error(f"Failed to index form {form_id}: {str(e)}", exc_info=True)
 
     def search_forms(
         self, query_text: str, organization_id: str, page: int = 1, page_size: int = 10
     ):
         """Searches for forms using a multi-match query with filtering and pagination."""
+        app_logger.info(f"Searching forms for query: '{query_text}', org: {organization_id}")
         body = {
             "from": (page - 1) * page_size,
             "size": page_size,
@@ -64,6 +70,7 @@ class SearchService:
             res = self.es.search(index=self.index_name, body=body)
             hits = res["hits"]["hits"]
             total = res["hits"]["total"]["value"]
+            app_logger.info(f"Search successful. Found {total} results for query: '{query_text}'")
             return {
                 "items": [hit["_source"] for hit in hits],
                 "total": total,
@@ -71,7 +78,7 @@ class SearchService:
                 "page_size": page_size,
             }
         except Exception as e:
-            error_logger.error(f"Search failed for query '{query_text}': {e}")
+            error_logger.error(f"Search failed for query '{query_text}': {str(e)}", exc_info=True)
             return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
 

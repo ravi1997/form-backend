@@ -6,6 +6,7 @@ from mongoengine import (
     DictField,
     IntField,
     BooleanField,
+    DateTimeField,
 )
 from models.base import BaseDocument, BaseEmbeddedDocument, SoftDeleteMixin
 from models.enumerations import (
@@ -126,3 +127,34 @@ class ResourceAccessControl(BaseDocument, SoftDeleteMixin):
 
     meta_data = DictField()
     tags = ListField(StringField())
+
+
+class ExternalHook(BaseDocument, SoftDeleteMixin):
+    """
+    Registry for external hooks that require admin approval.
+    """
+
+    meta = {
+        "collection": "external_hooks",
+        "indexes": ["organization_id", "status", "url"],
+        "index_background": True,
+    }
+
+    name = StringField(required=True)
+    organization_id = StringField(required=True)
+    url = StringField(required=True)
+    method = StringField(default="POST")
+    headers = DictField()
+    
+    # Validation schemas for input and output
+    input_schema = DictField()
+    output_schema = DictField()
+    
+    status = StringField(choices=("pending", "approved", "rejected"), default="pending")
+    approved_by = ReferenceField("User")
+    approved_at = DateTimeField()
+    
+    created_by = ReferenceField("User", required=True)
+    is_active = BooleanField(default=True)
+    
+    meta_data = DictField()

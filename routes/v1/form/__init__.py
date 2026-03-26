@@ -15,6 +15,7 @@ from . import (
     export,
     files,
     helper,
+    hooks,
     library,
     misc,
     nlp_search,

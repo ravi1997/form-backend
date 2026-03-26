@@ -1,6 +1,6 @@
 from config.celery import celery_app
 from services.summarization_service import summarization_service
-from logger.unified_logger import get_logger, error_logger
+from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger
 from models.Response import FormResponse
 from models.Response import SummarySnapshot
 from datetime import datetime, timezone
@@ -12,7 +12,7 @@ def async_generate_form_summary(self, form_id: str, organization_id: str):
     """
     Background task to generate an executive summary for a form's responses.
     """
-    logger.info(f"AI Task: Starting summary generation for form {form_id}")
+    app_logger.info(f"Entering async_generate_form_summary for Form ID {form_id}")
     try:
         # Fetch responses (multi-tenant isolated)
         responses = FormResponse.objects(
@@ -22,6 +22,7 @@ def async_generate_form_summary(self, form_id: str, organization_id: str):
         ).only("data", "submitted_at")
         
         if not responses:
+            app_logger.info(f"No responses found for Form ID {form_id}, skipping summary generation")
             return {"status": "skipped", "reason": "no_responses"}
             
         # Convert to list of dicts for the service
@@ -42,7 +43,8 @@ def async_generate_form_summary(self, form_id: str, organization_id: str):
         )
         snapshot.save()
         
-        logger.info(f"AI Task: Summary snapshot {snapshot.id} created for form {form_id}")
+        audit_logger.info(f"AUDIT: AI Task: Summary snapshot {snapshot.id} created for form {form_id}")
+        app_logger.info(f"Successfully completed async_generate_form_summary for Form ID {form_id}")
         return {"status": "success", "snapshot_id": str(snapshot.id)}
         
     except Exception as e:
@@ -59,11 +61,11 @@ def async_index_response_vector(self, response_id, organization_id):
     from models.Response import FormResponse
     import json
 
-    logger.info(f"AI Task: Vectorizing response {response_id}")
+    app_logger.info(f"Entering async_index_response_vector for Response ID {response_id}")
     try:
         response = FormResponse.objects(id=response_id, organization_id=organization_id, is_deleted=False).first()
         if not response:
-            logger.error(f"Response {response_id} not found for vectorization")
+            error_logger.error(f"Response {response_id} not found for vectorization")
             return {"status": "error", "message": "Response not found"}
 
         # Combine all text fields for vectorization
@@ -84,10 +86,11 @@ def async_index_response_vector(self, response_id, organization_id):
         )
         
         if success:
-            logger.info(f"Response {response_id} indexed in vector DB successfully")
+            audit_logger.info(f"AUDIT: Response {response_id} indexed in vector DB")
+            app_logger.info(f"Successfully completed async_index_response_vector for Response ID {response_id}")
             return {"status": "success"}
         else:
-            logger.error(f"Failed to index response {response_id} in vector DB")
+            error_logger.error(f"Failed to index response {response_id} in vector DB")
             return {"status": "error"}
             
     except Exception as e:
@@ -101,9 +104,13 @@ def async_export_to_olap(self, event_payload):
     columnar store (DuckDB/ClickHouse) for real-time analytics.
     """
     from services.analytics_stream_service import analytics_stream_service
+    app_logger.info("Entering async_export_to_olap")
     try:
         analytics_stream_service.process_submission_event(event_payload)
+        audit_logger.info("AUDIT: Exported submission event to OLAP")
+        app_logger.info("Successfully completed async_export_to_olap")
         return {"status": "success"}
     except Exception as e:
         error_logger.error(f"OLAP Export Task failed: {str(e)}", exc_info=True)
         raise self.retry(exc=e)
+

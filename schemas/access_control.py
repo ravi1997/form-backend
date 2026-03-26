@@ -72,3 +72,18 @@ class ResourceAccessControlSchema(BaseSchema):
     is_active: bool = True
     meta_data: Optional[Dict[str, Any]] = None
     tags: List[str] = Field(default_factory=list)
+
+class ExternalHookSchema(BaseSchema):
+    name: str
+    organization_id: str
+    url: str
+    method: str = "POST"
+    headers: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    input_schema: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    output_schema: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    status: Literal["pending", "approved", "rejected"] = "pending"
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    created_by: str
+    is_active: bool = True
+    meta_data: Optional[Dict[str, Any]] = None

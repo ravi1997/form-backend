@@ -8,6 +8,7 @@ from routes.v1.form.helper import get_current_user, has_form_permission
 from mongoengine.errors import DoesNotExist
 from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict
+from logger.unified_logger import app_logger, error_logger
 
 # -------------------- Analytics Endpoints --------------------
 
@@ -33,11 +34,13 @@ from collections import Counter, defaultdict
 })
 @jwt_required()
 def get_analytics_summary(form_id):
+    app_logger.info(f"Entering get_analytics_summary for form_id: {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"Unauthorized analytics summary access attempt for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
             return jsonify({"error": "Unauthorized"}), 403
 
         # Python-side aggregation for robustness
@@ -54,6 +57,7 @@ def get_analytics_summary(form_id):
             last_submission.submitted_at.isoformat() if last_submission else None
         )
 
+        app_logger.info(f"Successfully retrieved analytics summary for form_id: {form_id}")
         return (
             jsonify(
                 {
@@ -66,7 +70,11 @@ def get_analytics_summary(form_id):
         )
 
     except DoesNotExist:
+        app_logger.warning(f"Form not found for analytics summary: {form_id}")
         return jsonify({"error": "Form not found"}), 404
+    except Exception as e:
+        error_logger.error(f"Error in get_analytics_summary for form_id {form_id}: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @form_bp.route("/<form_id>/analytics/timeline", methods=["GET"])
@@ -90,11 +98,13 @@ def get_analytics_summary(form_id):
 })
 @jwt_required()
 def get_analytics_timeline(form_id):
+    app_logger.info(f"Entering get_analytics_timeline for form_id: {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"Unauthorized analytics timeline access attempt for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
             return jsonify({"error": "Unauthorized"}), 403
 
         days = request.args.get("days", 30, type=int)
@@ -115,10 +125,14 @@ def get_analytics_timeline(form_id):
         sorted_dates = sorted(date_counts.keys())
         timeline = [{"date": d, "count": date_counts[d]} for d in sorted_dates]
 
+        app_logger.info(f"Successfully retrieved analytics timeline for form_id: {form_id}")
         return jsonify({"period_days": days, "timeline": timeline}), 200
 
+    except DoesNotExist:
+        app_logger.warning(f"Form not found for analytics timeline: {form_id}")
+        return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Analytics Timeline Error: {str(e)}")
+        error_logger.error(f"Analytics Timeline Error for form_id {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -143,15 +157,18 @@ def get_analytics_timeline(form_id):
 })
 @jwt_required()
 def get_analytics_distribution(form_id):
+    app_logger.info(f"Entering get_analytics_distribution for form_id: {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"Unauthorized analytics distribution access attempt for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
             return jsonify({"error": "Unauthorized"}), 403
 
         # Identify choice-based questions from latest version
         if not form.versions:
+            app_logger.info(f"No versions found for form_id: {form_id}, returning empty distribution")
             return jsonify({"distribution": {}}), 200
 
         latest_version = form.versions[-1]
@@ -216,10 +233,15 @@ def get_analytics_distribution(form_id):
                 }
             )
 
+        app_logger.info(f"Successfully retrieved analytics distribution for form_id: {form_id}")
         return jsonify({"distribution": results}), 200
 
     except DoesNotExist:
+        app_logger.warning(f"Form not found for analytics distribution: {form_id}")
         return jsonify({"error": "Form not found"}), 404
+    except Exception as e:
+        error_logger.error(f"Analytics Distribution Error for form_id {form_id}: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @form_bp.route("/<form_id>/analytics", methods=["GET"])
@@ -247,11 +269,13 @@ def get_full_analytics(form_id):
     M-11 Aggregated Analytics Endpoint
     Returns: totalSubmissions, completionRate, trends, fieldDistributions
     """
+    app_logger.info(f"Entering get_full_analytics for form_id: {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"Unauthorized full analytics access attempt for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
             return jsonify({"error": "Unauthorized"}), 403
 
         # 1. Total Submissions
@@ -341,6 +365,7 @@ def get_full_analytics(form_id):
                 for k, v in counts.items()
             ]
 
+        app_logger.info(f"Successfully retrieved full analytics for form_id: {form_id}")
         return (
             jsonify(
                 {
@@ -356,7 +381,9 @@ def get_full_analytics(form_id):
         )
 
     except DoesNotExist:
+        app_logger.warning(f"Form not found for full analytics: {form_id}")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Full Analytics Error: {str(e)}")
+        error_logger.error(f"Full Analytics Error for form_id {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 500
+

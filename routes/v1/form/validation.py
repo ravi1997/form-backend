@@ -2,6 +2,7 @@ from . import form_bp
 from flasgger import swag_from
 import json
 import re
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 
 def sanitize_uuid_for_eval(uuid_str):
@@ -9,7 +10,10 @@ def sanitize_uuid_for_eval(uuid_str):
     Replaces dashes in UUID with underscores and adds a prefix to make it a valid identifier.
     Example: 123-456 -> v_123_456
     """
-    return f"v_{uuid_str.replace('-', '_')}"
+    app_logger.debug(f"Entering sanitize_uuid_for_eval: {uuid_str}")
+    result = f"v_{uuid_str.replace('-', '_')}"
+    app_logger.debug(f"Exiting sanitize_uuid_for_eval: {result}")
+    return result
 
 
 def prepare_eval_context(entries):
@@ -17,6 +21,7 @@ def prepare_eval_context(entries):
     Creates a context dictionary where keys are sanitized UUIDs.
     Also keeps original keys just in case (as strings).
     """
+    app_logger.debug("Entering prepare_eval_context")
     context = {}
     if entries:
         for entry in entries:
@@ -26,6 +31,7 @@ def prepare_eval_context(entries):
                 context[safe_key] = v
                 # Add original version (quoted for string comparison if needed, though less likely for variable lookup)
                 context[str(k)] = v
+    app_logger.debug(f"Exiting prepare_eval_context with {len(context)} keys")
     return context
 
 
@@ -61,13 +67,17 @@ def safe_eval(expr, context):
     Safely evaluate an expression string using the given context.
     Uses AST parsing to avoid security risks of eval().
     """
+    app_logger.debug(f"Entering safe_eval: {expr}")
     try:
         # Parse the expression into an AST
         tree = ast.parse(expr, mode="eval")
-        return _eval_node(tree.body, context)
+        result = _eval_node(tree.body, context)
+        app_logger.debug(f"Exiting safe_eval: {expr} -> {result}")
+        return result
     except Exception as e:
         # Log the error if needed, but return False/Error as per use case
         # For condition evaluation, if it fails, it's usually False
+        error_logger.error(f"Safe eval failed for expression '{expr}': {e}")
         raise ValueError(f"Safe eval failed: {e}")
 
 
@@ -117,6 +127,7 @@ def evaluate_condition(condition, context, logger=None):
     if not condition:
         return False
 
+    app_logger.debug(f"Entering evaluate_condition: {condition}")
     try:
         # Regex to find UUID patterns
         uuid_pattern = r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
@@ -126,28 +137,31 @@ def evaluate_condition(condition, context, logger=None):
 
         safe_condition = re.sub(uuid_pattern, replace_uuid, condition)
 
-        if logger and safe_condition != condition:
-            logger.debug(f"Sanitized condition: {condition} -> {safe_condition}")
+        if safe_condition != condition:
+            app_logger.debug(f"Sanitized condition: {condition} -> {safe_condition}")
 
-        return safe_eval(safe_condition, context)
+        result = safe_eval(safe_condition, context)
+        app_logger.debug(f"Exiting evaluate_condition: {condition} -> {result}")
+        return result
     except Exception as err:
-        if logger:
-            logger.warning(f"Eval failed: {condition}, error={err}")
+        error_logger.error(f"Eval failed for condition '{condition}': {err}")
         return False
 
 
-def validate_form_submission(form, submitted_data, logger, is_draft=False):
+def validate_form_submission(form, submitted_data, logger=None, is_draft=False):
     """
     Validates submitted data against form structure and rules.
     Returns (validation_errors, cleaned_data).
     cleaned_data contains only visible and valid fields.
     If is_draft=True, skips required checks and minimum limits.
     """
+    app_logger.info(f"Entering validate_form_submission for form: {form.id}, is_draft={is_draft}")
     validation_errors = []
     cleaned_data = {}
 
     # Get the latest version
     if not form.versions:
+        error_logger.error(f"Form {form.id} has no versions defined")
         return [{"error": "Form has no versions defined"}], {}
 
     active_v = getattr(form, "active_version_id", None)
@@ -162,7 +176,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
         sid = str(section.id)
         section_data = submitted_data.get(sid)
 
-        logger.info(
+        app_logger.debug(
             f"Processing section: {sid}, repeatable={section.is_repeatable_section}"
         )
 
@@ -177,7 +191,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
             if not isinstance(section_data, list):
                 msg = "Expected a list of entries for repeatable section"
                 validation_errors.append({"section_id": sid, "error": msg})
-                logger.warning(f"{sid}: {msg}")
+                app_logger.warning(f"{sid}: {msg}")
                 continue
 
             if (
@@ -187,12 +201,12 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
             ):
                 msg = f"At least {section.repeat_min} entries required"
                 validation_errors.append({"section_id": sid, "error": msg})
-                logger.warning(f"{sid}: {msg}")
+                app_logger.warning(f"{sid}: {msg}")
 
             if section.repeat_max and len(section_data) > section.repeat_max:
                 msg = f"No more than {section.repeat_max} entries allowed"
                 validation_errors.append({"section_id": sid, "error": msg})
-                logger.warning(f"{sid}: {msg}")
+                app_logger.warning(f"{sid}: {msg}")
 
             entries = section_data
             cleaned_section_entries = []
@@ -200,7 +214,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
             if section_data is None:
                 entries = [{}]
             elif not isinstance(section_data, dict):
-                logger.warning(
+                app_logger.warning(
                     f"{sid}: Non-dict data in non-repeatable section, skipping."
                 )
                 continue
@@ -218,15 +232,15 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
             for question in section.questions:
                 qid = str(question.id)
                 val = entry.get(qid) if entry else None
-                logger.debug(f"Checking question {qid}, label={question.label}")
+                app_logger.debug(f"Checking question {qid}, label={question.label}")
 
                 # 1. Evaluate visibility
                 is_visible = True
                 if question.visibility_condition:
                     is_visible = evaluate_condition(
-                        question.visibility_condition, context, logger
+                        question.visibility_condition, context
                     )
-                    logger.debug(f"Visibility of {qid}: {is_visible}")
+                    app_logger.debug(f"Visibility of {qid}: {is_visible}")
 
                 if not is_visible:
                     # Skip validation AND do not add to cleaned_entry
@@ -240,10 +254,10 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                     and question.required_condition
                 ):
                     is_required = evaluate_condition(
-                        question.required_condition, context, logger
+                        question.required_condition, context
                     )
                     if is_required:
-                        logger.debug(
+                        app_logger.debug(
                             f"Field {qid} is mandatory due to condition: {question.required_condition}"
                         )
 
@@ -260,7 +274,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                     if not isinstance(val, list) and val is not None:
                         msg = "Expected list of answers for repeatable question"
                         validation_errors.append({"id": qid, "error": msg})
-                        logger.warning(f"{qid}: {msg}")
+                        app_logger.warning(f"{qid}: {msg}")
                         # Don't add to cleaned_entry if invalid structure
                         continue
 
@@ -268,7 +282,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                         if not is_draft:
                             msg = "Required field missing"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
                         continue
 
                     if val:
@@ -279,11 +293,11 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                         ):
                             msg = f"At least {question.repeat_min} entries required"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
                         if question.repeat_max and len(val) > question.repeat_max:
                             msg = f"No more than {question.repeat_max} entries allowed"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
 
                     answers_to_check = val if val else []
                     cleaned_entry[qid] = val  # Add raw value, or normalized?
@@ -296,7 +310,7 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                         if not is_draft:
                             msg = "Required field missing"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
                         continue
 
                     if ans in (None, ""):
@@ -306,22 +320,22 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                     if question.field_type == "checkbox" and not isinstance(ans, list):
                         msg = "Expected a list for checkbox"
                         validation_errors.append({"id": qid, "error": msg})
-                        logger.warning(f"{qid}: {msg}")
+                        app_logger.warning(f"{qid}: {msg}")
                     elif question.field_type in ("text", "textarea") and not isinstance(
                         ans, str
                     ):
                         msg = "Expected a string for text/textarea"
                         validation_errors.append({"id": qid, "error": msg})
-                        logger.warning(f"{qid}: {msg}")
+                        app_logger.warning(f"{qid}: {msg}")
                     elif question.field_type == "radio":
                         if not isinstance(ans, str):
                             msg = "Expected a string for radio"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
                         elif val not in [opt.option_value for opt in question.options]:
                             msg = "Invalid option selected"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
                     elif question.field_type == "file_upload":
                         if isinstance(ans, dict) and "filepath" in ans:
                             pass
@@ -333,11 +347,11 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                                 ):
                                     msg = "Invalid file upload"
                                     validation_errors.append({"id": qid, "error": msg})
-                                    logger.warning(f"{qid}: {msg}")
+                                    app_logger.warning(f"{qid}: {msg}")
                         else:
                             msg = "Expected file upload for file_upload field type"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.warning(f"{qid}: {msg}")
+                            app_logger.warning(f"{qid}: {msg}")
                     elif question.field_type == "slider":
                         try:
                             val_num = float(ans)
@@ -432,15 +446,15 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                         except json.JSONDecodeError:  # More specific exception handling
                             msg = "Invalid JSON format for validation_rules"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.error(f"{qid}: {msg}")
+                            error_logger.error(f"{qid}: {msg}")
                         except re.error as re_err:  # Handle invalid regex patterns
                             msg = f"Invalid regex pattern: {re_err}"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.error(f"{qid}: {msg}")
+                            error_logger.error(f"{qid}: {msg}")
                         except Exception as ve:
                             msg = f"Error processing validation rules: {str(ve)}"
                             validation_errors.append({"id": qid, "error": msg})
-                            logger.error(f"{qid}: {msg}")
+                            error_logger.error(f"{qid}: {msg}")
 
             cleaned_section_entries.append(cleaned_entry)
 
@@ -484,14 +498,15 @@ def validate_form_submission(form, submitted_data, logger, is_draft=False):
                     # We assume expression MUST be True.
                     if not is_valid:
                         validation_errors.append({"global": True, "error": err_msg})
-                        logger.warning(f"Global validation failed: {expr}")
+                        app_logger.warning(f"Global validation failed: {expr}")
                 except Exception as e:
-                    logger.error(f"Error evaluating global rule {expr}: {e}")
+                    error_logger.error(f"Error evaluating global rule {expr}: {e}")
                     # Decide if error in rule should block submission? Yes.
                     validation_errors.append(
                         {"global": True, "error": f"Rule error: {err_msg}"}
                     )
 
+    app_logger.info(f"Exiting validate_form_submission: {len(validation_errors)} errors found")
     return validation_errors, cleaned_data
 
 
@@ -516,6 +531,7 @@ def evaluate_conditions_endpoint():
     """
     Evaluate conditional logic for dynamic form behavior.
     """
+    app_logger.info("Entering evaluate_conditions_endpoint")
     try:
         data = request.get_json()
         form_id = data.get("form_id")
@@ -523,6 +539,7 @@ def evaluate_conditions_endpoint():
         responses = data.get("responses", {})
 
         if not form_id:
+            app_logger.warning("form_id is missing in evaluate_conditions_endpoint")
             return jsonify({"error": "form_id is required"}), 400
 
         # Prepare context from responses
@@ -551,6 +568,7 @@ def evaluate_conditions_endpoint():
         # Or does it mean "Evaluate field conditions"?
         # Let's support both or just return the results of the requested conditions.
 
+        app_logger.info(f"Exiting evaluate_conditions_endpoint: {len(results)} conditions evaluated")
         return (
             jsonify(
                 {"results": results, "context_keys": list(context.keys())}
@@ -559,5 +577,5 @@ def evaluate_conditions_endpoint():
         )
 
     except Exception as e:
-        current_app.logger.error(f"Condition evaluation error: {str(e)}")
+        error_logger.error(f"Condition evaluation error in endpoint: {str(e)}")
         return jsonify({"error": str(e)}), 400

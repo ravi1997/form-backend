@@ -1,4 +1,3 @@
-import logging
 import threading
 from app import create_app
 from services import event_bus
@@ -6,8 +5,7 @@ from models import Form
 from tasks.notification_tasks import process_notification_triggers
 from services.vector_provider import vector_provider
 from services.search_service import search_service
-
-logger = logging.getLogger(__name__)
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 def handle_form_submitted(payload: dict):
     """
@@ -18,7 +16,7 @@ def handle_form_submitted(payload: dict):
     form_id = payload.get("form_id")
     response_id = payload.get("response_id")
     
-    logger.info(f"EventBus Consumer working on FormSubmitted: {response_id}")
+    app_logger.info(f"Entering handle_form_submitted: response_id={response_id}")
     
     try:
         form = Form.objects(id=form_id, is_deleted=False).first()
@@ -26,32 +24,38 @@ def handle_form_submitted(payload: dict):
             triggers_data = [t.to_mongo().to_dict() for t in form.triggers if t.is_active]
             if triggers_data:
                 process_notification_triggers.delay(triggers_data, payload)
-                logger.info(f"Delegated {len(triggers_data)} triggers to Celery for {response_id}")
+                app_logger.info(f"Delegated {len(triggers_data)} triggers to Celery for {response_id}")
+        
+        audit_logger.info(f"Event 'form.submitted' processed for response_id={response_id}")
+        app_logger.info(f"Exiting handle_form_submitted: {response_id}")
     except Exception as e:
-        logger.error(f"Error handling form.submitted event: {e}")
+        error_logger.error(f"Error handling form.submitted event for {response_id}: {e}")
 
 def handle_form_indexed(payload: dict):
     """
     Consumer logic for 'form.indexed'.
     Synchronizes the MongoDB truth to Elasticsearch entirely out-of-band.
     """
-    logger.info(f"EventBus Consumer working on FormIndexed: {payload.get('id')}")
+    form_id = payload.get('id')
+    app_logger.info(f"Entering handle_form_indexed: form_id={form_id}")
     try:
         search_service.index_form(payload)
         # Simultaneously vectorize for RAG if configured
         vector_provider.embed_and_store(
             tenant_id=payload.get("organization_id", "unknown"),
-            document_id=payload.get("id"),
+            document_id=form_id,
             text=str(payload)
         )
+        audit_logger.info(f"Event 'form.indexed' processed for form_id={form_id}")
+        app_logger.info(f"Exiting handle_form_indexed: {form_id}")
     except Exception as e:
-        logger.error(f"Error handling form.indexed event: {e}")
+        error_logger.error(f"Error handling form.indexed event for {form_id}: {e}")
 
 def start_consumers():
     """Blocking loop to consume Redis PubSub events."""
     app = create_app()
     with app.app_context():
-        logger.info("Initializing Redis EventBus listeners...")
+        app_logger.info("Initializing Redis EventBus listeners...")
         listeners = [
             ("form.submitted", handle_form_submitted),
             ("form.indexed", handle_form_indexed),
@@ -66,6 +70,7 @@ def start_consumers():
             thread.start()
             threads.append(thread)
 
+        app_logger.info(f"Started {len(threads)} consumer threads")
         for thread in threads:
             thread.join()
 

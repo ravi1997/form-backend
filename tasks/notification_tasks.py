@@ -1,18 +1,16 @@
 from config.celery import celery_app
 from services.notification_service import NotificationService
-from logger.unified_logger import get_logger, error_logger
-
-logger = get_logger(__name__)
-
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 @celery_app.task
 def process_notification_triggers(triggers_data, context_data):
     """
     Orchestrator task that fan-outs multiple notification actions.
     """
-    logger.info(f"Fanning out {len(triggers_data)} triggers")
+    app_logger.info(f"Entering process_notification_triggers: fanning out {len(triggers_data)} triggers")
     for trigger in triggers_data:
         process_single_trigger.delay(trigger, context_data)
+    app_logger.info(f"Exiting process_notification_triggers: dispatched {len(triggers_data)} triggers")
     return {"status": "dispatched", "count": len(triggers_data)}
 
 
@@ -33,7 +31,7 @@ def process_single_trigger(self, trigger_data, context_data):
     trigger_name = trigger_data.get("name", "unnamed")
     action_type = trigger_data.get("action_type")
     
-    logger.info(f"Task process_single_trigger started for {trigger_name} (type: {action_type})")
+    app_logger.info(f"Entering process_single_trigger: name={trigger_name}, type={action_type}")
     
     try:
         from services.notification_service import NotificationService
@@ -44,11 +42,12 @@ def process_single_trigger(self, trigger_data, context_data):
             NotificationService._call_external_api(trigger_data.get("action_config", {}), context_data)
         elif action_type == "execute_script":
             # Still blocked for security, but logged
-            logger.warning(f"Custom script execution requested for {trigger_name} but blocked.")
+            app_logger.warning(f"Custom script execution requested for {trigger_name} but blocked.")
         else:
-            logger.warning(f"Unknown action type: {action_type}")
+            app_logger.warning(f"Unknown action type: {action_type}")
             
-        logger.info(f"Trigger {trigger_name} processed successfully")
+        audit_logger.info(f"Notification trigger {trigger_name} (type: {action_type}) processed successfully")
+        app_logger.info(f"Exiting process_single_trigger: {trigger_name} processed")
     except Exception as e:
         error_logger.error(f"Trigger {trigger_name} failed: {str(e)}")
         # Re-raise to trigger Celery retry
@@ -62,9 +61,9 @@ def long_running_computation(data):
     """
     import time
 
-    logger.info(f"Starting long computation for {data}")
+    app_logger.info(f"Entering long_running_computation for {data}")
     # Simulating work
     result = sum(i * i for i in range(1000000))
     time.sleep(2)
-    logger.info("Long computation finished")
+    app_logger.info("Exiting long_running_computation")
     return {"status": "completed", "result": result}

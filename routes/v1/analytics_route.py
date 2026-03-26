@@ -3,17 +3,16 @@ Analytics Routes
 Provides system-wide statistics for administrators.
 """
 
-import logging
 from flask import Blueprint, jsonify, current_app, request
 from flasgger import swag_from
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import Form, FormResponse
 from datetime import datetime, timezone
 from utils.security import require_roles
 from utils.response_helper import success_response, error_response
+from logger.unified_logger import app_logger, error_logger
 
 analytics_bp = Blueprint("analytics_bp", __name__)
-logger = logging.getLogger(__name__)
 
 
 @analytics_bp.route("/dashboard", methods=["GET"])
@@ -33,6 +32,8 @@ def get_dashboard_stats():
     Compute and return system-wide dashboard statistics.
     Restricted to privileged users to prevent sensitive data leakage.
     """
+    user_id = get_jwt_identity()
+    app_logger.info(f"Fetching dashboard stats for user: {user_id}")
     try:
         total_forms = Form.objects().count()
         published_forms = Form.objects(status="published").count()
@@ -64,11 +65,12 @@ def get_dashboard_stats():
                     }
                 )
             except Exception as inner_e:
-                current_app.logger.warning(
+                app_logger.warning(
                     f"Skipping corrupt activity record {r.id}: {inner_e}"
                 )
                 continue
 
+        app_logger.info(f"Dashboard stats generated successfully for user: {user_id}")
         return success_response(
             data={
                 "total_forms": total_forms,
@@ -79,7 +81,7 @@ def get_dashboard_stats():
         )
 
     except Exception as e:
-        current_app.logger.error(f"Failed to generate dashboard statistics: {e}")
+        error_logger.error(f"Failed to generate dashboard statistics for user {user_id}: {e}", exc_info=True)
         return error_response(message="Failed to generate analytics", status_code=500)
 
 
@@ -97,11 +99,15 @@ def get_dashboard_stats():
 @require_roles("admin", "superadmin")
 def get_summary():
     """Returns organization-wide summary statistics."""
+    user_id = get_jwt_identity()
+    app_logger.info(f"Fetching analytics summary for user: {user_id}")
     try:
         total_forms = Form.objects().count()
         total_responses = FormResponse.objects(is_deleted=False).count()
+        app_logger.info(f"Analytics summary retrieved for user: {user_id}")
         return success_response(data={"total_forms": total_forms, "total_responses": total_responses})
     except Exception as e:
+        error_logger.error(f"Error fetching analytics summary for user {user_id}: {e}", exc_info=True)
         return error_response(str(e), status_code=500)
 
 
@@ -119,4 +125,6 @@ def get_summary():
 @jwt_required()
 def get_trends():
     """Returns analytics trends for the organization."""
+    user_id = get_jwt_identity()
+    app_logger.info(f"Fetching analytics trends for user: {user_id}")
     return success_response(data={"trends": []})

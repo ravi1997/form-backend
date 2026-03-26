@@ -190,6 +190,7 @@ PERMISSION_CHOICES = (
     "export_data",
     "manage_access",
     "approve_submissions",
+    "approve_hooks",
 )
 
 # --- Approval Workflow Choices ---
@@ -219,4 +220,7 @@ TRIGGER_ACTION_CHOICES = (
     "validation_error",
     "calculation",
     "api_call",
+    "form_data",
+    "external_hook",
+    "predefined_url",
 )

@@ -1,10 +1,11 @@
 from . import form_bp
 from flasgger import swag_from
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import Form, FormResponse
 from routes.v1.form.helper import get_current_user, has_form_permission
 from mongoengine import DoesNotExist
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 advanced_responses_bp = Blueprint("advanced_responses", __name__)
 
@@ -30,6 +31,10 @@ def fetch_external_form_data():
     question_id = request.args.get("question_id")
     value = request.args.get("value")
 
+    app_logger.info(
+        f"Fetching external form data: form_id={form_id}, question_id={question_id}, value={value}"
+    )
+
     if not all([form_id, question_id, value]):
         return jsonify({"error": "Missing form_id, question_id or value"}), 400
 
@@ -38,6 +43,9 @@ def fetch_external_form_data():
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized external data fetch attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized to view this form"}), 403
 
         # Search responses for the match
@@ -64,11 +72,14 @@ def fetch_external_form_data():
             }
         )
 
+        app_logger.info(f"Fetched {len(responses)} external responses for form {form_id}")
         return jsonify([r.to_mongo().to_dict() for r in responses]), 200
 
     except DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during external data fetch")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error fetching external form data: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -100,6 +111,10 @@ def fetch_same_form_data(form_id):
     question_id = request.args.get("question_id")
     value = request.args.get("value")
 
+    app_logger.info(
+        f"Fetching same form data for form {form_id}: question_id={question_id}, value={value}"
+    )
+
     if not all([question_id, value]):
         return jsonify({"error": "Missing question_id or value"}), 400
 
@@ -108,6 +123,9 @@ def fetch_same_form_data(form_id):
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized same-form data fetch attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized to view this form"}), 403
 
         responses = FormResponse.objects(
@@ -125,11 +143,14 @@ def fetch_same_form_data(form_id):
             }
         )
 
+        app_logger.info(f"Fetched {len(responses)} same-form responses for form {form_id}")
         return jsonify([r.to_mongo().to_dict() for r in responses]), 200
 
     except DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during same-form data fetch")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error fetching same-form data: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -159,6 +180,10 @@ def fetch_specific_questions(form_id):
     Query Params: question_ids (comma separated)
     """
     question_ids_raw = request.args.get("question_ids")
+    app_logger.info(
+        f"Fetching specific questions for form {form_id}: {question_ids_raw}"
+    )
+
     if not question_ids_raw:
         return jsonify({"error": "Missing question_ids"}), 400
 
@@ -169,6 +194,9 @@ def fetch_specific_questions(form_id):
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized specific question fetch attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         responses = FormResponse.objects(form=form.id, deleted=False)
@@ -189,11 +217,16 @@ def fetch_specific_questions(form_id):
                 }
             )
 
+        app_logger.info(
+            f"Extracted questions for {len(result)} responses in form {form_id}"
+        )
         return jsonify(result), 200
 
     except DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during specific question fetch")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error fetching specific questions: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -221,11 +254,15 @@ def fetch_response_meta(form_id):
     """
     Fetching meta information about a form response like number of response etc.
     """
+    app_logger.info(f"Fetching response meta for form {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized response meta fetch attempt by user {current_user.id} for form {form_id}"
+            )
             return jsonify({"error": "Unauthorized"}), 403
 
         total_responses = FormResponse.objects(form=form.id, deleted=False).count()
@@ -241,6 +278,7 @@ def fetch_response_meta(form_id):
             .first()
         )
 
+        app_logger.info(f"Response meta fetched for form {form_id}")
         return (
             jsonify(
                 {
@@ -257,8 +295,10 @@ def fetch_response_meta(form_id):
         )
 
     except DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during response meta fetch")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error fetching response meta: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -278,6 +318,7 @@ def micro_info():
     """
     Route for micro informations (Placeholder).
     """
+    app_logger.info("Micro info requested")
     return jsonify({"message": "Micro information retrieved", "data": {}}), 200
 
 
@@ -306,6 +347,7 @@ def get_form_access_control(form_id):
     User access control for a forms.
     Returns a detailed JSON report of the current user's permissions.
     """
+    app_logger.info(f"Fetching access control report for form {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
@@ -328,6 +370,7 @@ def get_form_access_control(form_id):
         # Context details
         policy = form.access_policy if hasattr(form, "access_policy") else None
 
+        app_logger.info(f"Access control report generated for form {form_id}")
         return (
             jsonify(
                 {
@@ -361,8 +404,10 @@ def get_form_access_control(form_id):
         )
 
     except DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during access control fetch")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error fetching access control: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -391,11 +436,15 @@ def update_access_policy(form_id):
     Management route to update the Access Policy for a form.
     Requires 'manage_access' permission.
     """
+    app_logger.info(f"Updating access policy for form {form_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=form_id)
 
         if not has_form_permission(current_user, form, "manage_access"):
+            error_logger.warning(
+                f"Unauthorized access policy update attempt by user {current_user.id} for form {form_id}"
+            )
             return (
                 jsonify({"error": "Unauthorized to manage access for this form"}),
                 403,
@@ -429,11 +478,16 @@ def update_access_policy(form_id):
             "allowed_departments",
         ]
 
+        updated_fields = []
         for field in fields:
             if field in pol_data:
                 setattr(form.access_policy, field, pol_data[field])
+                updated_fields.append(field)
 
         form.save()
+        audit_logger.info(
+            f"User {current_user.id} updated access policy for form {form_id}. Updated fields: {updated_fields}"
+        )
         return (
             jsonify(
                 {
@@ -445,6 +499,8 @@ def update_access_policy(form_id):
         )
 
     except DoesNotExist:
+        error_logger.warning(f"Form {form_id} not found during access policy update")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Error updating access policy: {str(e)}")
         return jsonify({"error": str(e)}), 400

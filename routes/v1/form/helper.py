@@ -1,9 +1,11 @@
 from . import form_bp
 from flask_jwt_extended import get_jwt_identity
 from models import User
+from logger.unified_logger import app_logger, error_logger
 
 
 def get_current_user():
+    app_logger.info("Entering get_current_user helper")
     user_id = get_jwt_identity()
     return User.objects(id=user_id).first()
 
@@ -11,31 +13,25 @@ def get_current_user():
 def has_form_permission(user, form, action):
     """
     Check if a user has permission to perform a specific action on a form.
-    Supported actions:
-    - view: Can view/open the form
-    - submit: Can submit responses
-    - edit: Can edit form design/questions
-    - manage_access: Can manage permissions/access policy
-    - view_responses: Can view submission list
-    - edit_responses: Can edit existing responses
-    - delete_responses: Can delete responses
-    - view_audit: Can view form/response history
-    - delete_form: Can delete the entire form
     """
+    app_logger.info(f"Checking permission '{action}' for user {user.id} on form {form.id}")
     user_id_str = str(user.id)
     user_roles = user.roles or []
     user_dept = getattr(user, "department", None)
 
     # Enforce tenant isolation before evaluating role or policy permissions.
     if getattr(user, "organization_id", None) != getattr(form, "organization_id", None):
+        app_logger.warning(f"Tenant mismatch: user org {getattr(user, 'organization_id', None)} != form org {getattr(form, 'organization_id', None)}")
         return False
 
     # Superadmin always has all permissions
     if hasattr(user, "is_superadmin_check") and user.is_superadmin_check():
+        app_logger.info(f"User {user.id} is superadmin, permission granted")
         return True
 
     # Creator always has all permissions
     if str(form.created_by) == user_id_str:
+        app_logger.info(f"User {user.id} is creator, permission granted")
         return True
 
     # Helper to check if user or their roles are in a list
@@ -62,84 +58,112 @@ def has_form_permission(user, form, action):
             or user_id_str in (form.editors or [])
             or form.is_public
         ):
+            app_logger.info(f"View permission granted for user {user.id} via viewers/editors/public")
             return True
         if policy:
             if policy.form_visibility == "public":
+                app_logger.info(f"View permission granted for user {user.id} via public policy")
                 return True
             if policy.form_visibility == "restricted":
                 if user_dept and user_dept in (policy.allowed_departments or []):
+                    app_logger.info(f"View permission granted for user {user.id} via department {user_dept}")
                     return True
                 if is_in_list(policy.can_view_responses):
+                    app_logger.info(f"View permission granted for user {user.id} via can_view_responses list")
                     return True
+        app_logger.info(f"View permission denied for user {user.id}")
         return False
 
     # 2. SUBMIT FORM
     if action == "submit":
         # Allow anyone in the same organization to submit by default
+        app_logger.info(f"Submit permission granted for user {user.id} (org match)")
         return True
 
     # 3. EDIT DESIGN / CREATE VERSIONS
     if action in ("edit", "edit_design"):
         if user_id_str in (form.editors or []):
+            app_logger.info(f"Edit permission granted for user {user.id} via editors list")
             return True
         if policy and is_in_list(policy.can_edit_design):
+            app_logger.info(f"Edit permission granted for user {user.id} via policy can_edit_design")
             return True
+        app_logger.info(f"Edit permission denied for user {user.id}")
         return False
 
     # 4. MANAGE ACCESS
     if action == "manage_access":
         if hasattr(user, "is_admin_check") and user.is_admin_check():
+            app_logger.info(f"Manage access permission granted for user {user.id} via admin check")
             return True
         if policy and is_in_list(policy.can_manage_access):
+            app_logger.info(f"Manage access permission granted for user {user.id} via policy can_manage_access")
             return True
+        app_logger.info(f"Manage access permission denied for user {user.id}")
         return False
 
     # 5. RESPONSES
     if action == "view_responses":
         if user_id_str in (form.editors or []):
+            app_logger.info(f"View responses permission granted for user {user.id} via editors list")
             return True
         if policy and is_in_list(policy.can_view_responses):
+            app_logger.info(f"View responses permission granted for user {user.id} via policy can_view_responses")
             return True
+        app_logger.info(f"View responses permission denied for user {user.id}")
         return False
 
     if action == "edit_responses":
         if user_id_str in (form.editors or []):
+            app_logger.info(f"Edit responses permission granted for user {user.id} via editors list")
             return True
         if policy and is_in_list(policy.can_edit_responses):
+            app_logger.info(f"Edit responses permission granted for user {user.id} via policy can_edit_responses")
             return True
+        app_logger.info(f"Edit responses permission denied for user {user.id}")
         return False
 
     if action == "delete_responses":
         if hasattr(user, "is_admin_check") and user.is_admin_check():
+            app_logger.info(f"Delete responses permission granted for user {user.id} via admin check")
             return True
         if policy and is_in_list(policy.can_delete_responses):
+            app_logger.info(f"Delete responses permission granted for user {user.id} via policy can_delete_responses")
             return True
+        app_logger.info(f"Delete responses permission denied for user {user.id}")
         return False
 
     # 6. AUDIT / HISTORY
     if action == "view_audit":
         if user_id_str in (form.editors or []):
+            app_logger.info(f"View audit permission granted for user {user.id} via editors list")
             return True
         if policy and is_in_list(policy.can_view_audit_logs):
+            app_logger.info(f"View audit permission granted for user {user.id} via policy can_view_audit_logs")
             return True
+        app_logger.info(f"View audit permission denied for user {user.id}")
         return False
 
     # 7. DELETE FORM
     if action == "delete_form":
         if hasattr(user, "is_admin_check") and user.is_admin_check():
+            app_logger.info(f"Delete form permission granted for user {user.id} via admin check")
             return True
         if policy and is_in_list(policy.can_delete_form):
+            app_logger.info(f"Delete form permission granted for user {user.id} via policy can_delete_form")
             return True
+        app_logger.info(f"Delete form permission denied for user {user.id}")
         return False
 
+    app_logger.warning(f"Unknown action '{action}' for permission check")
     return False
 
 
 def apply_translations(form_dict, lang_code):
     """
     Applies translations to a form dictionary based on the provided language code.
-    If translations for lang_code don't exist, returns the original dict.
     """
+    app_logger.info(f"Applying translations for lang '{lang_code}'")
     if "versions" not in form_dict or not form_dict["versions"]:
         return form_dict
 

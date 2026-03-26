@@ -3,10 +3,8 @@ from mongoengine.errors import DoesNotExist, ValidationError as MongoValidationE
 from pydantic import BaseModel
 from models.base import BaseDocument
 from .exceptions import NotFoundError, ValidationError, ConflictError
-from logger import get_logger, error_logger
+from logger.unified_logger import app_logger, error_logger, audit_logger
 from schemas.base import PaginatedResult
-
-logger = get_logger(__name__)
 
 TModel = TypeVar('TModel', bound=BaseDocument)
 TSchema = TypeVar('TSchema', bound=BaseModel)
@@ -39,6 +37,7 @@ class BaseService:
             raise ValidationError(f"Data corruption detected in DB for {self.model.__name__}", details={'error': str(e)})
 
     def get_by_id(self, doc_id: str, organization_id: str = None, fields: List[str] = None) -> TSchema:
+        app_logger.debug(f"Entering get_by_id for {self.model.__name__}: {doc_id} (org: {organization_id})")
         try:
             filters = {'id': doc_id}
             if organization_id:
@@ -51,12 +50,18 @@ class BaseService:
                 query = query.only(*fields)
             
             document = query.get()
-            return self._to_schema(document)
+            result = self._to_schema(document)
+            app_logger.debug(f"Exiting get_by_id for {self.model.__name__}: {doc_id} successfully")
+            return result
         except (DoesNotExist, ValueError):
-            logger.debug(f"{self.model.__name__} with id {doc_id} (org: {organization_id}) not found.")
+            app_logger.warning(f"{self.model.__name__} with id {doc_id} (org: {organization_id}) not found.")
             raise NotFoundError(f"{self.model.__name__} not found")
+        except Exception as e:
+            error_logger.error(f"Error in get_by_id for {self.model.__name__} {doc_id}: {str(e)}", exc_info=True)
+            raise
 
     def list_paginated(self, page: int = 1, page_size: int = None, sort_by: str = '-created_at', organization_id: str = None, **filters) -> PaginatedResult:
+        app_logger.debug(f"Entering list_paginated for {self.model.__name__} (org: {organization_id})")
         from config.settings import settings
         
         # Enforce limits
@@ -77,6 +82,7 @@ class BaseService:
         
         items = [self._to_schema(doc) for doc in documents]
         
+        app_logger.debug(f"Exiting list_paginated for {self.model.__name__} successfully: {len(items)}/{total} items")
         return PaginatedResult(
             items=items,
             total=total,
@@ -87,20 +93,32 @@ class BaseService:
         )
 
     def create(self, create_schema: TCreateSchema) -> TSchema:
+        app_logger.info(f"Entering create for {self.model.__name__}")
         try:
             data = create_schema.model_dump(exclude_unset=True)
             document = self.model(**data)
             document.save()
-            logger.info(f"Created {self.model.__name__} with ID {getattr(document, 'id', 'unknown')}")
-            return self._to_schema(document)
+            doc_id = getattr(document, 'id', 'unknown')
+            org_id = getattr(document, 'organization_id', 'unknown')
+            
+            app_logger.info(f"Created {self.model.__name__} with ID {doc_id}")
+            audit_logger.info(f"Audit: Created {self.model.__name__} with ID {doc_id} (org: {org_id})")
+            
+            result = self._to_schema(document)
+            app_logger.debug(f"Exiting create for {self.model.__name__} successfully")
+            return result
         except NotUniqueError as e:
-            logger.warning(f"Conflict error creating {self.model.__name__}: {str(e)}")
+            app_logger.warning(f"Conflict error creating {self.model.__name__}: {str(e)}")
             raise ConflictError(f"{self.model.__name__} uniqueness constraint failed", details={'error': str(e)})
         except MongoValidationError as e:
-            logger.warning(f"DB constraint error creating {self.model.__name__}: {str(e)}")
+            app_logger.warning(f"DB constraint error creating {self.model.__name__}: {str(e)}")
             raise ValidationError(f"Invalid data for {self.model.__name__}", details={'error': str(e)})
+        except Exception as e:
+            error_logger.error(f"Error creating {self.model.__name__}: {str(e)}", exc_info=True)
+            raise
 
     def update(self, doc_id: str, update_schema: TUpdateSchema, organization_id: str = None) -> TSchema:
+        app_logger.info(f"Entering update for {self.model.__name__} {doc_id} (org: {organization_id})")
         try:
             filters = {'id': doc_id}
             if organization_id:
@@ -114,16 +132,28 @@ class BaseService:
             if update_data:
                 document.update(**{f"set__{k}": v for k, v in update_data.items()})
                 document.reload()
-            logger.info(f"Updated {self.model.__name__} {doc_id} (org: {organization_id})")
-            return self._to_schema(document)
+            
+            app_logger.info(f"Updated {self.model.__name__} {doc_id} (org: {organization_id})")
+            audit_logger.info(f"Audit: Updated {self.model.__name__} {doc_id} (org: {organization_id})")
+            
+            result = self._to_schema(document)
+            app_logger.debug(f"Exiting update for {self.model.__name__} {doc_id} successfully")
+            return result
         except (DoesNotExist, ValueError):
+            app_logger.warning(f"{self.model.__name__} not found for update: {doc_id}")
             raise NotFoundError(f"{self.model.__name__} not found for update")
         except NotUniqueError as e:
+            app_logger.warning(f"Update caused a uniqueness conflict in {self.model.__name__} {doc_id}: {str(e)}")
             raise ConflictError(f"Update caused a uniqueness conflict in {self.model.__name__}", details={'error': str(e)})
         except MongoValidationError as e:
+            app_logger.warning(f"Database validation failed on update for {self.model.__name__} {doc_id}: {str(e)}")
             raise ValidationError(f"Database validation failed on update", details={'error': str(e)})
+        except Exception as e:
+            error_logger.error(f"Error updating {self.model.__name__} {doc_id}: {str(e)}", exc_info=True)
+            raise
 
     def delete(self, doc_id: str, organization_id: str = None, hard_delete: bool = False) -> None:
+        app_logger.info(f"Entering delete for {self.model.__name__} {doc_id} (org: {organization_id}, hard: {hard_delete})")
         try:
             filters = {'id': doc_id}
             if organization_id:
@@ -132,11 +162,17 @@ class BaseService:
             document = self.model.objects(**filters).get()
             if hasattr(document, 'soft_delete') and not hard_delete:
                 document.soft_delete()
-                logger.info(f"Soft deleted {self.model.__name__} {doc_id} (org: {organization_id})")
+                app_logger.info(f"Soft deleted {self.model.__name__} {doc_id} (org: {organization_id})")
+                audit_logger.info(f"Audit: Soft deleted {self.model.__name__} {doc_id} (org: {organization_id})")
                 return None
             
             document.delete()
-            logger.warning(f"HARD deleted {self.model.__name__} {doc_id} (org: {organization_id})")
+            app_logger.warning(f"HARD deleted {self.model.__name__} {doc_id} (org: {organization_id})")
+            audit_logger.info(f"Audit: HARD deleted {self.model.__name__} {doc_id} (org: {organization_id})")
             return None
         except (DoesNotExist, ValueError):
+            app_logger.warning(f"{self.model.__name__} not found for deletion: {doc_id}")
             raise NotFoundError(f"{self.model.__name__} not found for deletion")
+        except Exception as e:
+            error_logger.error(f"Error deleting {self.model.__name__} {doc_id}: {str(e)}", exc_info=True)
+            raise

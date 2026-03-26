@@ -11,6 +11,7 @@ from utils.exceptions import NotFoundError, ValidationError, ForbiddenError, Ser
 from utils.response_helper import success_response, error_response
 import json
 from utils.script_engine import execute_safe_script
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 
 # -------------------- Public Anonymous Submission --------------------
@@ -34,13 +35,14 @@ from utils.script_engine import execute_safe_script
     ]
 })
 def submit_public_response(form_id):
+    app_logger.info(f"Entering submit_public_response for form {form_id}")
     data = request.get_json()
     try:
         form = Form.objects.get(id=form_id)
 
         # Check if form is published
         if form.status != "published":
-            current_app.logger.warning(
+            app_logger.warning(
                 f"Attempted public submission to non-published form {form_id} (status: {form.status})"
             )
             raise ForbiddenError(f"Form is {form.status}, not accepting submissions")
@@ -49,7 +51,7 @@ def submit_public_response(form_id):
         if form.expires_at and datetime.now(timezone.utc) > form.expires_at.replace(
             tzinfo=timezone.utc
         ):
-            current_app.logger.warning(
+            app_logger.warning(
                 f"Attempted public submission to expired form {form_id} (expired at: {form.expires_at})"
             )
             raise ForbiddenError("Form has expired")
@@ -57,23 +59,24 @@ def submit_public_response(form_id):
         # Check if form is scheduled for future
         now = datetime.now(timezone.utc)
         if form.publish_at and now < form.publish_at.replace(tzinfo=timezone.utc):
-            current_app.logger.warning(
+            app_logger.warning(
                 f"Attempted public submission to future scheduled form {form_id} (publish at: {form.publish_at})"
             )
             raise ForbiddenError("Form is not yet available")
 
         if not form.is_public:
+            app_logger.warning(f"Attempted public submission to non-public form {form_id}")
             raise ForbiddenError("Form is not public")
 
         from routes.v1.form.validation import validate_form_submission
 
         submitted_data = data.get("data", {})
         validation_errors, cleaned_data = validate_form_submission(
-            form, submitted_data, current_app.logger
+            form, submitted_data, app_logger
         )
 
         if validation_errors:
-            current_app.logger.warning(f"Public validation failed: {validation_errors}")
+            app_logger.warning(f"Public validation failed for form {form_id}: {validation_errors}")
             return error_response(message="Validation failed", details=validation_errors, status_code=422)
 
         response = FormResponse(
@@ -84,6 +87,7 @@ def submit_public_response(form_id):
             submitted_at=datetime.now(timezone.utc),
         )
         response.save()
+        audit_logger.info(f"Anonymous response {response.id} submitted for form {form_id}")
 
         # Fire notification triggers if available
         try:
@@ -96,7 +100,7 @@ def submit_public_response(form_id):
                     {"form_id": str(form.id), "response_id": str(response.id)},
                 )
         except Exception as notif_err:
-            current_app.logger.warning(f"Notification trigger error: {notif_err}")
+            app_logger.warning(f"Notification trigger error for form {form_id}: {notif_err}")
 
         return success_response(
             data={"response_id": str(response.id)},
@@ -104,10 +108,12 @@ def submit_public_response(form_id):
             status_code=201
         )
     except DoesNotExist:
+        app_logger.warning(f"Form {form_id} not found for public submission")
         raise NotFoundError("Form not found")
     except (ValidationError, ForbiddenError) as e:
         raise
     except Exception as e:
+        error_logger.error(f"Error in submit_public_response for form {form_id}: {e}")
         return error_response(message=str(e), status_code=400)
 
 
@@ -132,6 +138,7 @@ def submit_public_response(form_id):
 })
 @jwt_required()
 def form_submission_history(form_id):
+    app_logger.info(f"Entering form_submission_history for form {form_id}")
     current_user = get_current_user()
     try:
         question_id = request.args.get("question_id")
@@ -143,6 +150,7 @@ def form_submission_history(form_id):
                 auth = f"Bearer {token}"
 
         if not question_id or not primary_value:
+            app_logger.warning(f"Missing parameters in form_submission_history for form {form_id}")
             return (
                 jsonify(
                     {"error": "Missing 'question_id' or 'primary_value' parameter"}
@@ -150,7 +158,7 @@ def form_submission_history(form_id):
                 400,
             )
 
-        current_app.logger.info(
+        app_logger.info(
             f"User {current_user.username} is requesting submission history for form {form_id}, question {question_id} with value '{primary_value}'"
         )
 
@@ -171,8 +179,8 @@ def form_submission_history(form_id):
         }
 
         url = f"/form/api/v1/form/{form_id}/responses/search"
-        current_app.logger.debug(
-            f"Internal search URL: {url}, Payload: {search_payload}, Headers: {headers}"
+        app_logger.debug(
+            f"Internal search URL: {url}, Payload: {search_payload}"
         )
         # Call the internal search route using requests
         response = current_app.test_client().post(
@@ -187,9 +195,10 @@ def form_submission_history(form_id):
             result = [
                 {"_id": r["_id"], "submitted_at": r["submitted_at"]} for r in full_data
             ]
+            app_logger.info(f"Successfully retrieved history for form {form_id}, found {len(result)} records")
             return jsonify({"data": result}), 200
         else:
-            current_app.logger.error(
+            error_logger.error(
                 f"Search call failed for form {form_id}, question {question_id} with value '{primary_value}': {response.text}"
             )
             return (
@@ -200,8 +209,8 @@ def form_submission_history(form_id):
             )
 
     except Exception as e:
-        current_app.logger.error(
-            f"Error fetching form submission history: {str(e)}", exc_info=True
+        error_logger.error(
+            f"Error fetching form submission history for {form_id}: {str(e)}", exc_info=True
         )
         return jsonify({"error": "Internal server error"}), 500
 
@@ -230,20 +239,13 @@ def form_submission_history(form_id):
 def check_next_action(form_id):
     """
     Check if any active workflows should be triggered for this form.
-    This endpoint is used by the frontend to determine the next action after form submission.
-
-    Query Parameters:
-    - response_id (optional): Check workflows for a specific response
-
-    Returns:
-    - workflow_action object if a workflow is triggered
-    - null if no workflow is triggered
     """
-    current_app.logger.info(f"--- Check Next Action for form_id: {form_id} ---")
+    app_logger.info(f"--- Entering check_next_action for form_id: {form_id} ---")
     try:
         from models.Workflow import FormWorkflow
         current_user = get_current_user()
         if not current_user:
+            app_logger.warning("Unauthorized access in check_next_action")
             return jsonify({"error": "Unauthorized"}), 401
 
         # Verify form exists
@@ -253,7 +255,7 @@ def check_next_action(form_id):
             is_deleted=False,
         ).first()
         if not form:
-            current_app.logger.warning(
+            app_logger.warning(
                 f"Check Next Action failed: Form {form_id} not found in org {current_user.organization_id}"
             )
             return jsonify({"error": "Form not found"}), 404
@@ -270,7 +272,7 @@ def check_next_action(form_id):
                 is_deleted=False,
             ).first()
             if not response:
-                current_app.logger.warning(
+                app_logger.warning(
                     f"Check Next Action failed: Response {response_id} not found"
                 )
                 return jsonify({"error": "Response not found"}), 404
@@ -293,6 +295,7 @@ def check_next_action(form_id):
                     }
                 )
 
+            app_logger.info(f"Returned {len(workflow_list)} available workflows for form {form_id}")
             return (
                 jsonify(
                     {
@@ -348,7 +351,7 @@ def check_next_action(form_id):
                             "matched_condition": condition,
                         }
 
-                        current_app.logger.info(
+                        app_logger.info(
                             f"Workflow {wf.id} triggered for response {response_id}"
                         )
                         return (
@@ -380,7 +383,7 @@ def check_next_action(form_id):
                         "matched_condition": "True (always)",
                     }
 
-                    current_app.logger.info(
+                    app_logger.info(
                         f"Workflow {wf.id} triggered (always) for response {response_id}"
                     )
                     return (
@@ -395,11 +398,11 @@ def check_next_action(form_id):
                     )
 
             except Exception as e:
-                current_app.logger.warning(f"Error evaluating workflow {wf.id}: {e}")
+                app_logger.warning(f"Error evaluating workflow {wf.id} for form {form_id}: {e}")
                 continue
 
         # No workflow triggered
-        current_app.logger.info(
+        app_logger.info(
             f"No workflows triggered for form {form_id}, response {response_id}"
         )
         return (
@@ -414,5 +417,5 @@ def check_next_action(form_id):
         )
 
     except Exception as e:
-        current_app.logger.error(f"Error checking next action: {str(e)}", exc_info=True)
+        error_logger.error(f"Error checking next action for {form_id}: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400

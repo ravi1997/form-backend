@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any
-from logger import get_logger, access_logger, error_logger, log_performance
+from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
 from services.base import BaseService, PaginatedResult, TSchema, TUpdateSchema
 from utils.exceptions import NotFoundError, ValidationError
 from models import Form, FormResponse, DynamicViewDefinition
@@ -27,151 +27,191 @@ class FormResponseService(BaseService):
         Fetches a single response, decrypts its sensitive fields, and caches the result in Redis.
         Uses batch decryption for efficiency.
         """
-        from services.redis_service import redis_service
-        from config.settings import settings
-        from utils.encryption import batch_decrypt_values
-        
-        cache_key = f"decrypted_response:{organization_id}:{response_id}"
-        
-        if settings.CACHE_ENABLED:
-            cached = redis_service.cache.get(cache_key)
-            if cached:
-                return cached
-        
-        # Fetch from DB
-        response = self.model.objects(id=response_id, organization_id=organization_id, is_deleted=False).first()
-        if not response:
-            raise NotFoundError("Response not found")
-        
-        # Batch Decrypt
-        full_data = response.data.copy()
-        if response.encrypted_data:
-            fields = list(response.encrypted_data.keys())
-            values = list(response.encrypted_data.values())
-            decrypted_values = batch_decrypt_values(values)
-            for i, field in enumerate(fields):
-                full_data[field] = decrypted_values[i]
-        
-        # Build full result
-        result = self._to_schema(response).model_dump()
-        result['data'] = full_data
-        
-        if settings.CACHE_ENABLED:
-            redis_service.cache.set(cache_key, result, ttl=settings.RESPONSE_CACHE_TTL)
+        app_logger.info(f"Entering get_decrypted_response for Response ID {response_id}")
+        try:
+            from services.redis_service import redis_service
+            from config.settings import settings
+            from utils.encryption import batch_decrypt_values
             
-        return result
+            cache_key = f"decrypted_response:{organization_id}:{response_id}"
+            
+            if settings.CACHE_ENABLED:
+                cached = redis_service.cache.get(cache_key)
+                if cached:
+                    app_logger.info(f"Cache hit for decrypted response: {response_id}")
+                    return cached
+            
+            # Fetch from DB
+            response = self.model.objects(id=response_id, organization_id=organization_id, is_deleted=False).first()
+            if not response:
+                app_logger.warning(f"Response {response_id} not found")
+                raise NotFoundError("Response not found")
+            
+            # Batch Decrypt
+            full_data = response.data.copy()
+            if response.encrypted_data:
+                fields = list(response.encrypted_data.keys())
+                values = list(response.encrypted_data.values())
+                decrypted_values = batch_decrypt_values(values)
+                for i, field in enumerate(fields):
+                    full_data[field] = decrypted_values[i]
+            
+            # Build full result
+            result = self._to_schema(response).model_dump()
+            result['data'] = full_data
+            
+            if settings.CACHE_ENABLED:
+                redis_service.cache.set(cache_key, result, ttl=settings.RESPONSE_CACHE_TTL)
+            
+            audit_logger.info(f"AUDIT: Decrypted response accessed: {response_id} by org {organization_id}")
+            app_logger.info(f"Successfully completed get_decrypted_response for {response_id}")
+            return result
+        except Exception as e:
+            if not isinstance(e, NotFoundError):
+                error_logger.error(f"Error in get_decrypted_response for {response_id}: {str(e)}", exc_info=True)
+            raise
 
     def update(self, doc_id: str, update_schema: TUpdateSchema, organization_id: str = None) -> TSchema:
         """Override update to invalidate decrypted response cache."""
-        from services.redis_service import redis_service
-        from config.settings import settings
-        
-        result = super().update(doc_id, update_schema, organization_id)
-        
-        if settings.CACHE_ENABLED:
-            keys_to_delete = [f"decrypted_response:{doc_id}"]
-            if organization_id:
-                keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
-            redis_service.cache.delete(*keys_to_delete)
+        app_logger.info(f"Entering FormResponseService.update for ID {doc_id}")
+        try:
+            from services.redis_service import redis_service
+            from config.settings import settings
             
-        return result
+            result = super().update(doc_id, update_schema, organization_id)
+            
+            if settings.CACHE_ENABLED:
+                keys_to_delete = [f"decrypted_response:{doc_id}"]
+                if organization_id:
+                    keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
+                redis_service.cache.delete(*keys_to_delete)
+            
+            audit_logger.info(f"AUDIT: FormResponse updated with ID {doc_id}")
+            app_logger.info(f"Successfully completed FormResponseService.update for ID {doc_id}")
+            return result
+        except Exception as e:
+            error_logger.error(f"Error in FormResponseService.update for ID {doc_id}: {str(e)}", exc_info=True)
+            raise
 
     def delete(self, doc_id: str, organization_id: str = None, hard_delete: bool = False) -> None:
         """Override delete to invalidate decrypted response cache."""
-        from services.redis_service import redis_service
-        from config.settings import settings
-        
-        super().delete(doc_id, organization_id, hard_delete)
-        
-        if settings.CACHE_ENABLED:
-            keys_to_delete = [f"decrypted_response:{doc_id}"]
-            if organization_id:
-                keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
-            redis_service.cache.delete(*keys_to_delete)
+        app_logger.info(f"Entering FormResponseService.delete for ID {doc_id}")
+        try:
+            from services.redis_service import redis_service
+            from config.settings import settings
+            
+            super().delete(doc_id, organization_id, hard_delete)
+            
+            if settings.CACHE_ENABLED:
+                keys_to_delete = [f"decrypted_response:{doc_id}"]
+                if organization_id:
+                    keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
+                redis_service.cache.delete(*keys_to_delete)
+            
+            audit_logger.info(f"AUDIT: FormResponse deleted with ID {doc_id}")
+            app_logger.info(f"Successfully completed FormResponseService.delete for ID {doc_id}")
+        except Exception as e:
+            error_logger.error(f"Error in FormResponseService.delete for ID {doc_id}: {str(e)}", exc_info=True)
+            raise
 
     def validate_payload(self, form_id: str, payload_data: Dict[str, Any]) -> bool:
         """
         Dynamically cross-checks an incoming submission against the strict Option, Logic,
         and Validation rule sets using a cached Pydantic model.
         """
-        from models.Form import Form, FormVersion
-        from utils.schema_generator import generate_form_model
-
-        form = Form.objects(id=form_id, is_deleted=False).first()
-        if not form:
-            raise NotFoundError("Master Form architecture not found for validation")
-
-        if form.status != "published":
-            access_logger.warning(f"Submission rejected: Form {form_id} is not live.")
-            raise ValidationError("Form is inactive or archived")
-
-        # 1. Fetch the active FormVersion
-        active_version_id = form.active_version_id
-        if not active_version_id:
-            raise ValidationError("No active version found for this form")
-             
-        version_raw = FormVersion._get_collection().find_one(
-            {"form": str(form.id), "version": str(active_version_id)}
-        )
-        version_doc = (
-            FormVersion.objects(id=version_raw["_id"]).first() if version_raw else None
-        )
-        if not version_doc:
-             raise ValidationError("Active form version definition not found")
-
-        # 2. Generate/Fetch Cached Pydantic Model
+        app_logger.info(f"Entering validate_payload for Form ID {form_id}")
         try:
-            DynamicModel = generate_form_model(str(version_doc.id), version_doc.sections)
-            # 3. Validate
-            DynamicModel(**payload_data)
-        except Exception as ve:
-            logger.debug(f"Payload validation failed: {str(ve)}")
-            raise ValidationError(f"Payload validation failed: {str(ve)}")
-        
-        return True
+            from models.Form import Form, FormVersion
+            from utils.schema_generator import generate_form_model
+
+            form = Form.objects(id=form_id, is_deleted=False).first()
+            if not form:
+                app_logger.warning(f"Form {form_id} not found for validation")
+                raise NotFoundError("Master Form architecture not found for validation")
+
+            if form.status != "published":
+                app_logger.warning(f"Submission rejected: Form {form_id} is not live.")
+                raise ValidationError("Form is inactive or archived")
+
+            # 1. Fetch the active FormVersion
+            active_version_id = form.active_version_id
+            if not active_version_id:
+                raise ValidationError("No active version found for this form")
+                
+            version_raw = FormVersion._get_collection().find_one(
+                {"form": str(form.id), "version": str(active_version_id)}
+            )
+            version_doc = (
+                FormVersion.objects(id=version_raw["_id"]).first() if version_raw else None
+            )
+            if not version_doc:
+                raise ValidationError("Active form version definition not found")
+
+            # 2. Generate/Fetch Cached Pydantic Model
+            try:
+                DynamicModel = generate_form_model(str(version_doc.id), version_doc.sections)
+                # 3. Validate
+                DynamicModel(**payload_data)
+            except Exception as ve:
+                app_logger.debug(f"Payload validation failed for Form {form_id}: {str(ve)}")
+                raise ValidationError(f"Payload validation failed: {str(ve)}")
+            
+            app_logger.info(f"Successfully completed validate_payload for Form ID {form_id}")
+            return True
+        except Exception as e:
+            if not isinstance(e, (NotFoundError, ValidationError)):
+                error_logger.error(f"Error in validate_payload for Form {form_id}: {str(e)}", exc_info=True)
+            raise
 
     def create_submission(self, data: FormResponseCreateSchema) -> FormResponseSchema:
         """Securely ingest a form submission executing payload validation first, wrapping with Idempotency."""
-        # --- Idempotency Check ---
-        idempotency_key = data.data.get("idempotency_key")
-        if idempotency_key:
-            existing = FormResponse.objects(form=data.form, data__idempotency_key=idempotency_key).first()
-            if existing:
-                access_logger.info(f"Idempotent submission trapped: form {data.form} key {idempotency_key}")
-                return self._to_schema(existing)
-        
-        self.validate_payload(data.form, data.data)
-        access_logger.info(
-            f"Incoming submission for form {data.form} from organization {data.organization_id}"
-        )
-
-        # Create the response document
-        response = self.create(data)
-
-        # Trigger background tasks
+        app_logger.info(f"Entering create_submission for Form ID {data.form}")
         try:
-            from tasks.ai_tasks import async_index_response_vector
-            async_index_response_vector.delay(str(response.id), data.organization_id)
-        except Exception as e:
-            error_logger.warning(f"Failed to enqueue vector indexing: {e}")
-
-        # Publish Domain Event to decouple notification and webhook routing
-        try:
-            from services import event_bus
-            event_bus.publish("form.submitted", {
-                "form_id": str(data.form),
-                "response_id": str(response.id),
-                "organization_id": data.organization_id,
-                "data": data.data,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
-        except Exception as e:
-            error_logger.error(
-                f"Failed to publish domain event for response {response.id}: {str(e)}",
-                exc_info=True,
+            # --- Idempotency Check ---
+            idempotency_key = data.data.get("idempotency_key")
+            if idempotency_key:
+                existing = FormResponse.objects(form=data.form, data__idempotency_key=idempotency_key).first()
+                if existing:
+                    app_logger.info(f"Idempotent submission trapped: form {data.form} key {idempotency_key}")
+                    return self._to_schema(existing)
+            
+            self.validate_payload(data.form, data.data)
+            app_logger.info(
+                f"Incoming submission for form {data.form} from organization {data.organization_id}"
             )
 
-        return response
+            # Create the response document
+            response = self.create(data)
+
+            # Trigger background tasks
+            try:
+                from tasks.ai_tasks import async_index_response_vector
+                async_index_response_vector.delay(str(response.id), data.organization_id)
+            except Exception as e:
+                error_logger.warning(f"Failed to enqueue vector indexing: {e}")
+
+            # Publish Domain Event to decouple notification and webhook routing
+            try:
+                from services import event_bus
+                event_bus.publish("form.submitted", {
+                    "form_id": str(data.form),
+                    "response_id": str(response.id),
+                    "organization_id": data.organization_id,
+                    "data": data.data,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            except Exception as e:
+                error_logger.error(
+                    f"Failed to publish domain event for response {response.id}: {str(e)}",
+                    exc_info=True,
+                )
+
+            audit_logger.info(f"AUDIT: Form submission created for Form {data.form}, Response ID {response.id}")
+            app_logger.info(f"Successfully completed create_submission for Form ID {data.form}")
+            return response
+        except Exception as e:
+            error_logger.error(f"Error in create_submission for Form {data.form}: {str(e)}", exc_info=True)
+            raise
 
     def list_by_form(
         self, form_id: str, organization_id: str, page: int = 1, page_size: int = 50

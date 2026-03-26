@@ -1,13 +1,11 @@
 import json
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from services.redis_service import redis_service
-
-logger = logging.getLogger(__name__)
+from logger.unified_logger import app_logger, error_logger, audit_logger
 
 
 class WebhookService:
@@ -24,14 +22,24 @@ class WebhookService:
 
     @classmethod
     def list_webhooks(cls, form_id, user_id):
+        app_logger.info(f"Listing webhooks for form {form_id} by user {user_id}")
         return []
 
     @classmethod
     def create_webhook(cls, **kwargs):
+        app_logger.info("Creating new webhook stub")
+        audit_logger.info(
+            "Webhook created (stub)",
+            extra={
+                "event": "webhook_created",
+                "webhook_id": "stub_webhook_id"
+            }
+        )
         return {"id": "stub_webhook_id"}
 
     @classmethod
     def get_webhook(cls, webhook_id, user_id):
+        app_logger.info(f"Fetching webhook {webhook_id} for user {user_id}")
         return None
 
     @classmethod
@@ -46,14 +54,25 @@ class WebhookService:
 
     @classmethod
     def delete_webhook(cls, webhook_id, user_id):
+        app_logger.info(f"Deleting webhook {webhook_id} by user {user_id}")
+        audit_logger.info(
+            f"Webhook {webhook_id} deleted by user {user_id}",
+            extra={
+                "event": "webhook_deleted",
+                "webhook_id": webhook_id,
+                "user_id": user_id
+            }
+        )
         return True
 
     @classmethod
     def trigger_test(cls, webhook_id, user_id):
+        app_logger.info(f"Triggering test for webhook {webhook_id} by user {user_id}")
         return {"success": True}
 
     @classmethod
     def get_logs(cls, webhook_id, user_id, limit=50):
+        app_logger.info(f"Fetching logs for webhook {webhook_id} by user {user_id}")
         return cls.get_webhook_logs(limit=limit)
 
     @classmethod
@@ -70,6 +89,7 @@ class WebhookService:
         timeout: int = 10,
         schedule_for: Optional[datetime] = None,
     ) -> Dict[str, Any]:
+        app_logger.info(f"Preparing to send webhook {webhook_id} to {url}")
         delivery_id = f"{webhook_id}:{int(datetime.now(timezone.utc).timestamp() * 1000)}"
         delivery_record = {
             "delivery_id": delivery_id,
@@ -88,6 +108,7 @@ class WebhookService:
         cls._save_status(delivery_id, delivery_record)
 
         if schedule_for:
+            app_logger.info(f"Webhook {delivery_id} scheduled for {schedule_for}")
             cls._append_history(delivery_record)
             return delivery_record
 
@@ -110,7 +131,9 @@ class WebhookService:
         data: Dict[str, Any],
         organization_id: Optional[str] = None,
     ) -> Dict[str, Any]:
+        app_logger.info(f"Triggering webhook {webhook_id}")
         if not webhook_id:
+            error_logger.error("webhook_id is required for trigger_webhook")
             raise ValueError("webhook_id is required")
 
         payload = dict(data or {})
@@ -120,6 +143,7 @@ class WebhookService:
         url = payload.get("url")
         form_id = payload.get("form_id", "unknown")
         if not url:
+            error_logger.error("Webhook retry payload missing url")
             raise ValueError("Webhook retry payload missing url")
 
         headers = payload.get("headers")
@@ -151,6 +175,7 @@ class WebhookService:
         page: int = 1,
         per_page: int = 20,
     ) -> Dict[str, Any]:
+        app_logger.info(f"Fetching webhook history (form_id={form_id}, webhook_id={webhook_id}, status={status})")
         entries = cls._load_history()
         filtered = []
         for entry in entries:
@@ -173,8 +198,10 @@ class WebhookService:
 
     @classmethod
     def retry_webhook(cls, delivery_id: str, reset_count: bool = False) -> Dict[str, Any]:
+        app_logger.info(f"Retrying webhook delivery {delivery_id} (reset_count={reset_count})")
         record = cls.get_webhook_status(delivery_id)
         if not record:
+            error_logger.error(f"Webhook delivery {delivery_id} not found for retry")
             raise ValueError("Webhook delivery not found")
 
         payload = {
@@ -195,14 +222,23 @@ class WebhookService:
 
     @classmethod
     def cancel_webhook(cls, delivery_id: str) -> Dict[str, Any]:
+        app_logger.info(f"Cancelling webhook delivery {delivery_id}")
         record = cls.get_webhook_status(delivery_id)
         if not record:
+            error_logger.error(f"Webhook delivery {delivery_id} not found for cancellation")
             raise ValueError("Webhook delivery not found")
 
         record["status"] = "cancelled"
         record["cancelled_at"] = datetime.now(timezone.utc).isoformat()
         cls._save_status(delivery_id, record)
         cls._append_history(record)
+        audit_logger.info(
+            f"Webhook delivery {delivery_id} cancelled",
+            extra={
+                "event": "webhook_delivery_cancelled",
+                "delivery_id": delivery_id
+            }
+        )
         return record
 
     @classmethod
@@ -212,6 +248,7 @@ class WebhookService:
         status: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
+        app_logger.info(f"Fetching webhook logs (url={url}, status={status})")
         logs = redis_service.cache.get(cls.LOG_KEY) or []
         filtered = []
         for entry in logs:
@@ -235,7 +272,7 @@ class WebhookService:
             template = string.Template(template_str)
             return template.safe_substitute(**flat_data)
         except Exception as exc:
-            logger.warning(f"Webhook Transform failure. Proceeding with raw JSON. {exc}")
+            app_logger.warning(f"Webhook Transform failure. Proceeding with raw JSON. {exc}")
             return json.dumps(event_data)
 
     @classmethod
@@ -252,6 +289,7 @@ class WebhookService:
         max_retries: int,
         created_by: Optional[str],
     ) -> Dict[str, Any]:
+        app_logger.info(f"Delivering webhook {delivery_id} to {url}")
         record = {
             "delivery_id": delivery_id,
             "webhook_id": webhook_id,
@@ -275,11 +313,12 @@ class WebhookService:
             record["status"] = "delivered"
             record["response_status"] = response.status_code
             record["delivered_at"] = datetime.now(timezone.utc).isoformat()
+            app_logger.info(f"Webhook {delivery_id} delivered successfully with status {response.status_code}")
         except requests.RequestException as exc:
             record["status"] = "failed"
             record["retry_count"] = 1
             record["last_error"] = str(exc)
-            logger.error(f"Webhook delivery failed for {delivery_id}: {exc}")
+            error_logger.error(f"Webhook delivery failed for {delivery_id}: {exc}")
         cls._save_status(delivery_id, record)
         cls._append_history(record)
         cls._append_log(record)

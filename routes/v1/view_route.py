@@ -3,10 +3,9 @@ from flasgger import swag_from
 from routes.v1.form.helper import apply_translations
 from models import Form
 from mongoengine import DoesNotExist
-import logging
+from logger.unified_logger import app_logger, error_logger
 
 view_bp = Blueprint("view_bp", __name__)
-logger = logging.getLogger(__name__)
 
 
 # -------------------- index --------------------
@@ -22,11 +21,11 @@ logger = logging.getLogger(__name__)
     }
 })
 def index():
-    logger.info("--- View Index branch started ---")
+    app_logger.info("View Index accessed")
     try:
         return render_template("login.html")
-    except Exception:
-        logger.error("Login template not found")
+    except Exception as e:
+        error_logger.error(f"Error rendering login template: {str(e)}")
         return "Login page not found", 404
 
 
@@ -50,7 +49,7 @@ def index():
     ]
 })
 def view_form(form_id):
-    logger.info(f"--- View Form branch started for id: {form_id} ---")
+    app_logger.info(f"Viewing form {form_id}")
     try:
         form = Form.objects.get(id=form_id)
         lang = request.args.get("lang")
@@ -58,9 +57,13 @@ def view_form(form_id):
         if "_id" in form_dict:
             form_dict["id"] = str(form_dict.pop("_id"))
         if lang:
-            logger.info(f"Applying translations for language: {lang}")
+            app_logger.info(f"Applying translations for language: {lang} on form {form_id}")
             form_dict = apply_translations(form_dict, lang)
         return render_template("view.html", form=form_dict)
     except DoesNotExist:
-        logger.warning(f"View Form failed: ID {form_id} not found")
+        app_logger.warning(f"Form view failed: ID {form_id} not found")
         return "Form not found", 404
+    except Exception as e:
+        error_logger.error(f"Error viewing form {form_id}: {str(e)}")
+        return "Internal server error", 500
+

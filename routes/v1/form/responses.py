@@ -41,6 +41,7 @@ def submit_response(form_id):
     """
     Authenticated form submission.
     """
+    app_logger.info(f"Entering submit_response for form_id: {form_id}")
     current_user = get_current_user()
     data = request.get_json()
     
@@ -49,6 +50,7 @@ def submit_response(form_id):
         try:
             form_uuid = UUID(form_id)
         except ValueError:
+            app_logger.warning(f"Invalid form ID format: {form_id}")
             return jsonify({"error": "Invalid form ID format"}), 400
 
         form = Form.objects.get(
@@ -59,6 +61,7 @@ def submit_response(form_id):
         
         # 1. Permission Check
         if not has_form_permission(current_user, form, "submit"):
+            app_logger.warning(f"User {current_user.id} does not have permission to submit to form {form_id}")
             return jsonify({"error": "You do not have permission to submit to this form"}), 403
             
         # 2. Validation & Service Call
@@ -93,15 +96,25 @@ def submit_response(form_id):
         create_schema = FormResponseCreateSchema(**submission_data)
         response = response_service.create_submission(create_schema)
         
+        audit_logger.info(f"User {current_user.id} submitted response {response.id} to form {form_id}", extra={
+            "user_id": str(current_user.id),
+            "form_id": form_id,
+            "response_id": str(response.id),
+            "organization_id": current_user.organization_id,
+            "action": "submit_response"
+        })
+
+        app_logger.info(f"Exiting submit_response for form_id: {form_id}, response_id: {response.id}")
         return jsonify({
             "message": "Response submitted successfully",
             "response_id": str(response.id)
         }), 201
         
     except DoesNotExist:
+        app_logger.warning(f"Form not found: {form_id}")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Error submitting response: {str(e)}", exc_info=True)
+        error_logger.error(f"Error submitting response to form {form_id}: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400
 
 @form_bp.route("/<form_id>/responses", methods=["GET"])
@@ -128,6 +141,7 @@ def list_responses(form_id):
     """
     List responses for a specific form (paginated).
     """
+    app_logger.info(f"Entering list_responses for form_id: {form_id}")
     current_user = get_current_user()
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 20, type=int)
@@ -140,6 +154,7 @@ def list_responses(form_id):
         )
         
         if not has_form_permission(current_user, form, "view_responses"):
+            app_logger.warning(f"User {current_user.id} does not have permission to view responses for form {form_id}")
             return jsonify({"error": "You do not have permission to view responses for this form"}), 403
             
         result = response_service.list_by_form(
@@ -149,13 +164,15 @@ def list_responses(form_id):
             page_size=page_size
         )
         
+        app_logger.info(f"Exiting list_responses for form_id: {form_id}, count: {len(result.items)}")
         return jsonify({
             "success": True,
             "data": result.to_dict()
         }), 200
         
     except DoesNotExist:
+        app_logger.warning(f"Form not found: {form_id}")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        current_app.logger.error(f"Error listing responses: {str(e)}", exc_info=True)
+        error_logger.error(f"Error listing responses for form {form_id}: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 400

@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import CustomFieldTemplate, Question, Form
 from routes.v1.form.helper import get_current_user, has_form_permission
+from logger.unified_logger import app_logger, error_logger, audit_logger
 import traceback
 
 library_bp = Blueprint("library", __name__)
@@ -22,6 +23,7 @@ library_bp = Blueprint("library", __name__)
 })
 @jwt_required()
 def list_field_templates():
+    app_logger.info("Entering list_field_templates")
     try:
         current_user_id = get_jwt_identity()
         category = request.args.get("category")
@@ -60,11 +62,12 @@ def list_field_templates():
                 }
             )
 
+        app_logger.info(f"Listed {len(result)} field templates for user {current_user_id}")
         if "templates" in request.path:
             return jsonify({"templates": result}), 200
         return jsonify(result), 200
     except Exception as e:
-        current_app.logger.error(f"Error listing field templates: {str(e)}")
+        error_logger.error(f"Error listing field templates: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -81,6 +84,7 @@ def list_field_templates():
 })
 @jwt_required()
 def save_field_template():
+    app_logger.info("Entering save_field_template")
     try:
         current_user_id = get_jwt_identity()
         current_user = get_current_user()
@@ -96,6 +100,7 @@ def save_field_template():
         form_id = data.get("formId")
 
         if not name:
+            app_logger.warning("Missing name in save_field_template")
             return jsonify({"error": "Missing name"}), 400
 
         # If formId is provided, we are creating a template from an existing form
@@ -103,6 +108,7 @@ def save_field_template():
             try:
                 form = Form.objects.get(id=form_id)
                 if not has_form_permission(current_user, form, "view"):
+                    app_logger.warning(f"User {current_user.id} unauthorized to access form {form_id} for template creation")
                     return jsonify({"error": "Unauthorized to access form"}), 403
 
                 # Use form data as template data
@@ -110,6 +116,7 @@ def save_field_template():
                 template_data = form.to_mongo().to_dict()
                 template_type = "form"
             except Form.DoesNotExist:
+                app_logger.warning(f"Form {form_id} not found for template creation")
                 return jsonify({"error": f"Form {form_id} not found"}), 404
 
         template = CustomFieldTemplate(
@@ -136,6 +143,7 @@ def save_field_template():
             template.question_data = Question(**question_data_raw)
 
         template.save()
+        audit_logger.info(f"Field template '{name}' (ID: {template.id}) saved by user {current_user_id}")
 
         # Align response with frontend FormTemplate
         return (
@@ -153,7 +161,7 @@ def save_field_template():
             201,
         )
     except Exception as e:
-        current_app.logger.error(
+        error_logger.error(
             f"Error saving field template: {str(e)}\n{traceback.format_exc()}"
         )
         return jsonify({"error": str(e)}), 400
@@ -180,6 +188,7 @@ def save_field_template():
 })
 @jwt_required()
 def get_field_template(template_id):
+    app_logger.info(f"Entering get_field_template for ID {template_id}")
     try:
         current_user_id = get_jwt_identity()
         t = CustomFieldTemplate.objects.get(
@@ -216,6 +225,7 @@ def get_field_template(template_id):
             200,
         )
     except Exception as e:
+        error_logger.error(f"Error retrieving field template {template_id}: {e}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -240,12 +250,15 @@ def get_field_template(template_id):
 })
 @jwt_required()
 def delete_field_template(template_id):
+    app_logger.info(f"Entering delete_field_template for ID {template_id}")
     try:
         current_user_id = get_jwt_identity()
         template = CustomFieldTemplate.objects.get(
             id=template_id, user_id=str(current_user_id)
         )
         template.delete()
+        audit_logger.info(f"Field template {template_id} deleted by user {current_user_id}")
         return jsonify({"message": "Field template deleted"}), 200
     except Exception as e:
+        error_logger.error(f"Error deleting field template {template_id}: {e}")
         return jsonify({"error": str(e)}), 400

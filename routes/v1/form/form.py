@@ -12,6 +12,7 @@ from flask import current_app, request, jsonify
 from flask_jwt_extended import jwt_required
 from mongoengine import DoesNotExist
 
+from logger.unified_logger import app_logger, error_logger, audit_logger
 from utils.response_helper import success_response, error_response
 from utils.security_helpers import get_current_user, require_permission, require_org_match
 from tasks.form_tasks import async_clone_form, async_publish_form
@@ -50,13 +51,16 @@ form_service = FormService()
 @jwt_required()
 def create_form():
     """Create a new form. Sets the current user as creator and editor."""
+    app_logger.info("Entering create_form")
     data = request.get_json(silent=True) or {}
     current_user = get_current_user()
     try:
         if not current_user:
+            app_logger.warning("User not found in create_form")
             return error_response(message="User not found", status_code=401)
 
         if not current_user.organization_id:
+            app_logger.warning(f"User {current_user.id} has no organization_id; form creation requires tenant context")
             return error_response(
                 message="Current user has no organization_id; form creation requires tenant context",
                 status_code=400,
@@ -70,10 +74,11 @@ def create_form():
             data["slug"] = slug or f"form-{str(current_user.id)[:8]}"
         schema = FormCreateSchema(**data)
         form = form_service.create(schema)
-        current_app.logger.info(f"Form created by user {current_user.id}")
+        audit_logger.info(f"Form created with ID {form.id} by user {current_user.id}")
+        app_logger.info(f"Form created by user {current_user.id}")
         return jsonify({"message": "Form created", "form_id": str(form.id)}), 201
     except Exception as e:
-        current_app.logger.error(f"Create form error: {e}\n{traceback.format_exc()}")
+        error_logger.error(f"Create form error: {e}\n{traceback.format_exc()}")
         return jsonify({"error": str(e)}), 400
 
 
@@ -91,6 +96,7 @@ def create_form():
 @jwt_required()
 def list_forms():
     """List forms belonging to the current user's organization."""
+    app_logger.info("Entering list_forms")
     current_user = get_current_user()
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 50, type=int)
@@ -108,6 +114,7 @@ def list_forms():
         page_size=page_size,
         **filters
     )
+    app_logger.info(f"Listed forms for user {current_user.id} in organization {current_user.organization_id}")
     return success_response(data=result.to_dict())
 
 
@@ -134,6 +141,7 @@ def list_forms():
 @require_permission("form", "view")
 def get_form(form_id):
     """Retrieve a single form, applying optional language filters."""
+    app_logger.info(f"Entering get_form for ID {form_id}")
     try:
         from uuid import UUID
         current_user = get_current_user()
@@ -142,6 +150,7 @@ def get_form(form_id):
         try:
             search_id = UUID(form_id) if isinstance(form_id, str) else form_id
         except ValueError:
+            app_logger.warning(f"Invalid form ID format: {form_id}")
             return error_response(message="Invalid form ID format", status_code=400)
 
         form = Form.objects.get(id=search_id, organization_id=current_user.organization_id, is_deleted=False)
@@ -152,6 +161,7 @@ def get_form(form_id):
             and now < form.publish_at.replace(tzinfo=timezone.utc)
             and not has_form_permission(current_user, form, "edit")
         ):
+            app_logger.warning(f"User {current_user.id} attempted to access unpublished form {form_id}")
             return error_response(message="Form is not yet available", status_code=403)
 
         form_dict = form.to_mongo().to_dict()
@@ -159,10 +169,13 @@ def get_form(form_id):
 
         lang = request.args.get("lang")
         if lang:
+            app_logger.info(f"Applying translation '{lang}' for form {form_id}")
             form_dict = apply_translations(form_dict, lang)
 
+        app_logger.info(f"Successfully retrieved form {form_id}")
         return success_response(data=form_dict)
     except DoesNotExist:
+        app_logger.warning(f"Form {form_id} not found for user {current_user.id}")
         return error_response(message="Form not found", status_code=404)
 
 
@@ -196,6 +209,7 @@ def get_form(form_id):
 @require_permission("form", "edit")
 def update_form(form_id):
     """Update an existing form."""
+    app_logger.info(f"Entering update_form for ID {form_id}")
     data = request.get_json(silent=True) or {}
     current_user = get_current_user()
     try:
@@ -203,6 +217,7 @@ def update_form(form_id):
         try:
             search_id = UUID(form_id) if isinstance(form_id, str) else form_id
         except ValueError:
+            app_logger.warning(f"Invalid form ID format for update: {form_id}")
             return error_response(message="Invalid form ID format", status_code=400)
 
         existing_form = form_service.get_by_id(str(search_id), organization_id=current_user.organization_id)
@@ -210,9 +225,10 @@ def update_form(form_id):
         merged_data.update(data)
         schema = FormUpdateSchema(**merged_data)
         updated = form_service.update(str(search_id), schema, organization_id=current_user.organization_id)
+        audit_logger.info(f"Form {form_id} updated by user {current_user.id}")
         return success_response(data={"form_id": str(updated.id)}, message="Form updated")
     except Exception as e:
-        current_app.logger.error(f"Update form error for {form_id}: {e}", exc_info=True)
+        error_logger.error(f"Update form error for {form_id}: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
 
 
@@ -239,17 +255,21 @@ def update_form(form_id):
 @require_permission("form", "delete_form")
 def delete_form(form_id):
     """Soft delete a form."""
+    app_logger.info(f"Entering delete_form for ID {form_id}")
     try:
         from uuid import UUID
         current_user = get_current_user()
         try:
             search_id = UUID(form_id) if isinstance(form_id, str) else form_id
         except ValueError:
+            app_logger.warning(f"Invalid form ID format for deletion: {form_id}")
             return error_response(message="Invalid form ID format", status_code=400)
 
         form_service.delete(str(search_id), organization_id=current_user.organization_id)
+        audit_logger.info(f"Form {form_id} deleted by user {current_user.id}")
         return success_response(message="Form deleted")
     except Exception as e:
+         error_logger.error(f"Delete form error for {form_id}: {e}")
          return error_response(message=str(e), status_code=400)
 
 
@@ -281,6 +301,7 @@ def delete_form(form_id):
 @require_permission("form", "edit")
 def publish_form(form_id):
     """Publish a form asynchronously."""
+    app_logger.info(f"Entering publish_form for ID {form_id}")
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     major_bump = data.get("major", False)
@@ -293,6 +314,7 @@ def publish_form(form_id):
         major_bump=major_bump,
         minor_bump=minor_bump
     )
+    audit_logger.info(f"Form {form_id} publish initiated by user {current_user.id} (Task: {task.id})")
     
     return success_response(
         data={"task_id": task.id},
@@ -329,6 +351,7 @@ def publish_form(form_id):
 @require_permission("form", "view")
 def clone_form(form_id):
     """Clone a form asynchronously."""
+    app_logger.info(f"Entering clone_form for ID {form_id}")
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     new_slug = data.get("slug")
@@ -342,6 +365,7 @@ def clone_form(form_id):
         new_title=new_title,
         new_slug=new_slug
     )
+    audit_logger.info(f"Form {form_id} clone initiated by user {current_user.id} (Task: {task.id})")
     
     return success_response(
         data={"task_id": task.id},
@@ -369,6 +393,7 @@ def clone_form(form_id):
 @jwt_required()
 def list_form_templates():
     """List templates accessible to the current user."""
+    app_logger.info("Entering list_form_templates")
     current_user = get_current_user()
     query = {
         "is_template": True,
@@ -383,6 +408,7 @@ def list_form_templates():
         item = f.to_mongo().to_dict()
         item["id"] = str(item.pop("_id"))
         result.append(item)
+    app_logger.info(f"Listed {len(result)} templates for user {current_user.id}")
     return jsonify(result), 200
 
 
@@ -408,15 +434,18 @@ def list_form_templates():
 @jwt_required()
 def get_form_template_endpoint(template_id):
     """Retrieve a single template."""
+    app_logger.info(f"Entering get_form_template_endpoint for ID {template_id}")
     try:
         current_user = get_current_user()
         form = Form.objects.get(id=template_id, is_template=True)
         if not has_form_permission(current_user, form, "view"):
+            app_logger.warning(f"User {current_user.id} unauthorized to view template {template_id}")
             return jsonify({"error": "Unauthorized"}), 403
         item = form.to_mongo().to_dict()
         item["id"] = str(item.pop("_id"))
         return jsonify(item), 200
     except DoesNotExist:
+        app_logger.warning(f"Template {template_id} not found")
         return jsonify({"error": "Template not found"}), 404
 
 
@@ -447,10 +476,12 @@ def get_form_template_endpoint(template_id):
 @jwt_required()
 def update_form_translations(form_id):
     """Update translation strings for a given language code."""
+    app_logger.info(f"Entering update_form_translations for ID {form_id}")
     try:
         form = Form.objects.get(id=form_id)
         current_user = get_current_user()
         if not has_form_permission(current_user, form, "edit"):
+            app_logger.warning(f"User {current_user.id} unauthorized to update translations for form {form_id}")
             return jsonify({"error": "Unauthorized"}), 403
 
         data = request.get_json(silent=True) or {}
@@ -461,8 +492,11 @@ def update_form_translations(form_id):
         if lang_code not in (form.supported_languages or []):
             form.supported_languages = (form.supported_languages or []) + [lang_code]
         form.save()
+        audit_logger.info(f"Translations for '{lang_code}' updated for form {form_id} by user {current_user.id}")
         return jsonify({"message": f"Translations for '{lang_code}' updated"}), 200
     except DoesNotExist:
+        app_logger.warning(f"Form {form_id} not found for translation update")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
+        error_logger.error(f"Update form translations error for {form_id}: {e}")
         return jsonify({"error": str(e)}), 400
