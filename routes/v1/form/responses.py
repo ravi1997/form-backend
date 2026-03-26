@@ -7,6 +7,8 @@ from services.response_service import FormResponseService, FormResponseCreateSch
 from routes.v1.form.helper import get_current_user, has_form_permission
 from models.Form import Form, FormVersion
 from mongoengine import DoesNotExist
+from logger.unified_logger import app_logger, error_logger, audit_logger
+from datetime import datetime, timezone
 
 response_service = FormResponseService()
 
@@ -63,8 +65,18 @@ def submit_response(form_id):
         if not has_form_permission(current_user, form, "submit"):
             app_logger.warning(f"User {current_user.id} does not have permission to submit to form {form_id}")
             return jsonify({"error": "You do not have permission to submit to this form"}), 403
+
+        # 2. Lifecycle Check
+        now = datetime.now(timezone.utc)
+        if form.expires_at and form.expires_at.replace(tzinfo=timezone.utc) < now:
+            app_logger.warning(f"Submission rejected: Form {form_id} expired at {form.expires_at}")
+            return jsonify({"error": "This form has expired"}), 400
+        
+        if form.publish_at and form.publish_at.replace(tzinfo=timezone.utc) > now:
+            app_logger.warning(f"Submission rejected: Form {form_id} is scheduled for {form.publish_at}")
+            return jsonify({"error": "This form is not yet available"}), 400
             
-        # 2. Validation & Service Call
+        # 3. Validation & Service Call
         # We need to inject form, organization_id and submitted_by into the schema
         active_form_version = None
         if form.active_version_id:

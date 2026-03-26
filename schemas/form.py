@@ -22,6 +22,13 @@ class OptionSchema(BaseEmbeddedSchema):
     visibility_condition: Optional[ConditionSchema] = None
 
 
+class MatrixRowSchema(BaseEmbeddedSchema):
+    row_label: str = Field(..., max_length=255)
+    row_value: str = Field(..., max_length=255)
+    order: int = 0
+    is_required: bool = False
+
+
 class ConditionalValidationSchema(BaseEmbeddedSchema):
     logical_operator: str = "AND"
     conditions: List[ConditionSchema] = Field(default_factory=list)
@@ -100,6 +107,7 @@ class QuestionSchema(BaseEmbeddedSchema):
 
     response_templates: List[ResponseTemplateSchema] = Field(default_factory=list)
     options: List[OptionSchema] = Field(default_factory=list)
+    matrix_rows: List[MatrixRowSchema] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
     meta_data: Optional[Dict[str, Any]] = None
 

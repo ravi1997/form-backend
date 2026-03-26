@@ -36,6 +36,14 @@ class Option(BaseEmbeddedDocument):
     visibility_condition = EmbeddedDocumentField(Condition)
 
 
+class MatrixRow(BaseEmbeddedDocument):
+    """A row definition for matrix_choice fields."""
+    row_label = StringField(required=True)
+    row_value = StringField(required=True)
+    order = IntField(default=0)
+    is_required = BooleanField(default=False)
+
+
 class ConditionalValidation(BaseEmbeddedDocument):
     """
     Pairs a set of conditions with a specific error message.
@@ -138,6 +146,7 @@ class Question(BaseEmbeddedDocument):
 
     response_templates = ListField(EmbeddedDocumentField(ResponseTemplate))
     options = ListField(EmbeddedDocumentField(Option))
+    matrix_rows = ListField(EmbeddedDocumentField(MatrixRow))
     tags = ListField(StringField())
     meta_data = DictField()
 
