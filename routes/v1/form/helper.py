@@ -162,15 +162,26 @@ def has_form_permission(user, form, action):
 def apply_translations(form_dict, lang_code):
     """
     Applies translations to a form dictionary based on the provided language code.
+    Checks draft form translations and published version translations.
     """
     app_logger.info(f"Applying translations for lang '{lang_code}'")
-    if "versions" not in form_dict or not form_dict["versions"]:
-        return form_dict
+    
+    # 1. Start with draft translations
+    translations = form_dict.get("translations", {})
+    
+    # 2. Overwrite with version-specific translations if versions exist
+    if "versions" in form_dict and form_dict["versions"]:
+        # Handle list of FormVersion docs
+        latest_version = form_dict["versions"][-1]
+        
+        # Check snapshot translations first
+        snapshot = latest_version.get("snapshot", {})
+        if snapshot and "translations" in snapshot:
+            translations = snapshot["translations"]
+        elif "translations" in latest_version:
+            translations = latest_version["translations"]
 
-    latest_version = form_dict["versions"][-1]
-    translations = latest_version.get("translations", {})
-
-    if lang_code not in translations:
+    if not translations or lang_code not in translations:
         return form_dict
 
     lang_translations = translations[lang_code]
@@ -181,35 +192,60 @@ def apply_translations(form_dict, lang_code):
     if "description" in lang_translations:
         form_dict["description"] = lang_translations["description"]
 
-    # Translate Sections
-    section_translations = lang_translations.get("sections", {})
-    for section in latest_version.get("sections", []):
-        sid = str(section.get("id") or section.get("_id"))
-        if sid in section_translations:
-            if "title" in section_translations[sid]:
-                section["title"] = section_translations[sid]["title"]
-            if "description" in section_translations[sid]:
-                section["description"] = section_translations[sid]["description"]
-
-        # Translate Questions
+    # Translate Sections and Questions recursively
+    def translate_sections(sections):
+        section_translations = lang_translations.get("sections", {})
         question_translations = lang_translations.get("questions", {})
-        for question in section.get("questions", []):
-            qid = str(question.get("id") or question.get("_id"))
-            if qid in question_translations:
-                q_trans = question_translations[qid]
-                if "label" in q_trans:
-                    question["label"] = q_trans["label"]
-                if "help_text" in q_trans:
-                    question["help_text"] = q_trans["help_text"]
-                if "placeholder" in q_trans:
-                    question["placeholder"] = q_trans["placeholder"]
+        
+        for section in sections:
+            sid = str(section.get("id") or section.get("_id"))
+            # Support both UUID and title/slug if needed
+            if sid in section_translations:
+                s_trans = section_translations[sid]
+                if "title" in s_trans: section["title"] = s_trans["title"]
+                if "description" in s_trans: section["description"] = s_trans["description"]
 
-                # Translate Options
-                if "options" in q_trans and "options" in question:
-                    option_translations = q_trans["options"]
-                    for option in question.get("options", []):
-                        oid = str(option.get("id") or option.get("_id"))
-                        if oid in option_translations:
-                            option["option_label"] = option_translations[oid]
+            # Translate Questions
+            for question in section.get("questions", []):
+                qid = str(question.get("id") or question.get("_id"))
+                var_name = question.get("variable_name")
+                
+                # Try variable_name first, then qid
+                q_trans = question_translations.get(var_name) or question_translations.get(qid)
+                
+                if q_trans:
+                    if "label" in q_trans: question["label"] = q_trans["label"]
+                    if "help_text" in q_trans: question["help_text"] = q_trans["help_text"]
+                    if "placeholder" in q_trans: 
+                        if "ui" not in question: question["ui"] = {}
+                        question["ui"]["placeholder"] = q_trans["placeholder"]
 
+                    # Translate Options
+                    if "options" in q_trans and "options" in question:
+                        option_translations = q_trans["options"]
+                        for option in question.get("options", []):
+                            # Try option_value as key first, then oid
+                            ov = str(option.get("option_value"))
+                            oid = str(option.get("id") or option.get("_id"))
+                            o_trans = option_translations.get(ov) or option_translations.get(oid)
+                            if o_trans:
+                                option["option_label"] = o_trans
+
+            # Recurse
+            if section.get("sections"):
+                translate_sections(section["sections"])
+
+    # Resolve sections list
+    sections = []
+    if "versions" in form_dict and form_dict["versions"]:
+        latest_version = form_dict["versions"][-1]
+        snapshot = latest_version.get("snapshot", {})
+        if snapshot and "sections" in snapshot:
+            sections = snapshot["sections"]
+        else:
+            sections = latest_version.get("sections", [])
+    else:
+        sections = form_dict.get("sections", [])
+        
+    translate_sections(sections)
     return form_dict

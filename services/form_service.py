@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Any
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
 from logger.sla import enforce_sla
 from services.base import BaseService
 from utils.exceptions import NotFoundError, StateTransitionError
-from models import Form, Project, Version, FormVersion
+from models import Form, Project, Version, FormVersion, Section
 from schemas.form import FormSchema, ProjectSchema
 from schemas.base import InboundPayloadSchema
 
@@ -71,10 +71,28 @@ class FormService(BaseService):
                 error_logger.error(f"Error in get_by_slug for {slug}: {str(e)}", exc_info=True)
             raise
 
+    def _snapshot_section(self, section: Section) -> Dict[str, Any]:
+        """Deep snapshots a section and its sub-sections/questions into a dictionary."""
+        data = section.to_mongo().to_dict()
+        if "_id" in data:
+            data["id"] = str(data.pop("_id"))
+        
+        # Snapshot sub-sections recursively
+        if section.sections:
+            data["sections"] = [self._snapshot_section(s) for s in section.sections]
+        
+        # Snapshot questions (Questions are embedded, so to_mongo handles them, 
+        # but we ensure IDs are strings)
+        for q in data.get("questions", []):
+            if "_id" in q:
+                q["id"] = str(q.pop("_id"))
+                
+        return data
+
     @log_performance
     def publish_form(
         self, form_id: str, organization_id: str = None, major_bump: bool = False, minor_bump: bool = True
-    ) -> FormSchema:
+    ) -> Dict[str, Any]:
         """
         Calculates Semantic Versioning and locks in an immutable snapshot
         (FormVersion) so active live forms are safe from structural breakage.
@@ -88,6 +106,9 @@ class FormService(BaseService):
         if not form_doc:
             app_logger.warning(f"Form {form_id} not found for publishing")
             raise NotFoundError("Form not found for publishing")
+
+        if not form_doc.sections:
+            raise StateTransitionError("Cannot publish a form with no sections")
 
         try:
             # Semantic Version logic
@@ -113,11 +134,40 @@ class FormService(BaseService):
             new_version.save()
 
             # 2. Extract an immutable snapshot, deep cloning sections as they exist right now
+            snapshot_data = {
+                "sections": [self._snapshot_section(s) for s in form_doc.sections],
+                "translations": form_doc.translations or {}
+            }
+            
+            # --- Snapshot Hardening (Phase 4) ---
+            from models.Form import SnapshotStore
+            import zlib
+            import json
+            
+            snapshot_json = json.dumps(snapshot_data)
+            size_bytes = len(snapshot_json)
+            
+            # Compress snapshot for storage efficiency
+            compressed_data = zlib.compress(snapshot_json.encode('utf-8'))
+            
+            if size_bytes > 10 * 1024 * 1024: # 10MB limit
+                app_logger.warning(f"Oversized snapshot detected: {size_bytes} bytes")
+            
+            store = SnapshotStore(
+                organization_id=form_doc.organization_id,
+                compressed_data=compressed_data,
+                is_compressed=True,
+                size_bytes=size_bytes
+            )
+            store.save()
+
             snapshot = FormVersion(
                 form=form_doc,
                 version=new_version,
                 status="published",
-                sections=form_doc.sections if hasattr(form_doc, "sections") else [],
+                snapshot_ref=store,
+                translations=form_doc.translations or {}, # Keep for compatibility
+                sections=form_doc.sections # Keep for legacy compatibility
             )
             snapshot.save()
 
@@ -131,7 +181,16 @@ class FormService(BaseService):
                 f"AUDIT: Published '{form_doc.title}' at version v{major}.{minor}.{patch}"
             )
             app_logger.info(f"Successfully completed publish_form for ID {form_id}")
-            return self._to_schema(form_doc)
+            
+            result = self._to_schema(form_doc).model_dump()
+            result["version_metadata"] = {
+                "version_string": new_version.version_string,
+                "major": major,
+                "minor": minor,
+                "patch": patch,
+                "form_version_id": str(snapshot.id)
+            }
+            return result
 
         except Exception as e:
             error_logger.error(

@@ -7,7 +7,8 @@ from .base import SoftDeleteBaseSchema
 class FormResponseSchema(SoftDeleteBaseSchema):
     project: Optional[str] = None
     form: str
-    form_version: str
+    form_version: Optional[str] = None
+    version: Optional[str] = None
     organization_id: str
 
     data: Dict[str, Any]

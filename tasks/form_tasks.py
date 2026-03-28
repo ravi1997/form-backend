@@ -7,10 +7,35 @@ import uuid
 
 form_service = FormService()
 
+def _deep_clone_section(original_section):
+    """Recursively clones sections and their embedded questions."""
+    from models.Form import Section
+    
+    # Create a new section document with a new ID
+    new_section = Section(
+        title=original_section.title,
+        description=original_section.description,
+        help_text=original_section.help_text,
+        order=original_section.order,
+        logic=original_section.logic,
+        ui=original_section.ui,
+        questions=original_section.questions, # EmbeddedDocuments are deep-copied by default in MongoEngine assignments
+        tags=original_section.tags,
+        meta_data=original_section.meta_data,
+        response_templates=original_section.response_templates
+    )
+    
+    # Recursively clone sub-sections
+    if original_section.sections:
+        new_section.sections = [_deep_clone_section(s) for s in original_section.sections]
+        
+    new_section.save()
+    return new_section
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
 def async_clone_form(self, form_id, user_id, organization_id, new_title=None, new_slug=None):
     """
-    Background task to clone a form.
+    Background task to clone a form with full deep-copy of sections.
     """
     app_logger.info(f"Entering async_clone_form: form_id={form_id}, user_id={user_id}, organization_id={organization_id}")
     try:
@@ -24,10 +49,14 @@ def async_clone_form(self, form_id, user_id, organization_id, new_title=None, ne
         final_slug = new_slug or f"{original.slug}-copy-{uuid.uuid4().hex[:6]}"
         final_title = new_title or f"Copy of {original.title}"
 
+        # Deep clone all sections
+        new_sections = [_deep_clone_section(s) for s in original.sections]
+
         new_form = Form(
             title=final_title,
             slug=final_slug,
             description=original.description,
+            help_text=original.help_text,
             created_by=user_id,
             organization_id=organization_id,
             status="draft",
@@ -35,8 +64,10 @@ def async_clone_form(self, form_id, user_id, organization_id, new_title=None, ne
             is_template=original.is_template,
             tags=original.tags,
             editors=[user_id],
-            sections=original.sections, # This handles the deep copy if MongoEngine supports it
-            questions=original.questions
+            sections=new_sections,
+            style=original.style,
+            response_templates=original.response_templates,
+            triggers=original.triggers
         )
         new_form.save()
         
@@ -67,6 +98,73 @@ def async_publish_form(self, form_id, organization_id, major_bump=False, minor_b
     except Exception as e:
         error_logger.error(f"Task async_publish_form failed for {form_id}: {str(e)}", exc_info=True)
         raise self.retry(exc=e)
+
+@celery_app.task(bind=True, max_retries=1)
+def async_bulk_export(self, job_id, organization_id):
+    """
+    Background task to generate a bulk export ZIP file.
+    """
+    from models.Response import BulkExport, FormResponse
+    from models.Form import Form
+    from routes.v1.form.export import generate_form_csv # We should move this to a service eventually
+    import io
+    import zipfile
+    from datetime import datetime, timezone
+    from mongoengine import DoesNotExist
+
+    app_logger.info(f"Entering async_bulk_export: job_id={job_id}, organization_id={organization_id}")
+    
+    job = BulkExport.objects(id=job_id, organization_id=organization_id).first()
+    if not job:
+        error_logger.error(f"BulkExport job {job_id} not found. Org: {organization_id}")
+        return
+
+    job.status = "processing"
+    job.save()
+
+    try:
+        zip_buffer = io.BytesIO()
+        exported_count = 0
+        
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for fid in job.form_ids:
+                try:
+                    # Enforce tenant isolation
+                    form = Form.objects.get(id=fid, organization_id=organization_id)
+                    responses = FormResponse.objects(form=form.id, organization_id=organization_id).no_cache()
+                    
+                    # Using the streaming generator logic but fully consuming it for the zip
+                    # (Better to have a unified helper)
+                    from routes.v1.form.export import stream_form_csv
+                    csv_content = "".join(list(stream_form_csv(form, responses)))
+
+                    safe_title = "".join([c for c in form.title if c.isalnum() or c in (" ", "_", "-")]).strip()
+                    filename = f"{safe_title}_{fid[:8]}.csv"
+                    zip_file.writestr(filename, csv_content)
+                    exported_count += 1
+                except DoesNotExist:
+                    continue
+                except Exception as e:
+                    app_logger.warning(f"Failed to export form {fid} in bulk job {job_id}: {e}")
+
+        if exported_count == 0:
+            job.status = "failed"
+            job.error_message = "No forms were accessible for export"
+            job.save()
+            return
+
+        job.file_binary = zip_buffer.getvalue()
+        job.status = "completed"
+        job.completed_at = datetime.now(timezone.utc)
+        job.save()
+        
+        app_logger.info(f"BulkExport job {job_id} completed successfully. Exported {exported_count} forms.")
+
+    except Exception as e:
+        error_logger.error(f"BulkExport job {job_id} failed: {str(e)}", exc_info=True)
+        job.status = "failed"
+        job.error_message = str(e)
+        job.save()
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
 def async_recalculate_materialized_view(self, view_id, organization_id):

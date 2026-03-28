@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
 from services.base import BaseService, PaginatedResult, TSchema, TUpdateSchema
 from utils.exceptions import NotFoundError, ValidationError
@@ -114,59 +114,37 @@ class FormResponseService(BaseService):
             error_logger.error(f"Error in FormResponseService.delete for ID {doc_id}: {str(e)}", exc_info=True)
             raise
 
-    def validate_payload(self, form_id: str, payload_data: Dict[str, Any]) -> bool:
+    def validate_payload(self, form_id: str, payload_data: Dict[str, Any], organization_id: str = None) -> Tuple[bool, Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Dynamically cross-checks an incoming submission against the strict Option, Logic,
-        and Validation rule sets using a cached Pydantic model.
+        and Validation rule sets using the unified FormValidationService.
         """
         app_logger.info(f"Entering validate_payload for Form ID {form_id}")
-        try:
-            from models.Form import Form, FormVersion
-            from utils.schema_generator import generate_form_model
-
-            form = Form.objects(id=form_id, is_deleted=False).first()
-            if not form:
-                app_logger.warning(f"Form {form_id} not found for validation")
-                raise NotFoundError("Master Form architecture not found for validation")
-
-            if form.status != "published":
-                app_logger.warning(f"Submission rejected: Form {form_id} is not live.")
-                raise ValidationError("Form is inactive or archived")
-
-            # 1. Fetch the active FormVersion
-            active_version_id = form.active_version_id
-            if not active_version_id:
-                raise ValidationError("No active version found for this form")
-                
-            version_raw = FormVersion._get_collection().find_one(
-                {"form": str(form.id), "version": str(active_version_id)}
-            )
-            version_doc = (
-                FormVersion.objects(id=version_raw["_id"]).first() if version_raw else None
-            )
-            if not version_doc:
-                raise ValidationError("Active form version definition not found")
-
-            # 2. Generate/Fetch Cached Pydantic Model
-            try:
-                DynamicModel = generate_form_model(str(version_doc.id), version_doc.sections)
-                # 3. Validate
-                DynamicModel(**payload_data)
-            except Exception as ve:
-                app_logger.debug(f"Payload validation failed for Form {form_id}: {str(ve)}")
-                raise ValidationError(f"Payload validation failed: {str(ve)}")
+        from services.form_validation_service import FormValidationService
+        
+        # This service handles everything: version resolution, conditions, calculations, etc.
+        is_valid, cleaned_data, errors, calculated_values = FormValidationService.validate_submission(
+            form_id=form_id,
+            payload=payload_data,
+            organization_id=organization_id
+        )
+        
+        if not is_valid:
+            app_logger.warning(f"Payload validation failed for Form {form_id}: {errors}")
+            raise ValidationError(f"Payload validation failed", details=errors)
             
-            app_logger.info(f"Successfully completed validate_payload for Form ID {form_id}")
-            return True
-        except Exception as e:
-            if not isinstance(e, (NotFoundError, ValidationError)):
-                error_logger.error(f"Error in validate_payload for Form {form_id}: {str(e)}", exc_info=True)
-            raise
+        return is_valid, cleaned_data, errors, calculated_values
 
     def create_submission(self, data: FormResponseCreateSchema) -> FormResponseSchema:
         """Securely ingest a form submission executing payload validation first, wrapping with Idempotency."""
         app_logger.info(f"Entering create_submission for Form ID {data.form}")
         try:
+            # --- Size Guard ---
+            import json
+            payload_size = len(json.dumps(data.data))
+            if payload_size > 5 * 1024 * 1024: # 5MB limit
+                raise ValidationError(f"Payload too large: {payload_size} bytes (max 5MB)")
+
             # --- Idempotency Check ---
             idempotency_key = data.data.get("idempotency_key")
             if idempotency_key:
@@ -175,10 +153,33 @@ class FormResponseService(BaseService):
                     app_logger.info(f"Idempotent submission trapped: form {data.form} key {idempotency_key}")
                     return self._to_schema(existing)
             
-            self.validate_payload(data.form, data.data)
+            # 1. Unified Validation (includes conditions, calculations, type checks)
+            is_valid, cleaned_data, errors, calculated_values = self.validate_payload(
+                form_id=str(data.form), 
+                payload_data=data.data, 
+                organization_id=data.organization_id
+            )
+            
+            # Update data with cleaned and calculated values
+            data.data = cleaned_data
+            if calculated_values:
+                if "meta_data" not in data.__dict__:
+                    data.meta_data = {}
+                data.meta_data["calculated_values"] = calculated_values
+
             app_logger.info(
                 f"Incoming submission for form {data.form} from organization {data.organization_id}"
             )
+
+            # 2. Fetch Active Version and Snapshot for the response record
+            form_doc = Form.objects(id=data.form).first()
+            if form_doc and form_doc.active_version:
+                data.version = form_doc.active_version.version_string
+                # Resolve FormVersion for snapshot reference
+                from models.Form import FormVersion
+                fv = FormVersion.objects(form=form_doc.id, version=form_doc.active_version.id).first()
+                if fv:
+                    data.form_version = str(fv.id)
 
             # Create the response document
             response = self.create(data)

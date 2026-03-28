@@ -27,9 +27,11 @@ class TenantIsolatedSoftDeleteQuerySet(QuerySet):
             
         # 2. Enforce Tenant Isolation Boundary
         if has_request_context() and current_user:
-            if "organization_id" in model._fields and "organization_id" not in query:
+            if "organization_id" in model._fields:
                 # Superadmins bypass automatic isolation for cross-tenant operations
-                if "superadmin" not in getattr(current_user, "roles", []):
+                user_roles = getattr(current_user, "roles", []) or []
+                if "superadmin" not in user_roles:
+                    # STRICT: Overwrite any attempted manual filter with the actual user org
                     query["organization_id"] = getattr(current_user, "organization_id", None)
                     
         return super().__call__(q_obj, **query)

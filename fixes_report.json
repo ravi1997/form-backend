@@ -1,0 +1,1252 @@
+[
+    {
+        "name": "GET /form/api/v1/forms/<form_id>/access-control",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/forms/<form_id>/fetch/same",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/forms/<form_id>/responses/meta",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/forms/<form_id>/responses/questions",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/forms/fetch/external",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/forms/micro-info",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/anomalies",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/anomaly-detect",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "DELETE /form/api/v1/ai/<form_id>/cache",
+        "method": "DELETE",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/cache/invalidate",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/export",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/responses/<response_id>/analyze",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/responses/<response_id>/moderate",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/search",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/security-scan",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /form/api/v1/ai/<form_id>/sentiment",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/summarize",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/<form_id>/validate-design",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/ai/cross-analysis",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/ai/generate",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/ai/health",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/ai/suggestions",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/ai/templates",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/ai/templates/<template_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/analytics/dashboard",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/auth/login",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/auth/logout",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/auth/refresh",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/auth/register",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/auth/request-otp",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/dashboards/",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "PUT /form/api/v1/dashboards/<dashboard_id>",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /form/api/v1/dashboards/<slug>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "PUT /api/v1/dashboard/layout",
+        "method": "PUT",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/dashboard/reset",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/dashboard/settings",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "PUT /api/v1/dashboard/settings",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/dashboard/widgets",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/dashboard/widgets",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "DELETE /api/v1/dashboard/widgets/<widget_id>",
+        "method": "DELETE",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "PUT /api/v1/dashboard/widgets/<widget_id>",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "PUT /api/v1/dashboard/widgets/positions",
+        "method": "PUT",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/admin/env-config/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/external/employee/<string:employee_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/external/mail",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/external/sms",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/external/uhid/<string:uhid>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/templates/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/templates/",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/templates/<template_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "DELETE /form/api/v1/templates/<template_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "GET /health",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/custom-fields/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/custom-fields/",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/custom-fields/<template_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "DELETE /form/api/v1/custom-fields/<template_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/nlp-search",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/popular-queries",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/query-suggestions",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/search-history",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/search-history",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "DELETE /api/v1/ai/forms/<form_id>/search-history",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "DELETE /api/v1/ai/forms/<form_id>/search-history/<search_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/search-stats",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/semantic-search",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/semantic-search/stream",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/health",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /form/api/v1/forms/<form_id>/permissions",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/forms/<form_id>/permissions",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /api/v1/sms/health",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /api/v1/sms/notify",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/sms/otp",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/sms/single",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/executive-summary",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/summarize",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/summarize/stream",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/summary-comparison",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/summary-snapshots",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/ai/forms/<form_id>/summary-trends",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/ai/forms/<form_id>/theme-summary",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/admin/system-settings/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "PUT /api/v1/admin/system-settings/",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /form/api/v1/forms/translations",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/forms/translations",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/forms/translations/jobs/<job_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "DELETE /form/api/v1/forms/translations/jobs/<job_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "PATCH /form/api/v1/forms/translations/jobs/<job_id>/cancel",
+        "method": "PATCH",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /form/api/v1/forms/translations/jobs/<job_id>/content",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/forms/translations/languages",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/forms/translations/preview",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/user/change-password",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/user/request-otp",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/user/reset-password",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /form/api/v1/user/security/lock-status/<user_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/user/status",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/user/users",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /form/api/v1/user/users",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/user/users/<user_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "PUT /form/api/v1/user/users/<user_id>",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "DELETE /form/api/v1/user/users/<user_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "POST /form/api/v1/user/users/<user_id>/lock",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /form/api/v1/user/users/<user_id>/unlock",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /api/v1/admin/users/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "POST /api/v1/admin/users/",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /api/v1/admin/users/<user_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "PUT /api/v1/admin/users/<user_id>",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "DELETE /api/v1/admin/users/<user_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "POST /api/v1/admin/users/<user_id>/lock",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /api/v1/admin/users/<user_id>/reset-password",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "POST /api/v1/admin/users/<user_id>/unlock",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/<form_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": false,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "DELETE /api/v1/webhooks/<delivery_id>/cancel",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    },
+    {
+        "name": "GET /api/v1/webhooks/<delivery_id>/history",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/webhooks/<delivery_id>/retry",
+        "method": "POST",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/webhooks/<delivery_id>/status",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/webhooks/deliver",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/webhooks/logs",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "GET /api/v1/webhooks/logs/<log_id>",
+        "method": "GET",
+        "issue_found": false,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /api/v1/webhooks/test",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": false,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Standard script updates"
+    },
+    {
+        "name": "POST /form/api/v1/workflows/",
+        "method": "POST",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "GET /form/api/v1/workflows/",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "GET /form/api/v1/workflows/<workflow_id>",
+        "method": "GET",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from GET request"
+    },
+    {
+        "name": "PUT /form/api/v1/workflows/<workflow_id>",
+        "method": "PUT",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": true,
+        "notes": "Inferred realistic payload"
+    },
+    {
+        "name": "DELETE /form/api/v1/workflows/<workflow_id>",
+        "method": "DELETE",
+        "issue_found": true,
+        "body_updated": true,
+        "pre_added": true,
+        "test_added": true,
+        "inference_used": false,
+        "notes": "Removed body from DELETE request"
+    }
+]

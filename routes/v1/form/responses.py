@@ -10,6 +10,8 @@ from mongoengine import DoesNotExist
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from datetime import datetime, timezone
 
+from utils.response_helper import success_response, error_response
+
 response_service = FormResponseService()
 
 @form_bp.route("/<form_id>/responses", methods=["POST"])
@@ -53,7 +55,7 @@ def submit_response(form_id):
             form_uuid = UUID(form_id)
         except ValueError:
             app_logger.warning(f"Invalid form ID format: {form_id}")
-            return jsonify({"error": "Invalid form ID format"}), 400
+            return error_response(message="Invalid form ID format", status_code=400)
 
         form = Form.objects.get(
             id=form_uuid,
@@ -64,36 +66,21 @@ def submit_response(form_id):
         # 1. Permission Check
         if not has_form_permission(current_user, form, "submit"):
             app_logger.warning(f"User {current_user.id} does not have permission to submit to form {form_id}")
-            return jsonify({"error": "You do not have permission to submit to this form"}), 403
+            return error_response(message="You do not have permission to submit to this form", status_code=403)
 
         # 2. Lifecycle Check
         now = datetime.now(timezone.utc)
         if form.expires_at and form.expires_at.replace(tzinfo=timezone.utc) < now:
             app_logger.warning(f"Submission rejected: Form {form_id} expired at {form.expires_at}")
-            return jsonify({"error": "This form has expired"}), 400
+            return error_response(message="This form has expired", status_code=400)
         
         if form.publish_at and form.publish_at.replace(tzinfo=timezone.utc) > now:
             app_logger.warning(f"Submission rejected: Form {form_id} is scheduled for {form.publish_at}")
-            return jsonify({"error": "This form is not yet available"}), 400
+            return error_response(message="This form is not yet available", status_code=400)
             
         # 3. Validation & Service Call
-        # We need to inject form, organization_id and submitted_by into the schema
-        active_form_version = None
-        if form.active_version_id:
-            active_form_version_raw = FormVersion._get_collection().find_one(
-                {
-                    "form": str(form.id),
-                    "version": str(form.active_version_id),
-                }
-            )
-            if active_form_version_raw:
-                active_form_version = FormVersion.objects(
-                    id=active_form_version_raw["_id"]
-                ).first()
-
         submission_data = {
             "form": str(form.id),
-            "form_version": str(active_form_version.id) if active_form_version else "",
             "organization_id": current_user.organization_id,
             "data": data.get("data", {}),
             "submitted_by": str(current_user.id),
@@ -117,17 +104,18 @@ def submit_response(form_id):
         })
 
         app_logger.info(f"Exiting submit_response for form_id: {form_id}, response_id: {response.id}")
-        return jsonify({
-            "message": "Response submitted successfully",
-            "response_id": str(response.id)
-        }), 201
+        return success_response(
+            data={"response_id": str(response.id)},
+            message="Response submitted successfully",
+            status_code=201
+        )
         
     except DoesNotExist:
-        app_logger.warning(f"Form not found: {form_id}")
-        return jsonify({"error": "Form not found"}), 404
+        app_logger.warning(f"Form {form_id} not found: {form_id}")
+        return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error submitting response to form {form_id}: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)
 
 @form_bp.route("/<form_id>/responses", methods=["GET"])
 @swag_from({
@@ -167,7 +155,7 @@ def list_responses(form_id):
         
         if not has_form_permission(current_user, form, "view_responses"):
             app_logger.warning(f"User {current_user.id} does not have permission to view responses for form {form_id}")
-            return jsonify({"error": "You do not have permission to view responses for this form"}), 403
+            return error_response(message="You do not have permission to view responses for this form", status_code=403)
             
         result = response_service.list_by_form(
             form_id=str(form.id),
@@ -177,14 +165,11 @@ def list_responses(form_id):
         )
         
         app_logger.info(f"Exiting list_responses for form_id: {form_id}, count: {len(result.items)}")
-        return jsonify({
-            "success": True,
-            "data": result.to_dict()
-        }), 200
+        return success_response(data=result.to_dict())
         
     except DoesNotExist:
-        app_logger.warning(f"Form not found: {form_id}")
-        return jsonify({"error": "Form not found"}), 404
+        app_logger.warning(f"Form {form_id} not found: {form_id}")
+        return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error listing responses for form {form_id}: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)

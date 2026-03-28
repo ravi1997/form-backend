@@ -76,11 +76,13 @@ def create_form():
         form = form_service.create(schema)
         audit_logger.info(f"Form created with ID {form.id} by user {current_user.id}")
         app_logger.info(f"Form created by user {current_user.id}")
-        return jsonify({"message": "Form created", "form_id": str(form.id)}), 201
+        return success_response(data={"form_id": str(form.id)}, message="Form created", status_code=201)
     except Exception as e:
         error_logger.error(f"Create form error: {e}\n{traceback.format_exc()}")
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)
 
+
+from utils.response_helper import success_response, error_response, FormSerializer
 
 @form_bp.route("/", methods=["GET"])
 @swag_from({
@@ -114,8 +116,13 @@ def list_forms():
         page_size=page_size,
         **filters
     )
+    
+    # Sanitize output
+    data = result.to_dict()
+    data["items"] = [FormSerializer.serialize(i) for i in data.get("items", [])]
+    
     app_logger.info(f"Listed forms for user {current_user.id} in organization {current_user.organization_id}")
-    return success_response(data=result.to_dict())
+    return success_response(data=data)
 
 
 @form_bp.route("/<form_id>", methods=["GET"])
@@ -165,15 +172,17 @@ def get_form(form_id):
             return error_response(message="Form is not yet available", status_code=403)
 
         form_dict = form.to_mongo().to_dict()
-        form_dict["id"] = str(form_dict.pop("_id"))
-
+        
         lang = request.args.get("lang")
         if lang:
             app_logger.info(f"Applying translation '{lang}' for form {form_id}")
             form_dict = apply_translations(form_dict, lang)
 
+        # Sanitize after translation
+        sanitized_form = FormSerializer.serialize(form_dict)
+
         app_logger.info(f"Successfully retrieved form {form_id}")
-        return success_response(data=form_dict)
+        return success_response(data=sanitized_form)
     except DoesNotExist:
         app_logger.warning(f"Form {form_id} not found for user {current_user.id}")
         return error_response(message="Form not found", status_code=404)
@@ -409,7 +418,7 @@ def list_form_templates():
         item["id"] = str(item.pop("_id"))
         result.append(item)
     app_logger.info(f"Listed {len(result)} templates for user {current_user.id}")
-    return jsonify(result), 200
+    return success_response(data=result)
 
 
 @form_bp.route("/templates/<template_id>", methods=["GET"])
@@ -440,14 +449,154 @@ def get_form_template_endpoint(template_id):
         form = Form.objects.get(id=template_id, is_template=True)
         if not has_form_permission(current_user, form, "view"):
             app_logger.warning(f"User {current_user.id} unauthorized to view template {template_id}")
-            return jsonify({"error": "Unauthorized"}), 403
+            return error_response(message="Unauthorized", status_code=403)
         item = form.to_mongo().to_dict()
         item["id"] = str(item.pop("_id"))
-        return jsonify(item), 200
+        return success_response(data=item)
     except DoesNotExist:
         app_logger.warning(f"Template {template_id} not found")
-        return jsonify({"error": "Template not found"}), 404
+        return error_response(message="Template not found", status_code=404)
 
+
+from services.section_service import SectionService
+section_service = SectionService()
+
+@form_bp.route("/import", methods=["POST"])
+@swag_from({
+    "tags": ["Form"],
+    "responses": {"201": {"description": "Form imported successfully"}}
+})
+@jwt_required()
+def import_form():
+    """Import a full form structure from JSON."""
+    app_logger.info("Entering import_form")
+    current_user = get_current_user()
+    data = request.get_json()
+    
+    try:
+        # Basic validation of import payload
+        title = data.get("title")
+        slug = data.get("slug")
+        if not title or not slug:
+            return error_response(message="Title and slug are required for import", status_code=400)
+            
+        # Create form doc
+        form = Form(
+            title=title,
+            slug=slug,
+            description=data.get("description"),
+            help_text=data.get("help_text"),
+            organization_id=current_user.organization_id,
+            created_by=str(current_user.id),
+            status="draft",
+            supported_languages=data.get("supported_languages", ["en"]),
+            default_language=data.get("default_language", "en"),
+            style=data.get("style", {}),
+            translations=data.get("translations", {})
+        )
+        
+        # Import sections recursively if provided
+        sections_data = data.get("sections", [])
+        new_sections = []
+        
+        def import_sections(secs):
+            imported = []
+            for s_data in secs:
+                s = Section(
+                    title=s_data.get("title"),
+                    description=s_data.get("description"),
+                    help_text=s_data.get("help_text"),
+                    order=s_data.get("order", 0),
+                    logic=s_data.get("logic", {}),
+                    ui=s_data.get("ui", {}),
+                    questions=s_data.get("questions", []),
+                    organization_id=current_user.organization_id
+                )
+                if s_data.get("sections"):
+                    s.sections = import_sections(s_data["sections"])
+                s.save()
+                imported.append(s)
+            return imported
+
+        if sections_data:
+            form.sections = import_sections(sections_data)
+            
+        form.save()
+        audit_logger.info(f"Form {form.id} imported by user {current_user.id}")
+        return success_response(data=FormSerializer.serialize(form.to_mongo().to_dict()), status_code=201)
+        
+    except Exception as e:
+        error_logger.error(f"Import form error: {e}")
+        return error_response(message=str(e), status_code=400)
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Sections CRUD
+# ───────────────────────────────────────────────────────────────────────────────
+
+@form_bp.route("/<form_id>/sections", methods=["POST"])
+@swag_from({
+    "tags": ["Section"],
+    "parameters": [{"name": "form_id", "in": "path", "type": "string", "required": True}],
+    "responses": {"201": {"description": "Section created"}}
+})
+@jwt_required()
+def create_form_section(form_id):
+    """Add a new section to a form."""
+    current_user = get_current_user()
+    data = request.get_json()
+    try:
+        section = section_service.create_section(form_id, data, current_user.organization_id)
+        return success_response(data=BaseSerializer.clean_dict(section.to_mongo().to_dict()), status_code=201)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+@form_bp.route("/<form_id>/sections", methods=["GET"])
+@jwt_required()
+def list_form_sections(form_id):
+    """List all sections for a form."""
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        return success_response(data=[BaseSerializer.clean_dict(s.to_mongo().to_dict()) for s in form.sections])
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+@form_bp.route("/<form_id>/sections/<section_id>", methods=["PUT"])
+@jwt_required()
+def update_form_section(form_id, section_id):
+    """Update a specific section."""
+    current_user = get_current_user()
+    data = request.get_json()
+    try:
+        # Verify form exists and belongs to org
+        Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        section = section_service.update(section_id, data, organization_id=current_user.organization_id)
+        return success_response(data=BaseSerializer.clean_dict(section.to_mongo().to_dict()))
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+@form_bp.route("/<form_id>/sections/<section_id>", methods=["DELETE"])
+@jwt_required()
+def delete_form_section(form_id, section_id):
+    """Remove a section from a form."""
+    current_user = get_current_user()
+    try:
+        section_service.delete_section(form_id, section_id, current_user.organization_id)
+        return success_response(message="Section deleted")
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+@form_bp.route("/<form_id>/sections/reorder", methods=["PUT"])
+@jwt_required()
+def reorder_form_sections(form_id):
+    """Update section order."""
+    current_user = get_current_user()
+    data = request.get_json() # Expects { "section_ids": ["id1", "id2", ...] }
+    try:
+        section_service.update_section_order(form_id, data.get("section_ids", []), current_user.organization_id)
+        return success_response(message="Sections reordered")
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Translations
@@ -478,25 +627,36 @@ def update_form_translations(form_id):
     """Update translation strings for a given language code."""
     app_logger.info(f"Entering update_form_translations for ID {form_id}")
     try:
-        form = Form.objects.get(id=form_id)
         current_user = get_current_user()
+        # Strictly enforce organization_id in lookup
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        
         if not has_form_permission(current_user, form, "edit"):
             app_logger.warning(f"User {current_user.id} unauthorized to update translations for form {form_id}")
-            return jsonify({"error": "Unauthorized"}), 403
+            return error_response(message="Unauthorized", status_code=403)
 
         data = request.get_json(silent=True) or {}
         lang_code = data.get("lang_code")
+        translations = data.get("translations") # Expecting { questions: {}, sections: {}, title: "", description: "" }
+        
         if not lang_code:
-            return jsonify({"error": "lang_code is required"}), 400
+            return error_response(message="lang_code is required", status_code=400)
 
         if lang_code not in (form.supported_languages or []):
             form.supported_languages = (form.supported_languages or []) + [lang_code]
+        
+        if translations:
+            # Add to translations dict without wiping others
+            if not form.translations:
+                form.translations = {}
+            form.translations[lang_code] = translations
+            
         form.save()
         audit_logger.info(f"Translations for '{lang_code}' updated for form {form_id} by user {current_user.id}")
-        return jsonify({"message": f"Translations for '{lang_code}' updated"}), 200
+        return success_response(message=f"Translations for '{lang_code}' updated")
     except DoesNotExist:
         app_logger.warning(f"Form {form_id} not found for translation update")
-        return jsonify({"error": "Form not found"}), 404
+        return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Update form translations error for {form_id}: {e}")
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)

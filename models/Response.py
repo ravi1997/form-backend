@@ -6,6 +6,7 @@ from mongoengine import (
     DateTimeField,
     BooleanField,
     IntField,
+    BinaryField,
 )
 from datetime import datetime, timezone
 from models.base import BaseDocument, SoftDeleteMixin
@@ -90,26 +91,40 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
         If a field is marked as sensitive in the Form definition, it is moved to encrypted_data.
         """
         from utils.encryption import encrypt_value
+        from models.Form import FormVersion
         
-        # 1. Fetch Form Definition to identify sensitive fields
-        # Note: We use the linked form's active version or specific version
-        form_doc = self.form
+        # 1. Identify sensitive fields from the version snapshot
         sensitive_fields = set()
         
-        # This is a bit expensive, but critical for security.
-        # Future: Cache sensitive field lists per form_id
-        active_version_id = getattr(form_doc, "active_version_id", None) if form_doc else None
-        if active_version_id:
-            from models.Form import FormVersion
-            version_raw = FormVersion._get_collection().find_one(
-                {"version": str(active_version_id)}
-            )
-            version_doc = (
-                FormVersion.objects(id=version_raw["_id"]).first()
-                if version_raw
-                else None
-            )
-            if version_doc:
+        # We prefer using the linked form_version which should be a FormVersion instance
+        version_doc = None
+        if self.form_version:
+            # If it's a reference, MongoEngine might have it already or we fetch it
+            if isinstance(self.form_version, FormVersion):
+                version_doc = self.form_version
+            else:
+                version_doc = FormVersion.objects(id=self.form_version).first()
+        
+        if not version_doc and self.form:
+            # Fallback to active version
+            active_id = getattr(self.form, "active_version_id", None)
+            if active_id:
+                version_doc = FormVersion.objects(form=self.form.id, version=active_id).first()
+
+        if version_doc:
+            if version_doc.snapshot:
+                # Optimized: Use snapshot tree
+                def extract_sensitive(sections):
+                    for sec in sections:
+                        for q in sec.get("questions", []):
+                            if q.get("is_sensitive"):
+                                var_name = q.get("variable_name")
+                                if var_name: sensitive_fields.add(var_name)
+                        if sec.get("sections"):
+                            extract_sensitive(sec["sections"])
+                extract_sensitive(version_doc.snapshot.get("sections", []))
+            else:
+                # Legacy fallback
                 for section in version_doc.sections:
                     for question in section.questions:
                         if question.is_sensitive:
@@ -216,3 +231,18 @@ class DynamicViewDefinition(BaseDocument, SoftDeleteMixin):
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     tags = ListField(StringField())
+
+class BulkExport(BaseDocument):
+    """Tracks status and stores results of background export jobs."""
+    meta = {
+        "collection": "bulk_exports",
+        "indexes": ["organization_id", "status"],
+        "index_background": True,
+    }
+    form_ids = ListField(StringField())
+    status = StringField(choices=("pending", "processing", "completed", "failed"), default="pending")
+    file_binary = BinaryField()
+    filename = StringField()
+    error_message = StringField()
+    created_by = StringField()
+    completed_at = DateTimeField()

@@ -7,6 +7,7 @@ from mongoengine import (
     BooleanField,
     DictField,
     DateTimeField,
+    BinaryField,
     ValidationError,
 )
 from datetime import datetime
@@ -32,6 +33,7 @@ class Option(BaseEmbeddedDocument):
     option_code = StringField(max_length=100)
     option_label = StringField(max_length=255, required=True)
     option_value = StringField(max_length=255, required=True)
+    parent_option_value = StringField(help_text="For cascading selects: the value of the parent field that enables this option")
     order = IntField(default=0)
     visibility_condition = EmbeddedDocumentField(Condition)
 
@@ -96,6 +98,7 @@ class QuestionLogic(LogicComponent):
     """Question-specific logic (e.g., derived values)."""
 
     calculated_value = StringField()
+    parent_variable_name = StringField(help_text="For cascading selects: the variable name of the parent field")
 
 
 class QuestionUI(UIComponent):
@@ -280,9 +283,11 @@ class Form(BaseDocument, SoftDeleteMixin):
     is_public = BooleanField(default=False)
     supported_languages = ListField(StringField(), default=["en"])
     default_language = StringField(default="en")
+    translations = DictField()
     tags = ListField(StringField())
 
     # Security & Integration
+    sections = ListField(ReferenceField(Section))
     editors = ListField(StringField())
     viewers = ListField(StringField())
     submitters = ListField(StringField())
@@ -290,6 +295,12 @@ class Form(BaseDocument, SoftDeleteMixin):
     style = DictField()
     response_templates = ListField(EmbeddedDocumentField(ResponseTemplate))
     triggers = ListField(EmbeddedDocumentField(Trigger))
+
+    @property
+    def versions(self):
+        """Returns all versions associated with this form, sorted by creation time."""
+        from models.Form import FormVersion
+        return FormVersion.objects(form=self.id).order_by("created_at")
 
     @property
     def is_published(self) -> bool:
@@ -378,6 +389,18 @@ class Version(BaseDocument):
             raise ValidationError("Version numbers must be non-negative.")
 
 
+class SnapshotStore(BaseDocument):
+    """Deep storage for large form snapshots to avoid 16MB document limits and keep FormVersion light."""
+    meta = {
+        "collection": "form_snapshots",
+        "index_background": True,
+    }
+    # Stores either raw dict or compressed binary
+    data = DictField(help_text="Raw JSON snapshot if not compressed")
+    compressed_data = BinaryField(help_text="Compressed snapshot data")
+    is_compressed = BooleanField(default=False)
+    size_bytes = IntField()
+
 class FormVersion(BaseDocument):
     """Immutable snapshot of form structure at a specific version."""
 
@@ -388,9 +411,47 @@ class FormVersion(BaseDocument):
     }
     form = ReferenceField(Form, required=True, reverse_delete_rule=2)
     version = ReferenceField(Version, required=True)
+    
+    # New separate storage reference
+    snapshot_ref = ReferenceField(SnapshotStore)
+    
+    # Legacy/Inline snapshot storage
+    snapshot = DictField(help_text="Full immutable snapshot of the form structure")
+    
+    # Legacy field - kept for backward compatibility but should be avoided for new versions
     sections = ListField(ReferenceField(Section))
+    
     translations = DictField()
     status = StringField(choices=STATUS_CHOICES, default="draft")
+
+    @property
+    def resolved_snapshot(self) -> dict:
+        """Automatically resolves snapshot from SnapshotStore (compressed) or inline DictField."""
+        if self.snapshot_ref:
+            import zlib
+            import json
+            try:
+                store = self.snapshot_ref
+                if store.is_compressed:
+                    raw_json = zlib.decompress(store.compressed_data).decode('utf-8')
+                    return json.loads(raw_json)
+                return store.data or {}
+            except Exception:
+                pass
+        
+        if self.snapshot:
+            return self.snapshot
+            
+        # Legacy reconstruction from reference list
+        sections_data = []
+        if self.sections:
+            for sec in self.sections:
+                if hasattr(sec, "to_mongo"):
+                    data = sec.to_mongo().to_dict()
+                    if "_id" in data: data["id"] = str(data.pop("_id"))
+                    sections_data.append(data)
+        
+        return {"sections": sections_data}
 
 
 class ProjectVersion(BaseDocument):

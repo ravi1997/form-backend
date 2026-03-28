@@ -29,8 +29,8 @@ def create_app():
         DEBUG=settings.DEBUG,
         # Securing JWT Cookies
         JWT_TOKEN_LOCATION=["headers", "cookies"],
-        JWT_ACCESS_COOKIE_PATH="/api/",
-        JWT_REFRESH_COOKIE_PATH="/api/v1/auth/refresh",
+        JWT_ACCESS_COOKIE_PATH="/form/api/",
+        JWT_REFRESH_COOKIE_PATH="/form/api/v1/auth/refresh",
         JWT_COOKIE_SECURE=not settings.DEBUG,
         JWT_COOKIE_HTTPONLY=True,
         JWT_COOKIE_SAMESITE="Strict",
@@ -60,12 +60,12 @@ def create_app():
     app.config['SWAGGER'] = {
         "title": settings.APP_NAME,
         "uiversion": 3,
-        "specs_route": "/docs",
-        "static_url_path": "/flasgger_static",
+        "specs_route": "/form/docs",
+        "static_url_path": "/form/flasgger_static",
         "specs": [
             {
                 "endpoint": 'apispec_1',
-                "route": '/apispec_1.json',
+                "route": '/form/apispec_1.json',
                 "rule_filter": lambda rule: True,
                 "model_filter": lambda tag: True,
             }

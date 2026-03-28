@@ -7,11 +7,15 @@ from logger.unified_logger import error_logger, audit_logger
 
 # SQL Injection patterns
 SQLI_PATTERNS = [
-    re.compile(r"(\%27)|(\')|(\-\-)|(\%23)|(#)", re.IGNORECASE),
+    # More specific SQLi patterns instead of just blocking any single quote
+    re.compile(r"(\%27)|(\-\-)|(\%23)|(#)", re.IGNORECASE),
     re.compile(r"((\%3D)|(=))[^\n]*((%27)|(\')|(\-\-)|(%3B)|(;))", re.IGNORECASE),
-    re.compile(r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))", re.IGNORECASE),
-    re.compile(r"((\%27)|(\'))union", re.IGNORECASE),
+    re.compile(r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))", re.IGNORECASE), # ' or ' pattern
+    re.compile(r"((\%27)|(\'))\s*union", re.IGNORECASE),
     re.compile(r"exec(\s|\+)+(s|x)p\w+", re.IGNORECASE),
+    re.compile(r"SELECT\s+.*\s+FROM", re.IGNORECASE),
+    re.compile(r"INSERT\s+INTO", re.IGNORECASE),
+    re.compile(r"DROP\s+TABLE", re.IGNORECASE),
 ]
 
 # Cross-Site Scripting (XSS) patterns
@@ -54,7 +58,7 @@ class SecurityWAF:
         @app.before_request
         def waf_check():
             # Skip for static assets or specific routes if needed
-            if request.path.startswith('/static') or request.path.startswith('/flasgger_static'):
+            if any(request.path.startswith(p) for p in ['/static', '/flasgger_static', '/form/static', '/form/flasgger_static', '/form/docs']):
                 return
 
             request_id = getattr(g, "request_id", "unknown")

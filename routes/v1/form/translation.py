@@ -12,6 +12,8 @@ import threading
 translation_bp = Blueprint("translation", __name__)
 
 
+from utils.response_helper import success_response, error_response, BaseSerializer
+
 @translation_bp.route("", methods=["GET"])
 @swag_from({
     "tags": [
@@ -31,38 +33,35 @@ def get_translations():
 
     if not form_id:
         app_logger.warning("Missing form_id in get_translations")
-        return jsonify({"error": "Missing form_id"}), 400
+        return error_response(message="Missing form_id", status_code=400)
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             app_logger.warning(f"Unauthorized access attempt to translations for form {form_id} by user {current_user.id}")
-            return jsonify({"error": "Unauthorized"}), 403
+            return error_response(message="Unauthorized", status_code=403)
 
         if not form.versions:
             app_logger.info(f"Form {form_id} has no versions, returning empty translations")
-            return jsonify({"language": language, "translations": {}}), 200
+            return success_response(data={"language": language, "translations": {}})
 
         latest_version = form.versions[-1]
         translations = latest_version.translations or {}
 
         app_logger.info(f"Exiting get_translations for form_id: {form_id}")
         if language:
-            return (
-                jsonify(
-                    {
-                        "language": language,
-                        "translations": translations.get(language, {}),
-                    }
-                ),
-                200,
-            )
+            return success_response(data={
+                "language": language,
+                "translations": translations.get(language, {}),
+            })
 
-        return jsonify(translations), 200
+        return success_response(data=translations)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error in get_translations for form {form_id}: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)
 
 
 @translation_bp.route("", methods=["POST"])
@@ -86,18 +85,18 @@ def save_translations():
 
     if not form_id or not language or translations is None:
         app_logger.warning("Missing required fields in save_translations")
-        return jsonify({"error": "Missing form_id, language, or translations"}), 400
+        return error_response(message="Missing form_id, language, or translations", status_code=400)
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "edit"):
             app_logger.warning(f"Unauthorized attempt to save translations for form {form_id} by user {current_user.id}")
-            return jsonify({"error": "Unauthorized"}), 403
+            return error_response(message="Unauthorized", status_code=403)
 
         if not form.versions:
             app_logger.warning(f"Attempt to save translations for form {form_id} which has no versions")
-            return jsonify({"error": "Form has no versions"}), 400
+            return error_response(message="Form has no versions", status_code=400)
 
         latest_version = form.versions[-1]
         if not latest_version.translations:
@@ -114,10 +113,12 @@ def save_translations():
         })
 
         app_logger.info(f"Exiting save_translations for form_id: {form_id}")
-        return jsonify({"message": "Translations saved successfully"}), 200
+        return success_response(message="Translations saved successfully")
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error in save_translations for form {form_id}: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)
 
 
 @translation_bp.route("/languages", methods=["GET"])
@@ -149,7 +150,7 @@ def list_languages():
         {"code": "ar", "name": "Arabic", "native_name": "العربية"},
     ]
     app_logger.info("Exiting list_languages")
-    return jsonify(languages), 200
+    return success_response(data=languages)
 
 
 @translation_bp.route("/preview", methods=["POST"])
@@ -173,15 +174,15 @@ def preview_translation():
 
     if not text or not target_lang:
         app_logger.warning("Missing text or target_language in preview_translation")
-        return jsonify({"error": "Missing text or target_language"}), 400
+        return error_response(message="Missing text or target_language", status_code=400)
 
     try:
         translated = AIService.translate_text(text, source_lang, target_lang)
         app_logger.info("Exiting preview_translation")
-        return jsonify({"translated_text": translated}), 200
+        return success_response(data={"translated_text": translated})
     except Exception as e:
         error_logger.error(f"Error in preview_translation: {str(e)}", exc_info=True)
-        return jsonify({"error": "Translation preview failed"}), 500
+        return error_response(message="Translation preview failed", status_code=500)
 
 
 @translation_bp.route("/jobs", methods=["GET", "POST"])
@@ -202,15 +203,16 @@ def handle_jobs():
         form_id = request.args.get("form_id")
         if not form_id:
             app_logger.warning("Missing form_id in handle_jobs (GET)")
-            return jsonify({"error": "Missing form_id"}), 400
+            return error_response(message="Missing form_id", status_code=400)
 
         try:
+            current_user = get_current_user()
             jobs = TranslationJob.objects(form_id=form_id).order_by("-created_at")
             app_logger.info(f"Exiting handle_jobs (GET) for form_id: {form_id}")
-            return jsonify([job.to_dict() for job in jobs]), 200
+            return success_response(data=[BaseSerializer.clean_dict(job.to_mongo().to_dict()) for job in jobs])
         except Exception as e:
             error_logger.error(f"Error in handle_jobs (GET) for form {form_id}: {str(e)}", exc_info=True)
-            return jsonify({"error": "Failed to fetch jobs"}), 500
+            return error_response(message="Failed to fetch jobs", status_code=500)
 
     # POST - Start a new job
     app_logger.info("Entering handle_jobs (POST)")
@@ -222,14 +224,14 @@ def handle_jobs():
 
     if not form_id or not target_languages:
         app_logger.warning("Missing required fields in handle_jobs (POST)")
-        return jsonify({"error": "Missing form_id or target_languages"}), 400
+        return error_response(message="Missing form_id or target_languages", status_code=400)
 
     current_user = get_current_user()
     try:
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "edit"):
             app_logger.warning(f"Unauthorized attempt to start translation job for form {form_id} by user {current_user.id}")
-            return jsonify({"error": "Unauthorized"}), 403
+            return error_response(message="Unauthorized", status_code=403)
 
         job = TranslationJob(
             form_id=form_id,
@@ -257,11 +259,15 @@ def handle_jobs():
         thread.start()
 
         app_logger.info(f"Exiting handle_jobs (POST) for form_id: {form_id}, job_id: {job.id}")
-        return jsonify({"message": "Translation job started", "job_id": job.id}), 201
+        return success_response(
+            data={"job_id": str(job.id)},
+            message="Translation job started",
+            status_code=201
+        )
 
     except Exception as e:
         error_logger.error(f"Error starting translation job for form {form_id}: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 400
+        return error_response(message=str(e), status_code=400)
 
 
 @translation_bp.route("/jobs/<job_id>", methods=["GET"])
@@ -289,10 +295,10 @@ def get_job_status(job_id):
     try:
         job = TranslationJob.objects.get(id=job_id)
         app_logger.info(f"Exiting get_job_status for job_id: {job_id}")
-        return jsonify(job.to_dict()), 200
+        return success_response(data=BaseSerializer.clean_dict(job.to_mongo().to_dict()))
     except Exception as e:
         app_logger.warning(f"Translation job not found: {job_id}")
-        return jsonify({"error": "Job not found"}), 404
+        return error_response(message="Job not found", status_code=404)
 
 
 @translation_bp.route("/jobs/<job_id>/cancel", methods=["PATCH"])
@@ -331,13 +337,13 @@ def cancel_job(job_id):
             })
             
             app_logger.info(f"Exiting cancel_job for job_id: {job_id}")
-            return jsonify({"message": "Job cancelled"}), 200
+            return success_response(message="Job cancelled")
         
         app_logger.warning(f"Cannot cancel job {job_id} in {job.status} state")
-        return jsonify({"error": f"Cannot cancel job in {job.status} state"}), 400
+        return error_response(message=f"Cannot cancel job in {job.status} state", status_code=400)
     except Exception as e:
         app_logger.warning(f"Translation job not found for cancellation: {job_id}")
-        return jsonify({"error": "Job not found"}), 404
+        return error_response(message="Job not found", status_code=404)
 
 
 @translation_bp.route("/jobs/<job_id>", methods=["DELETE"])
@@ -374,10 +380,10 @@ def delete_job(job_id):
         })
         
         app_logger.info(f"Exiting delete_job for job_id: {job_id}")
-        return jsonify({"message": "Job deleted"}), 200
+        return success_response(message="Job deleted")
     except Exception as e:
         app_logger.warning(f"Translation job not found for deletion: {job_id}")
-        return jsonify({"error": "Job not found"}), 404
+        return error_response(message="Job not found", status_code=404)
 
 
 @translation_bp.route("/jobs/<job_id>/content", methods=["GET"])
@@ -406,13 +412,13 @@ def get_translated_content(job_id):
         job = TranslationJob.objects.get(id=job_id)
         if job.status != "completed":
             app_logger.warning(f"Attempt to fetch content for incomplete job {job_id} (status: {job.status})")
-            return jsonify({"error": "Job not completed yet"}), 400
+            return error_response(message="Job not completed yet", status_code=400)
 
         app_logger.info(f"Exiting get_translated_content for job_id: {job_id}")
-        return jsonify({"form_id": job.form_id, "results": job.results}), 200
+        return success_response(data={"form_id": str(job.form_id), "results": job.results})
     except Exception as e:
         app_logger.warning(f"Translation job not found: {job_id}")
-        return jsonify({"error": "Job not found"}), 404
+        return error_response(message="Job not found", status_code=404)
 
 
 # Helper for background processing
