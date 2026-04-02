@@ -57,8 +57,12 @@ class SecurityWAF:
     def init_app(self, app):
         @app.before_request
         def waf_check():
+            # Skip for OPTIONS requests (CORS preflight)
+            if request.method == "OPTIONS":
+                return
+
             # Skip for static assets or specific routes if needed
-            if any(request.path.startswith(p) for p in ['/static', '/flasgger_static', '/form/static', '/form/flasgger_static', '/form/docs']):
+            if any(request.path.startswith(p) for p in ["/static", "/flasgger_static", "/form/static", "/form/flasgger_static", "/form/docs"]):
                 return
 
             request_id = getattr(g, "request_id", "unknown")
@@ -71,10 +75,17 @@ class SecurityWAF:
                 self._check_value(f"{key}={value}", "Query Params", client_ip, request_id)
             
             for key, value in request.headers.items():
-                # Skip some headers that might contain legitimate special characters
-                if key.lower() in ["user-agent", "referer", "cookie"]:
+                # Skip some headers that might contain legitimate special characters or quality values
+                if key.lower() in [
+                    "user-agent", "referer", "cookie", "accept", 
+                    "accept-language", "accept-encoding", "content-type", 
+                    "authorization", "if-none-match", "cache-control",
+                    "x-csrf-token-access", "x-csrf-token-refresh", "x-organization-id"
+                ]:
                     continue
-                self._check_value(f"{key}={value}", "Headers", client_ip, request_id)
+                # Check key and value separately to avoid false positives on `=...;` regex
+                self._check_value(key, "Header Key", client_ip, request_id)
+                self._check_value(value, "Header Value", client_ip, request_id)
 
             # Check JSON body if applicable
             if request.is_json:
@@ -109,7 +120,7 @@ class SecurityWAF:
             if pattern.search(value):
                 # Specific check for semicolon as it's common in some legitimate fields
                 # but dangerous in shell commands
-                if ";" in value and source == "Headers":
+                if ";" in value and source.startswith("Header"):
                     continue
                 self._block_request("Command Injection", source, value, client_ip, request_id)
 

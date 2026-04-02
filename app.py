@@ -33,7 +33,7 @@ def create_app():
         JWT_REFRESH_COOKIE_PATH="/form/api/v1/auth/refresh",
         JWT_COOKIE_SECURE=not settings.DEBUG,
         JWT_COOKIE_HTTPONLY=True,
-        JWT_COOKIE_SAMESITE="Strict",
+        JWT_COOKIE_SAMESITE="Lax",
         JWT_COOKIE_CSRF_PROTECT=True,
         JWT_ACCESS_CSRF_HEADER_NAME="X-CSRF-TOKEN-ACCESS",
         JWT_REFRESH_CSRF_HEADER_NAME="X-CSRF-TOKEN-REFRESH",
@@ -41,7 +41,14 @@ def create_app():
 
     # ── JWT, CORS, Limiter & Talisman, Swagger ────────────────────────────────
     from extensions import jwt, cors, limiter, talisman, swagger
-    cors.init_app(app)
+    
+    # Configure CORS to support credentials (cookies) cross-origin
+    cors.init_app(
+        app, 
+        origins=settings.ALLOWED_ORIGINS,
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN-ACCESS", "X-CSRF-TOKEN-REFRESH", "X-Organization-ID"]
+    )
     jwt.init_app(app)
     
     # Configure Limiter with Redis
