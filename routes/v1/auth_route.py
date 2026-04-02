@@ -8,6 +8,7 @@ from flask_jwt_extended import (
     jwt_required,
     get_jwt,
     set_access_cookies,
+    set_refresh_cookies,
     unset_jwt_cookies,
     get_jwt_identity,
 )
@@ -157,6 +158,7 @@ def login():
         
         # Set HttpOnly cookies for better security
         set_access_cookies(resp, token_data.access_token)
+        set_refresh_cookies(resp, token_data.refresh_token)
         audit_logger.info(f"AUDIT: Login successful for user id={user_doc.id}")
         app_logger.info(f"Successfully completed login for user id={user_doc.id}")
         return resp, status_code
@@ -254,15 +256,19 @@ def refresh():
 
         token_data = auth_service.generate_tokens(user)
         
-        resp = jsonify(
-            access_token=token_data.access_token, 
-            refresh_token=token_data.refresh_token, # Rotate refresh token too
-            success=True
-        )
+        data = {
+            "access_token": token_data.access_token, 
+            "refresh_token": token_data.refresh_token
+        }
+        resp, status_code = success_response(data=data, message="Token refreshed")
+        
+        # Set HttpOnly cookies for better security
         set_access_cookies(resp, token_data.access_token)
+        set_refresh_cookies(resp, token_data.refresh_token)
+        
         audit_logger.info(f"AUDIT: Token refreshed for user id={user.id}")
         app_logger.info(f"Successfully completed refresh for user id={user.id}")
-        return resp, 200
+        return resp, status_code
     except Exception as e:
         error_logger.error(f"Token refresh failed: {e}", exc_info=True)
         return jsonify(message="Token refresh failed", error=str(e)), 401
