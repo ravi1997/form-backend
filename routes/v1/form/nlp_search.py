@@ -28,7 +28,7 @@ from flask_jwt_extended import jwt_required
 from routes.v1.form.helper import get_current_user
 from utils.redis_client import redis_client
 
-nlp_search_bp = Blueprint("nlp_search", __name__, url_prefix="/api/v1/ai/forms")
+nlp_search_bp = Blueprint("nlp_search", __name__)
 
 
 @nlp_search_bp.route("/<form_id>/nlp-search", methods=["POST"])

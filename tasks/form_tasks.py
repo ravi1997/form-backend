@@ -207,3 +207,120 @@ def async_recalculate_materialized_view(self, view_id, organization_id):
     except Exception as e:
         error_logger.error(f"Task async_recalculate_materialized_view failed for {view_id}: {str(e)}", exc_info=True)
         raise self.retry(exc=e)
+
+@celery_app.task(bind=True, max_retries=2)
+def async_process_translation_job(self, job_id):
+    """
+    Background task to process a translation job via AI.
+    """
+    from models.Form import Form
+    from models.TranslationJob import TranslationJob
+    from services.ai_service import AIService
+    from datetime import datetime, timezone
+    
+    app_logger.info(f"Entering async_process_translation_job: job_id={job_id}")
+    try:
+        job = TranslationJob.objects.get(id=job_id)
+        if job.status == "cancelled":
+            app_logger.info(f"Job {job_id} was cancelled before starting")
+            return
+            
+        job.status = "inProgress"
+        job.started_at = datetime.now(timezone.utc)
+        job.save()
+
+        form = Form.objects.get(id=job.form_id)
+        if not form.versions:
+            raise Exception("Form has no versions")
+
+        latest_version = form.versions[-1]
+
+        # Extract translatable items
+        translatable_items = {
+            "title": form.title,
+            "description": form.description or "",
+        }
+
+        for section in latest_version.sections:
+            translatable_items[f"section_{section.id}_title"] = section.title
+            if section.description:
+                translatable_items[f"section_{section.id}_desc"] = (
+                    section.description
+                )
+
+            for question in section.questions:
+                translatable_items[f"question_{question.id}_label"] = question.label
+                if question.help_text:
+                    translatable_items[f"question_{question.id}_help"] = (
+                        question.help_text
+                    )
+                if question.placeholder:
+                    translatable_items[f"question_{question.id}_place"] = (
+                        question.placeholder
+                    )
+
+                for option in question.options:
+                    translatable_items[f"option_{option.id}_label"] = (
+                        option.option_label
+                    )
+
+        results = {}
+        total_langs = len(job.target_languages)
+
+        for i, lang in enumerate(job.target_languages):
+            if job.reload().status == "cancelled":
+                app_logger.info(f"Job {job_id} cancelled during processing at language {lang}")
+                break
+
+            try:
+                app_logger.info(f"Translating form {job.form_id} to {lang} (Job: {job_id})")
+                translated_dict = AIService.translate_bulk(
+                    translatable_items, job.source_language, lang
+                )
+
+                # Update form with translations
+                if not latest_version.translations:
+                    latest_version.translations = {}
+
+                latest_version.translations[lang] = translated_dict
+                form.save()
+
+                results[lang] = {
+                    "success": True,
+                    "success_count": len(translated_dict),
+                    "failure_count": 0,
+                }
+
+                job.completed_fields += 1  # In this case it's languages
+            except Exception as e:
+                error_logger.error(f"Error translating form {job.form_id} to {lang}: {str(e)}")
+                results[lang] = {
+                    "success": False,
+                    "success_count": 0,
+                    "failure_count": 1,
+                    "error_message": str(e),
+                }
+                job.failed_fields += 1
+
+            job.progress = int(((i + 1) / total_langs) * 100)
+            job.save()
+
+        if job.status != "cancelled":
+            job.status = "completed"
+            job.completed_at = datetime.now(timezone.utc)
+            job.results = results
+            job.save()
+        
+        audit_logger.info(f"Translation job {job_id} completed for form {job.form_id}")
+        return {"status": "success", "job_id": str(job_id)}
+
+    except Exception as e:
+        try:
+            job = TranslationJob.objects.get(id=job_id)
+            job.status = "failed"
+            job.error_message = str(e)
+            job.save()
+        except Exception:
+            pass
+        error_logger.error(f"Error processing translation job {job_id}: {str(e)}", exc_info=True)
+        raise self.retry(exc=e)

@@ -7,7 +7,6 @@ from models.TranslationJob import TranslationJob
 from routes.v1.form.helper import get_current_user, has_form_permission
 from services.ai_service import AIService
 from datetime import datetime, timezone
-import threading
 
 translation_bp = Blueprint("translation", __name__)
 
@@ -252,11 +251,8 @@ def handle_jobs():
         })
 
         # Start background processing
-        thread = threading.Thread(
-            target=process_translation_job,
-            args=(job.id, current_app._get_current_object()),
-        )
-        thread.start()
+        from tasks.form_tasks import async_process_translation_job
+        async_process_translation_job.delay(str(job.id))
 
         app_logger.info(f"Exiting handle_jobs (POST) for form_id: {form_id}, job_id: {job.id}")
         return success_response(
@@ -421,115 +417,3 @@ def get_translated_content(job_id):
         return error_response(message="Job not found", status_code=404)
 
 
-# Helper for background processing
-def process_translation_job(job_id, app):
-    app_logger.info(f"Background: Entering process_translation_job for job_id: {job_id}")
-    with app.app_context():
-        try:
-            job = TranslationJob.objects.get(id=job_id)
-            if job.status == "cancelled":
-                app_logger.info(f"Background: Job {job_id} was cancelled before starting")
-                return
-
-            job.status = "inProgress"
-            job.started_at = datetime.now(timezone.utc)
-            job.save()
-
-            form = Form.objects.get(id=job.form_id)
-            if not form.versions:
-                raise Exception("Form has no versions")
-
-            latest_version = form.versions[-1]
-
-            # Extract translatable items
-            translatable_items = {
-                "title": form.title,
-                "description": form.description or "",
-            }
-
-            for section in latest_version.sections:
-                translatable_items[f"section_{section.id}_title"] = section.title
-                if section.description:
-                    translatable_items[f"section_{section.id}_desc"] = (
-                        section.description
-                    )
-
-                for question in section.questions:
-                    translatable_items[f"question_{question.id}_label"] = question.label
-                    if question.help_text:
-                        translatable_items[f"question_{question.id}_help"] = (
-                            question.help_text
-                        )
-                    if question.placeholder:
-                        translatable_items[f"question_{question.id}_place"] = (
-                            question.placeholder
-                        )
-
-                    for option in question.options:
-                        translatable_items[f"option_{option.id}_label"] = (
-                            option.option_label
-                        )
-
-            results = {}
-            total_langs = len(job.target_languages)
-
-            for i, lang in enumerate(job.target_languages):
-                if job.reload().status == "cancelled":
-                    app_logger.info(f"Background: Job {job_id} cancelled during processing at language {lang}")
-                    break
-
-                try:
-                    app_logger.info(f"Background: Translating form {job.form_id} to {lang} (Job: {job_id})")
-                    translated_dict = AIService.translate_bulk(
-                        translatable_items, job.source_language, lang
-                    )
-
-                    # Update form with translations
-                    if not latest_version.translations:
-                        latest_version.translations = {}
-
-                    latest_version.translations[lang] = translated_dict
-                    form.save()
-
-                    results[lang] = {
-                        "success": True,
-                        "success_count": len(translated_dict),
-                        "failure_count": 0,
-                    }
-
-                    job.completed_fields += 1  # In this case it's languages
-                except Exception as e:
-                    error_logger.error(f"Background: Error translating form {job.form_id} to {lang}: {str(e)}")
-                    results[lang] = {
-                        "success": False,
-                        "success_count": 0,
-                        "failure_count": 1,
-                        "error_message": str(e),
-                    }
-                    job.failed_fields += 1
-
-                job.progress = int(((i + 1) / total_langs) * 100)
-                job.save()
-
-            job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
-            job.results = results
-            job.save()
-            
-            audit_logger.info(f"Background: Translation job {job_id} completed for form {job.form_id}", extra={
-                "job_id": str(job_id),
-                "form_id": str(job.form_id),
-                "action": "process_translation_job_complete"
-            })
-            
-            app_logger.info(f"Background: Exiting process_translation_job for job_id: {job_id}")
-
-        except Exception as e:
-            try:
-                job = TranslationJob.objects.get(id=job_id)
-                job.status = "failed"
-                job.error_message = str(e)
-                job.save()
-            except Exception:
-                pass
-            error_logger.error(f"Background: Error processing translation job {job_id}: {str(e)}", exc_info=True)
