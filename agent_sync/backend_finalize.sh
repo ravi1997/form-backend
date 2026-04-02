@@ -1,0 +1,10 @@
+#!/bin/bash
+final_json="{\"issue_id\":\"login-flow-debug\",\"resolution_status\":\"success\",\"summary\":\"The login flow was verified end-to-end. The backend contract returns {success: true, data: {user: ...}} while the frontend EnvelopeInterceptor unboxes this, meaning the Auth source needed to expect the unboxed object. We also confirmed Bearer auth headers bypass the SameSite=Lax cookie cross-origin restrictions.\",\"resolved_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+
+docker exec shared-redis-6380 redis-cli -h 192.168.1.50 -p 6380 -n 7 SET agent:issue:login-flow-debug:final "$final_json"
+
+docker exec shared-redis-6380 redis-cli -h 192.168.1.50 -p 6380 -n 7 SET agent:issue:login-flow-debug:state "{\"issue_id\":\"login-flow-debug\",\"status\":\"resolved\",\"owner\":\"system\",\"current_phase\":\"complete\",\"frontend_status\":\"working\",\"backend_status\":\"working\",\"latest_frontend_summary\":\"Login flow verified end-to-end. Fixes confirmed.\",\"latest_backend_summary\":\"Finalized issue resolution\",\"current_blocker\":\"\",\"next_action_for_frontend\":\"None\",\"next_action_for_backend\":\"None\",\"canonical_routes\":{\"login\":\"/form/api/v1/auth/login\",\"user_status\":\"/form/api/v1/user/status\",\"refresh\":\"/form/api/v1/auth/refresh\",\"logout\":\"/form/api/v1/auth/logout\"},\"auth_contract\":{\"login_response_shape\":\"{success: true, data: {access_token, refresh_token, user}}\",\"status_response_shape\":\"{success: true, data: {user}}\",\"auth_mechanism\":\"Bearer Token via Authorization Header\"},\"last_updated_by\":\"backend\",\"last_updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+
+docker exec shared-redis-6380 redis-cli -h 192.168.1.50 -p 6380 -n 7 LPUSH agent:frontend:inbox "{\"issue_id\":\"login-flow-debug\",\"from\":\"backend\",\"to\":\"frontend\",\"kind\":\"resolved\",\"summary\":\"Backend acknowledging resolution and closing issue loop.\",\"details\":{},\"next_action_requested\":\"None\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+
+docker exec shared-redis-6380 redis-cli -h 192.168.1.50 -p 6380 -n 7 SET agent:backend:heartbeat "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
