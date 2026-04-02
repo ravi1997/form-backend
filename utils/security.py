@@ -45,8 +45,8 @@ def require_roles(*roles: str):
             
             # 2. Check roles in payload
             jwt_data = get_jwt()
-            user_roles = jwt_data.get("roles", [])
-            
+            user_roles = jwt_data.get("roles", [])            
+
             if not any(role in user_roles for role in roles):
                 return error_response(
                     message=f"Insufficient permissions. Required roles: {', '.join(roles)}",

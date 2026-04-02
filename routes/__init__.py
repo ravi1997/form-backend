@@ -56,7 +56,10 @@ def register_blueprints(app):
     app.register_blueprint(advanced_responses_bp, url_prefix=f"{base_prefix}/api/v1/forms")
     
     # User & System Management
-    app.register_blueprint(user_bp, url_prefix=f"{base_prefix}/api/v1/users")
+    app.register_blueprint(user_bp, url_prefix=f"{base_prefix}/api/v1/user")
+    app.register_blueprint(
+        user_bp, url_prefix=f"{base_prefix}/api/v1/users", name="user_bp_plural"
+    )
     app.register_blueprint(
         system_settings_bp, url_prefix=f"{base_prefix}/api/v1/admin/system-settings"
     )
