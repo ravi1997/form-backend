@@ -40,7 +40,7 @@ def fetch_external_form_data():
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -120,7 +120,7 @@ def fetch_same_form_data(form_id):
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -191,7 +191,7 @@ def fetch_specific_questions(form_id):
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -257,7 +257,7 @@ def fetch_response_meta(form_id):
     app_logger.info(f"Fetching response meta for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -302,24 +302,7 @@ def fetch_response_meta(form_id):
         return jsonify({"error": str(e)}), 500
 
 
-@advanced_responses_bp.route("/micro-info", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
-@jwt_required()
-def micro_info():
-    """
-    Route for micro informations (Placeholder).
-    """
-    app_logger.info("Micro info requested")
-    return jsonify({"message": "Micro information retrieved", "data": {}}), 200
+
 
 
 @advanced_responses_bp.route("/<form_id>/access-control", methods=["GET"])
@@ -350,7 +333,7 @@ def get_form_access_control(form_id):
     app_logger.info(f"Fetching access control report for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
 
         # Granular checks
         permissions = {
@@ -439,7 +422,7 @@ def update_access_policy(form_id):
     app_logger.info(f"Updating access policy for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
 
         if not has_form_permission(current_user, form, "manage_access"):
             error_logger.warning(

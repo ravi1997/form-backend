@@ -5,7 +5,7 @@ Provides system-wide statistics for administrators.
 
 from flask import Blueprint, jsonify, current_app, request
 from flasgger import swag_from
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from models import Form, FormResponse
 from datetime import datetime, timezone
 from utils.security import require_roles
@@ -33,16 +33,24 @@ def get_dashboard_stats():
     Restricted to privileged users to prevent sensitive data leakage.
     """
     user_id = get_jwt_identity()
+    jwt_data = get_jwt()
+    org_id = jwt_data.get("org_id")
+    role = jwt_data.get("role")
+    
     app_logger.info(f"Fetching dashboard stats for user: {user_id}")
     try:
-        total_forms = Form.objects().count()
-        published_forms = Form.objects(status="published").count()
-        total_responses = FormResponse.objects(is_deleted=False).count()
+        kwargs = {}
+        if role != "superadmin" and org_id:
+            kwargs["organization_id"] = org_id
+            
+        total_forms = Form.objects(**kwargs).count()
+        published_forms = Form.objects(status="published", **kwargs).count()
+        total_responses = FormResponse.objects(is_deleted=False, **kwargs).count()
 
         # Recent Activity: Last 5 Submissions
         recent_activity = []
         recent_submissions = (
-            FormResponse.objects(is_deleted=False)
+            FormResponse.objects(is_deleted=False, **kwargs)
             .order_by("-submitted_at")
             .limit(5)
         )
@@ -100,10 +108,18 @@ def get_dashboard_stats():
 def get_summary():
     """Returns organization-wide summary statistics."""
     user_id = get_jwt_identity()
+    jwt_data = get_jwt()
+    org_id = jwt_data.get("org_id")
+    role = jwt_data.get("role")
+    
     app_logger.info(f"Fetching analytics summary for user: {user_id}")
     try:
-        total_forms = Form.objects().count()
-        total_responses = FormResponse.objects(is_deleted=False).count()
+        kwargs = {}
+        if role != "superadmin" and org_id:
+            kwargs["organization_id"] = org_id
+            
+        total_forms = Form.objects(**kwargs).count()
+        total_responses = FormResponse.objects(is_deleted=False, **kwargs).count()
         app_logger.info(f"Analytics summary retrieved for user: {user_id}")
         return success_response(data={"total_forms": total_forms, "total_responses": total_responses})
     except Exception as e:
@@ -111,20 +127,4 @@ def get_summary():
         return error_response(str(e), status_code=500)
 
 
-@analytics_bp.route("/trends", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Analytics"
-    ],
-    "responses": {
-        "200": {
-            "description": "Returns trends data."
-        }
-    }
-})
-@jwt_required()
-def get_trends():
-    """Returns analytics trends for the organization."""
-    user_id = get_jwt_identity()
-    app_logger.info(f"Fetching analytics trends for user: {user_id}")
-    return success_response(data={"trends": []})
+

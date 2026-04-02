@@ -74,7 +74,8 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str):
     # Base Match: Form + Non-deleted + Organization Isolation
     match_query = {
         "form": widget.form_id,
-        "is_deleted": False
+        "is_deleted": False,
+        "organization_id": org_id
     }
     
     # Add optional filters from widget config

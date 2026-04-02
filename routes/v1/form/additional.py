@@ -180,16 +180,23 @@ def restore_form(form_id):
 })
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def delete_all_responses(form_id):
-    """Admin only: Purge all collected responses for a specific form."""
+    """Admin only: Purge all collected responses for a specific form (Soft delete)."""
     app_logger.info(f"Purging all responses for form {form_id}")
     try:
+        data = request.get_json(silent=True) or {}
+        if data.get("confirm") != "DELETE_ALL":
+            return error_response(message="Confirmation required inside JSON body {'confirm': 'DELETE_ALL'}", status_code=400)
+            
         current_user = get_current_user()
         form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
-        deleted_count = FormResponse.objects(form=form.id).delete()
+        
+        # Soft delete instead of hard delete
+        deleted_count = FormResponse.objects(form=form.id, is_deleted=False).update(set__is_deleted=True, set__deleted_by=str(current_user.id))
+        
         audit_logger.info(
-            f"User {get_jwt_identity()} deleted all responses for form {form_id}. Count: {deleted_count}"
+            f"User {get_jwt_identity()} softly deleted all responses for form {form_id}. Count: {deleted_count}"
         )
-        return success_response(message=f"Deleted {deleted_count} responses")
+        return success_response(message=f"Soft deleted {deleted_count} responses")
     except DoesNotExist:
         error_logger.warning(
             f"Form not found during response purge for form_id: {form_id}"

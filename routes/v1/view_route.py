@@ -52,6 +52,9 @@ def view_form(form_id):
     app_logger.info(f"Viewing form {form_id}")
     try:
         form = Form.objects.get(id=form_id)
+        if not getattr(form, 'is_public', False):
+            return "Form is private or requires authentication", 403
+            
         lang = request.args.get("lang")
         form_dict = form.to_mongo().to_dict()
         if "_id" in form_dict:

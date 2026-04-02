@@ -21,7 +21,8 @@ from models import Form, FormResponse, SummarySnapshot
 from services.summarization_service import SummarizationService
 from services.ollama_service import OllamaService
 from flask_jwt_extended import jwt_required
-from routes.v1.form.helper import get_current_user
+from utils.security_helpers import get_current_user
+from logger.unified_logger import app_logger, error_logger
 
 @form_bp.route("/<form_id>/summarize", methods=["POST"])
 @swag_from({

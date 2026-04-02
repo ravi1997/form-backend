@@ -27,6 +27,7 @@ user_service = UserService()
 
 
 @user_bp.route("/profile", methods=["GET"])
+@user_bp.route("/status", methods=["GET"])
 @swag_from({
     "tags": [
         "User"
@@ -44,7 +45,8 @@ user_service = UserService()
 def get_profile():
     """Return the currently authenticated user's profile."""
     app_logger.info(f"User {current_user.id} fetching profile")
-    return success_response(data=UserOut.model_validate(current_user.to_dict()).model_dump())
+    user_data = UserOut.model_validate(current_user.to_dict()).model_dump()
+    return success_response(data={"user": user_data})
 
 
 @user_bp.route("/change-password", methods=["POST"])
@@ -405,5 +407,53 @@ def unlock_user_account(user_id):
         return success_response(message=f"User {user_id} account unlocked")
     except Exception as e:
         error_logger.error(f"Account unlock failed for {user_id} (Admin: {admin_id}): {str(e)}")
+        raise
+
+
+@user_bp.route("/security/lock-status/<user_id>", methods=["GET"])
+@swag_from({
+    "tags": [
+        "User"
+    ],
+    "responses": {
+        "200": {
+            "description": "Get account lock status for a specific user. Admin only.",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "is_locked": {"type": "boolean"},
+                    "lock_until": {"type": "string", "format": "date-time"},
+                    "failed_login_attempts": {"type": "integer"}
+                }
+            }
+        }
+    },
+    "parameters": [
+        {
+            "name": "user_id",
+            "in": "path",
+            "type": "string",
+            "required": True
+        }
+    ]
+})
+@require_roles("admin", "superadmin")
+def get_lock_status(user_id):
+    """Get account lock status for a specific user. Admin only."""
+    admin_id = get_jwt_identity()
+    app_logger.info(f"Admin {admin_id} fetching lock status for user {user_id}")
+    try:
+        from models.User import User
+        user = User.objects(id=user_id).first()
+        if not user:
+            raise NotFoundError("User not found")
+        
+        return success_response(data={
+            "is_locked": user.is_locked(),
+            "lock_until": user.lock_until.isoformat() if user.lock_until else None,
+            "failed_login_attempts": user.failed_login_attempts
+        })
+    except Exception as e:
+        error_logger.error(f"Error fetching lock status for {user_id}: {str(e)}")
         raise
 
