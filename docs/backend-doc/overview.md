@@ -118,9 +118,11 @@ Clients using cookies must send the appropriate CSRF header on state-changing re
 
 Every MongoEngine document model includes an `organization_id` field. Tenancy is enforced at three independent layers:
 
-### Layer 1: JWT Claim Injection
+### Layer 1: Header-Based Tenant Identification
 
-`middleware/tenant_db.py` runs before every request. It reads the JWT claims (`get_jwt()`), extracts `org_id`, and stores it in Flask's `g` object. The middleware also sets up the thread-local MongoDB alias for tenant-isolated queries.
+`middleware/tenant_db.py` runs before every request. It reads the `X-Organization-ID` header from the request, extracts `org_id`, and stores it in Flask's `g` object. The middleware also sets up a tenant-specific MongoDB connection alias for database-level isolation.
+
+**Note:** Tenant identification uses the `X-Organization-ID` header, not JWT claims. The middleware dynamically registers separate MongoDB connections per tenant using connection aliases like `conn_<org_id>`. Clients must include this header with each request.
 
 ### Layer 2: QuerySet-Level Filtering
 
@@ -244,6 +246,15 @@ Key services:
 | `AIService` | Translation via Ollama |
 | `OllamaService` | Ollama API client (health, embeddings, generate) |
 | `RedisService` | Multi-client Redis accessor |
+| `AnomalyDetectionService` | Anomaly detection for form responses (spam, outliers) |
+| `NLPSearchService` | NLP/semantic search using embeddings |
+| `WorkflowService` | Workflow and approval process management |
+| `FormValidationService` | Form validation logic |
+| `AccessControlService` | Form-level access control evaluation |
+| `NotificationService` | Notification delivery |
+| `EventBusService` | Event bus for distributed events |
+| `ExternalSMSService` | External SMS service integration |
+| `TemplateService` | Form template management |
 
 ---
 

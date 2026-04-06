@@ -151,6 +151,8 @@ Each form has its own ACL independent of global roles. The `has_form_permission(
 
 No user can access data from a different organization, except superadmins. Tenant isolation is enforced at three independent layers (see overview.md §6). A user without an `organization_id` cannot create forms or access org-scoped resources.
 
+**Implementation Note:** Tenant identification uses the `X-Organization-ID` header. The `tenant_db.py` middleware dynamically registers tenant-specific MongoDB connections using aliases like `conn_<org_id>`, providing physical database-level isolation. Clients must include the `X-Organization-ID` header in requests for proper tenant scoping.
+
 ### 4.4 Public Forms
 
 Forms with `is_public = True` and `status = "published"` allow anonymous submission via `POST /forms/<id>/public-submit` without JWT. This is the only unauthenticated write endpoint. The form must also not be expired or scheduled for the future.

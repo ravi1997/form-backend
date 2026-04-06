@@ -120,7 +120,7 @@ register ──► active (is_active=True, is_deleted=False)
 ```
 POST /translations/jobs ──► status: "pending"
          │
-         └─ Python thread starts ──► status: "inProgress" (started_at set)
+         └─ Celery task picked up ──► status: "inProgress" (started_at set)
                     │
                     ├─ translating language 1 of N...
                     │    │

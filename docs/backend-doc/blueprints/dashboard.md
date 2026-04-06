@@ -15,7 +15,7 @@
 
 The dashboard blueprint manages configurable dashboards with live data widgets. Dashboards contain widgets that query `FormResponse` data using MongoDB aggregation pipelines and return resolved data directly in the dashboard GET response. Each dashboard is identified by a slug (for GET) or ID (for PUT).
 
-**Known risk:** Widget data aggregation does not include `organization_id` in the match query. See `risks-and-gaps.md` R-03.
+Widget data aggregation is tenant-scoped via `organization_id` in the match query (fixed in R-02).
 
 ---
 
@@ -95,11 +95,12 @@ The `resolve_widget_data` function runs MongoDB aggregation based on widget type
 ```python
 match_query = {
     "form": widget.form_id,
-    "is_deleted": False
+    "is_deleted": False,
+    "organization_id": org_id
 }
 ```
 
-**Security gap:** `organization_id` is NOT included in `match_query` despite `org_id` being available. See R-03.
+Tenant-scoped: `org_id` from JWT claims is included in every aggregation query.
 
 Optional widget filters: If `widget.filters` is set, each filter key-value is added as `data.<key> = value` to the match query.
 

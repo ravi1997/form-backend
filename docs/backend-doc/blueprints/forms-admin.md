@@ -119,23 +119,33 @@ This module contains form management operations that require elevated privileges
 
 ### DELETE /form/api/v1/forms/`<form_id>`/responses
 
-**Summary:** Purge ALL responses for a form. Admin only. **IRREVERSIBLE.**
+**Summary:** Soft-delete all responses for a form with explicit confirmation. Admin only.
 
 **Authentication:** `@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)`
 
-**Behavior:** Calls `FormResponse.objects(form=form.id).delete()` — a **hard (permanent) delete**. All `FormResponse` documents for this form are permanently removed from MongoDB. This is NOT soft-delete.
+**Request body (required):**
+```json
+{ "confirm": "DELETE_ALL" }
+```
+
+Returns 400 "Confirmation required" if the body is missing or `confirm` is not exactly `"DELETE_ALL"`.
+
+**Behavior:**
+1. Validates confirmation token — 400 if missing
+2. Enforces org isolation: `Form.objects.get(id=form_id, organization_id=current_user.organization_id)`
+3. Soft-deletes via update: `FormResponse.objects(form=form.id, is_deleted=False).update(set__is_deleted=True, set__deleted_by=str(current_user.id))`
+
+This is **soft delete** — records are excluded from future queries but remain in MongoDB and can be recovered by querying `is_deleted=True` directly.
 
 **Response (200):**
 ```json
 {
   "success": true,
-  "message": "Deleted 247 responses"
+  "message": "Soft deleted 247 responses"
 }
 ```
 
-**Warning:** This operation is irreversible. There is no confirmation prompt and no grace period. See `risks-and-gaps.md` R-12.
-
-**Audit log:** `User <id> deleted all responses for form <form_id>. Count: <count>`
+**Audit log:** `User <id> softly deleted all responses for form <form_id>. Count: <count>`
 
 ---
 

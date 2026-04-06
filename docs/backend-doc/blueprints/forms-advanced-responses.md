@@ -40,7 +40,7 @@ All routes return raw `jsonify()` responses (not `success_response()`) — clien
 - `value` — value to search for
 
 **Behavior:**
-1. Looks up form by `form_id` (no org filter — **gap**, see risks R-09)
+1. Looks up form by `form_id` with org isolation: `Form.objects.get(id=form_id, organization_id=current_user.organization_id)`
 2. Checks `has_form_permission(user, form, "view")`
 3. Searches `FormResponse` documents where `data.<section_id>.<question_id> == value` across all sections of the latest version
 4. Returns matching response documents

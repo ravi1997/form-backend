@@ -19,7 +19,11 @@ The translation blueprint provides AI-powered and manual translation management 
 - AI translation preview
 - Async translation jobs (batch AI translation across multiple languages)
 
-**Critical architectural note:** Translation jobs run in Python `threading.Thread` (NOT Celery). This means jobs do NOT survive worker restarts, have no retry capability, and are not visible in Celery monitoring. See `risks-and-gaps.md` R-01.
+**Architecture note:** Translation jobs are dispatched as Celery tasks (`async_process_translation_job.delay(str(job.id))`). The previous Python threading implementation has been replaced. Jobs now:
+- Survive worker restarts (Celery task queue persists in Redis)
+- Benefit from standard retry policy (3 retries, 300s backoff)
+- Are visible in Celery monitoring (Flower)
+- Have the standard soft timeout (300s) and hard timeout (3600s)
 
 ---
 
@@ -241,7 +245,7 @@ All three fields are required.
 }
 ```
 
-**Thread behavior (`process_translation_job`):**
+**Celery task behavior (`async_process_translation_job`):**
 1. Sets `status = "inProgress"`, `started_at = now`
 2. For each target language:
    a. Checks if job was cancelled (`job.reload().status == "cancelled"`)
@@ -279,8 +283,8 @@ Status lifecycle: `pending` → `inProgress` → `completed` | `failed` | `cance
 
 **Behavior:**
 - Sets `job.status = "cancelled"` if current status is `pending` or `in_progress`
-- The background thread checks for cancellation between languages
-- Cancellation is cooperative, not immediate
+- The Celery task checks for cancellation between languages (`job.reload().status == "cancelled"`)
+- Cancellation is cooperative — the current language finishes before the task stops
 
 **Response (200):**
 ```json
@@ -357,4 +361,4 @@ Status lifecycle: `pending` → `inProgress` → `completed` | `failed` | `cance
 - `AIService` (`services/ai_service.py`) — `translate_text`, `translate_bulk`
 - `Form` model
 - `has_form_permission` (`routes/v1/form/helper.py`)
-- `threading` (Python stdlib) — for background job execution
+- `async_process_translation_job` Celery task (`tasks/form_tasks.py`) — background job execution
