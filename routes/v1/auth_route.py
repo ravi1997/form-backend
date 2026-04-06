@@ -21,6 +21,7 @@ from extensions import limiter
 from schemas.auth import TokenResponse
 from schemas.user import UserOut
 from flasgger import swag_from
+from utils.sensitive_data_redaction import safe_log_info, safe_log_error
 
 auth_bp = Blueprint("auth_bp", __name__)
 auth_service = AuthService()
@@ -32,26 +33,28 @@ logger = get_logger(__name__)
 
 
 @auth_bp.route("/register", methods=["POST"])
-@swag_from({
-    "tags": ["Auth"],
-    "summary": "Register a new user",
-    "description": "Registers a new user and returns user details.",
-    "parameters": [
-        {
-            "name": "body",
-            "in": "body",
-            "required": True,
-            "schema": {"$ref": "#/definitions/UserCreateSchema"}
-        }
-    ],
-    "responses": {
-        "201": {
-            "description": "User created successfully",
-            "schema": {"$ref": "#/definitions/UserOut"}
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "Register a new user",
+        "description": "Registers a new user and returns user details.",
+        "parameters": [
+            {
+                "name": "body",
+                "in": "body",
+                "required": True,
+                "schema": {"$ref": "#/definitions/UserCreateSchema"},
+            }
+        ],
+        "responses": {
+            "201": {
+                "description": "User created successfully",
+                "schema": {"$ref": "#/definitions/UserOut"},
+            },
+            "400": {"description": "Validation error or user already exists"},
         },
-        "400": {"description": "Validation error or user already exists"}
     }
-})
+)
 @limiter.limit("5 per minute")
 def register():
     """Register a new user account."""
@@ -59,16 +62,19 @@ def register():
     data = request.get_json(silent=True) or {}
     try:
         from schemas.user import UserCreateSchema
+
         schema = UserCreateSchema(**data)
         user = user_service.create(schema)
         audit_logger.info(
             f"AUDIT: New user registered: {user.username or user.email} (ID: {user.id})"
         )
-        app_logger.info(f"Successfully completed register for {user.username or user.email}")
+        app_logger.info(
+            f"Successfully completed register for {user.username or user.email}"
+        )
         return success_response(
             data={"user": UserOut.model_validate(user.model_dump()).model_dump()},
             message="User registered successfully",
-            status_code=201
+            status_code=201,
         )
     except Exception as e:
         app_logger.warning(f"Registration failed: {e}")
@@ -80,39 +86,41 @@ def register():
 
 
 @auth_bp.route("/login", methods=["POST"])
-@swag_from({
-    "tags": ["Auth"],
-    "summary": "User Login",
-    "description": "Authenticate via password or OTP and issue JWT tokens.",
-    "parameters": [
-        {
-            "name": "body",
-            "in": "body",
-            "required": True,
-            "schema": {"$ref": "#/definitions/LoginRequest"}
-        }
-    ],
-    "responses": {
-        "200": {
-            "description": "Login successful",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "success": {"type": "boolean"},
-                    "data": {
-                        "type": "object",
-                        "properties": {
-                            "access_token": {"type": "string"},
-                            "refresh_token": {"type": "string"},
-                            "user": {"$ref": "#/definitions/UserOut"}
-                        }
-                    }
-                }
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "User Login",
+        "description": "Authenticate via password or OTP and issue JWT tokens.",
+        "parameters": [
+            {
+                "name": "body",
+                "in": "body",
+                "required": True,
+                "schema": {"$ref": "#/definitions/LoginRequest"},
             }
+        ],
+        "responses": {
+            "200": {
+                "description": "Login successful",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "data": {
+                            "type": "object",
+                            "properties": {
+                                "access_token": {"type": "string"},
+                                "refresh_token": {"type": "string"},
+                                "user": {"$ref": "#/definitions/UserOut"},
+                            },
+                        },
+                    },
+                },
+            },
+            "401": {"description": "Invalid credentials"},
         },
-        "401": {"description": "Invalid credentials"}
     }
-})
+)
 @limiter.limit("5 per minute")
 def login():
     """Authenticate via password or OTP and issue JWT tokens."""
@@ -142,31 +150,36 @@ def login():
             user_schema = user_service.verify_otp_login(str(mobile).strip(), otp)
 
         else:
-            raise ValidationError("Missing credentials: provide (identifier + password) or (mobile + otp)")
+            raise ValidationError(
+                "Missing credentials: provide (identifier + password) or (mobile + otp)"
+            )
 
         # Issue tokens via AuthService
         from models.User import User
+
         user_doc = User.objects(id=user_schema.id).first()
         token_data = auth_service.generate_tokens(user_doc)
 
         data = {
-            "access_token": token_data.access_token, 
-            "refresh_token": token_data.refresh_token, 
-            "user": UserOut.model_validate(user_schema.model_dump()).model_dump()
+            "access_token": token_data.access_token,
+            "refresh_token": token_data.refresh_token,
+            "user": UserOut.model_validate(user_schema.model_dump()).model_dump(),
         }
         resp, status_code = success_response(data=data, message="Login successful")
-        
+
         # Set HttpOnly cookies for better security
         set_access_cookies(resp, token_data.access_token)
         set_refresh_cookies(resp, token_data.refresh_token)
         audit_logger.info(f"AUDIT: Login successful for user id={user_doc.id}")
-        app_logger.info(f"Successfully completed login for user id={user_doc.id}")
+        safe_log_info(
+            app_logger, "Successfully completed login for user id=%s", str(user_doc.id)
+        )
         return resp, status_code
     except (UnauthorizedError, ValidationError) as e:
-        app_logger.warning(f"Login failed: {e}")
+        safe_log_info(app_logger, "Login failed: %s", str(e))
         raise
     except Exception:
-        error_logger.exception("Login workflow error")
+        safe_log_error(app_logger, "Login workflow error")
         return error_response(message="Authentication failed", status_code=500)
 
 
@@ -174,29 +187,31 @@ def login():
 
 
 @auth_bp.route("/request-otp", methods=["POST"])
-@swag_from({
-    "tags": ["Auth"],
-    "summary": "Request OTP",
-    "description": "Generate and send an OTP to the given mobile/email.",
-    "parameters": [
-        {
-            "name": "body",
-            "in": "body",
-            "required": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "mobile": {"type": "string"},
-                    "email": {"type": "string"}
-                }
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "Request OTP",
+        "description": "Generate and send an OTP to the given mobile/email.",
+        "parameters": [
+            {
+                "name": "body",
+                "in": "body",
+                "required": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "mobile": {"type": "string"},
+                        "email": {"type": "string"},
+                    },
+                },
             }
-        }
-    ],
-    "responses": {
-        "200": {"description": "OTP sent successfully"},
-        "400": {"description": "Missing identifier"}
+        ],
+        "responses": {
+            "200": {"description": "OTP sent successfully"},
+            "400": {"description": "Missing identifier"},
+        },
     }
-})
+)
 @limiter.limit("3 per minute")
 def request_otp():
     """Generate and send an OTP to the given mobile/email."""
@@ -222,50 +237,57 @@ def request_otp():
 
 
 @auth_bp.route("/refresh", methods=["POST"])
-@swag_from({
-    "tags": ["Auth"],
-    "summary": "Refresh Access Token",
-    "description": "Generates a new access token using a valid refresh token.",
-    "security": [{"Bearer": []}],
-    "responses": {
-        "200": {
-            "description": "Token refreshed",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "access_token": {"type": "string"},
-                    "refresh_token": {"type": "string"},
-                    "success": {"type": "boolean"}
-                }
-            }
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "Refresh Access Token",
+        "description": "Generates a new access token using a valid refresh token.",
+        "security": [{"Bearer": []}],
+        "responses": {
+            "200": {
+                "description": "Token refreshed",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "access_token": {"type": "string"},
+                        "refresh_token": {"type": "string"},
+                        "success": {"type": "boolean"},
+                    },
+                },
+            },
+            "401": {"description": "Invalid or expired refresh token"},
         },
-        "401": {"description": "Invalid or expired refresh token"}
     }
-})
+)
 @jwt_required(refresh=True)
 def refresh():
     """Issue a new access token using a valid refresh token."""
     app_logger.info("Entering refresh")
     try:
         from models.User import User
+
         current_user_id = get_jwt_identity()
-        user = User.objects(id=current_user_id, is_active=True, is_deleted=False).first()
+        user = User.objects(
+            id=current_user_id, is_active=True, is_deleted=False
+        ).first()
         if not user:
-            app_logger.warning(f"Refresh failed: User {current_user_id} not found or suspended")
+            app_logger.warning(
+                f"Refresh failed: User {current_user_id} not found or suspended"
+            )
             return jsonify(message="User not found or suspended"), 404
 
         token_data = auth_service.generate_tokens(user)
-        
+
         data = {
-            "access_token": token_data.access_token, 
-            "refresh_token": token_data.refresh_token
+            "access_token": token_data.access_token,
+            "refresh_token": token_data.refresh_token,
         }
         resp, status_code = success_response(data=data, message="Token refreshed")
-        
+
         # Set HttpOnly cookies for better security
         set_access_cookies(resp, token_data.access_token)
         set_refresh_cookies(resp, token_data.refresh_token)
-        
+
         audit_logger.info(f"AUDIT: Token refreshed for user id={user.id}")
         app_logger.info(f"Successfully completed refresh for user id={user.id}")
         return resp, status_code
@@ -278,15 +300,15 @@ def refresh():
 
 
 @auth_bp.route("/logout", methods=["POST"])
-@swag_from({
-    "tags": ["Auth"],
-    "summary": "User Logout",
-    "description": "Revokes the user's access and refresh tokens.",
-    "security": [{"Bearer": []}],
-    "responses": {
-        "200": {"description": "Logout successful"}
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "User Logout",
+        "description": "Revokes the user's access and refresh tokens.",
+        "security": [{"Bearer": []}],
+        "responses": {"200": {"description": "Logout successful"}},
     }
-})
+)
 @jwt_required()
 def logout():
     """Revoke the current JWT session."""
@@ -306,15 +328,15 @@ def logout():
 
 
 @auth_bp.route("/revoke-all", methods=["POST"])
-@swag_from({
-    "tags": ["Auth"],
-    "summary": "Revoke All Sessions",
-    "description": "Revokes all active JWT sessions for the authenticated user.",
-    "security": [{"Bearer": []}],
-    "responses": {
-        "200": {"description": "All sessions revoked successfully"}
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "Revoke All Sessions",
+        "description": "Revokes all active JWT sessions for the authenticated user.",
+        "security": [{"Bearer": []}],
+        "responses": {"200": {"description": "All sessions revoked successfully"}},
     }
-})
+)
 @jwt_required()
 def revoke_all():
     """Revoke all active sessions for the authenticated user."""
@@ -322,12 +344,16 @@ def revoke_all():
     app_logger.info(f"Entering revoke_all for user id={user_id}")
     try:
         auth_service.revoke_all_user_sessions(user_id)
-        
-        resp, status_code = success_response(message="All sessions revoked successfully")
+
+        resp, status_code = success_response(
+            message="All sessions revoked successfully"
+        )
         unset_jwt_cookies(resp)
         audit_logger.info(f"AUDIT: All sessions revoked for user id={user_id}")
         app_logger.info(f"Successfully completed revoke_all for user id={user_id}")
         return resp, status_code
     except Exception as e:
-        error_logger.error(f"Global revocation failed for user id={user_id}: {e}", exc_info=True)
+        error_logger.error(
+            f"Global revocation failed for user id={user_id}: {e}", exc_info=True
+        )
         return error_response(message="Failed to revoke all sessions", status_code=500)

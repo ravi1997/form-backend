@@ -1,5 +1,5 @@
-from pydantic import Field, validator
-from typing import Optional, List, Literal
+from pydantic import Field, validator, field_validator
+from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
 from .base import SoftDeleteBaseSchema, InboundPayloadSchema
 
@@ -40,20 +40,30 @@ class UserSchema(SoftDeleteBaseSchema):
 
 
 class UserCreateSchema(UserSchema, InboundPayloadSchema):
-    password: str = Field(..., min_length=8)
+    password: str = Field(
+        ..., min_length=8, description="Password must meet NIST SP 800-63B requirements"
+    )
 
 
 class UserUpdateSchema(UserSchema, InboundPayloadSchema):
-    password: Optional[str] = Field(None, min_length=8)
+    password: Optional[str] = Field(
+        None,
+        min_length=8,
+        description="Password must meet NIST SP 800-63B requirements",
+    )
+    current_password: Optional[str] = Field(
+        None, description="Current password required for password changes"
+    )
 
 
 class UserOut(UserSchema):
     """
-    Schema for public API responses. 
+    Schema for public API responses.
     Excludes internal security counters.
     """
+
     id: str
-    
+
     class Config:
         # Exclude internal bookkeeping fields from output
         exclude = {
@@ -61,5 +71,5 @@ class UserOut(UserSchema):
             "otp_resend_count",
             "lock_until",
             "is_deleted",
-            "deleted_at"
+            "deleted_at",
         }

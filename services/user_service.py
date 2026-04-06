@@ -25,24 +25,43 @@ class UserService(BaseService):
         """
         Custom create method to handle password hashing specifically for User model.
         """
+        from utils.password_validator import password_validator
+
         app_logger.info(f"Entering create with email: {create_schema.email}")
         try:
             data = create_schema.model_dump(exclude_unset=True)
             password = data.pop("password")
-            
+
+            # Validate password strength (NIST/OWASP compliant)
+            validation_result = password_validator.validate(password)
+            if not validation_result.is_valid:
+                # Redact password from error logs
+                app_logger.warning(
+                    f"Password validation failed for user registration: {', '.join(validation_result.errors)}"
+                )
+                from utils.exceptions import ValidationError as UserValidationError
+
+                raise UserValidationError(
+                    f"Password does not meet requirements: {', '.join(validation_result.errors)}"
+                )
+
             # Ensure organization_id is present if required by business logic
             user_doc = User(**data)
             user_doc.set_password(password)
             user_doc.save()
-            
-            audit_logger.info(f"AUDIT: Created User with ID {user_doc.id} in org {user_doc.organization_id}")
+
+            audit_logger.info(
+                f"AUDIT: Created User with ID {user_doc.id} in org {user_doc.organization_id}"
+            )
             app_logger.info(f"Successfully completed create for User ID {user_doc.id}")
             return self._to_schema(user_doc)
         except Exception as e:
             error_logger.error(f"Error in create: {str(e)}", exc_info=True)
             raise
 
-    def update(self, doc_id: str, update_schema: UserUpdateSchema, organization_id: str = None) -> UserSchema:
+    def update(
+        self, doc_id: str, update_schema: UserUpdateSchema, organization_id: str = None
+    ) -> UserSchema:
         """
         Custom update method to handle password updates with org scoping.
         """
@@ -50,26 +69,50 @@ class UserService(BaseService):
         try:
             data = update_schema.model_dump(exclude_unset=True)
             password = data.pop("password", None)
-            
-            filters = {'id': doc_id}
+
+            filters = {"id": doc_id}
             if organization_id:
-                filters['organization_id'] = organization_id
-                
+                filters["organization_id"] = organization_id
+
             user_doc = User.objects(**filters).get()
-            
+
+            # Validate password if being changed
+            if password:
+                from utils.password_validator import password_validator
+
+                validation_result = password_validator.validate(password)
+                if not validation_result.is_valid:
+                    app_logger.warning(
+                        f"Password validation failed for user {doc_id}: {', '.join(validation_result.errors)}"
+                    )
+                    from utils.exceptions import ValidationError as UserValidationError
+
+                    raise UserValidationError(
+                        f"Password does not meet requirements: {', '.join(validation_result.errors)}"
+                    )
+
+                # Verify current password if provided (for self-service password changes)
+                current_password = data.get("current_password")
+                if current_password and not user_doc.check_password(current_password):
+                    from utils.exceptions import UnauthorizedError
+
+                    raise UnauthorizedError("Current password is incorrect")
+
             # Update other fields
             for field, value in data.items():
                 setattr(user_doc, field, value)
-                
+
             if password:
                 user_doc.set_password(password)
-                
+
             user_doc.save()
             audit_logger.info(f"AUDIT: Updated User with ID {user_doc.id}")
             app_logger.info(f"Successfully completed update for User ID {user_doc.id}")
             return self._to_schema(user_doc)
         except Exception as e:
-            error_logger.error(f"Error in update for User ID {doc_id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Error in update for User ID {doc_id}: {str(e)}", exc_info=True
+            )
             raise
 
     def authenticate_employee(self, identifier: str, password: str) -> UserSchema:
@@ -80,20 +123,28 @@ class UserService(BaseService):
         """
         app_logger.info(f"Entering authenticate_employee for identifier: {identifier}")
         try:
-            audit_logger.info(f"AUDIT: Authentication attempt for identifier: {identifier}")
+            audit_logger.info(
+                f"AUDIT: Authentication attempt for identifier: {identifier}"
+            )
             user_doc = User.authenticate(identifier, password)
 
             if not user_doc:
                 # User.authenticate already increments failed attempts / locks if needed
-                app_logger.warning(f"Authentication failure for identifier: {identifier}")
+                app_logger.warning(
+                    f"Authentication failure for identifier: {identifier}"
+                )
                 raise UnauthorizedError("Invalid credentials or account is locked")
 
             audit_logger.info(f"AUDIT: User {user_doc.id} authenticated successfully")
-            app_logger.info(f"Successfully completed authenticate_employee for {identifier}")
+            app_logger.info(
+                f"Successfully completed authenticate_employee for {identifier}"
+            )
             return self._to_schema(user_doc)
         except Exception as e:
             if not isinstance(e, UnauthorizedError):
-                error_logger.error(f"Error in authenticate_employee: {str(e)}", exc_info=True)
+                error_logger.error(
+                    f"Error in authenticate_employee: {str(e)}", exc_info=True
+                )
             raise
 
     def request_otp(self, identifier: str) -> bool:
@@ -105,36 +156,41 @@ class UserService(BaseService):
         app_logger.info(f"Entering request_otp for identifier: {identifier}")
         try:
             user = User.objects(
-                Q(is_deleted=False) & 
-                Q(is_active=True) & (
-                    Q(mobile=identifier) | 
-                    Q(username=identifier) | 
-                    Q(email=identifier)
-                )
+                Q(is_deleted=False)
+                & Q(is_active=True)
+                & (Q(mobile=identifier) | Q(username=identifier) | Q(email=identifier))
             ).first()
 
             # Always return True to prevent user enumeration attacks
             if not user:
-                app_logger.info(f"User not found for request_otp: {identifier} (returning True to prevent enumeration)")
+                app_logger.info(
+                    f"User not found for request_otp: {identifier} (returning True to prevent enumeration)"
+                )
                 return True
 
             if user.is_locked():
-                app_logger.warning(f"Account locked for user {user.id} during OTP request")
+                app_logger.warning(
+                    f"Account locked for user {user.id} during OTP request"
+                )
                 raise UnauthorizedError("Account is locked. Please contact support.")
 
             # Strict rate limiting on OTP resends
             if user.otp_resend_count >= 5:
                 user.lock_account(duration_hours=1)
-                audit_logger.info(f"AUDIT: Account {user.id} locked due to too many OTP requests")
-                raise UnauthorizedError("Too many OTP requests. Account locked for 1 hour.")
+                audit_logger.info(
+                    f"AUDIT: Account {user.id} locked due to too many OTP requests"
+                )
+                raise UnauthorizedError(
+                    "Too many OTP requests. Account locked for 1 hour."
+                )
 
             # FIX: Use secrets module (cryptographically secure) for OTP generation
             otp = str(secrets.randbelow(900000) + 100000)  # Always exactly 6 digits
-            
+
             # FIX: Move OTP storage to Redis with 5-minute TTL
             otp_key = f"otp:{user.id}"
             redis_service.cache.set(otp_key, otp, ttl=300)
-            
+
             user.otp_resend_count += 1
             user.save()
 
@@ -154,16 +210,15 @@ class UserService(BaseService):
         app_logger.info(f"Entering verify_otp_login for identifier: {identifier}")
         try:
             user = User.objects(
-                Q(is_deleted=False) & 
-                Q(is_active=True) & (
-                    Q(mobile=identifier) | 
-                    Q(username=identifier) | 
-                    Q(email=identifier)
-                )
+                Q(is_deleted=False)
+                & Q(is_active=True)
+                & (Q(mobile=identifier) | Q(username=identifier) | Q(email=identifier))
             ).first()
 
             if not user or user.is_locked():
-                app_logger.warning(f"Invalid request or account locked for {identifier}")
+                app_logger.warning(
+                    f"Invalid request or account locked for {identifier}"
+                )
                 raise UnauthorizedError("Invalid request or account locked")
 
             otp_key = f"otp:{user.id}"
@@ -176,7 +231,7 @@ class UserService(BaseService):
 
             # FIX: Clear OTP from Redis immediately after use to prevent replay attacks
             redis_service.cache.delete(otp_key)
-            
+
             user.otp_resend_count = 0
             user.reset_failed_logins()
             user.last_login = datetime.now(timezone.utc)
@@ -187,5 +242,7 @@ class UserService(BaseService):
             return self._to_schema(user)
         except Exception as e:
             if not isinstance(e, UnauthorizedError):
-                error_logger.error(f"Error in verify_otp_login: {str(e)}", exc_info=True)
+                error_logger.error(
+                    f"Error in verify_otp_login: {str(e)}", exc_info=True
+                )
             raise

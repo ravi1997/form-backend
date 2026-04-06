@@ -41,7 +41,58 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FIELD_ENCRYPTION_KEY: Optional[str] = None
-    ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
+
+    # CORS: Never use wildcard (*) in production - specific origins only
+    ALLOWED_ORIGINS: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:8080"]
+    )
+
+    # Request size limits (prevents DoS attacks)
+    MAX_CONTENT_LENGTH: int = Field(
+        default=16 * 1024 * 1024,  # 16MB
+        description="Maximum request body size in bytes",
+    )
+    MAX_FILE_SIZE_FORM: int = Field(
+        default=10 * 1024 * 1024,  # 10MB
+        description="Maximum file upload size for forms (images, documents)",
+    )
+    MAX_FILE_SIZE_EXPORT: int = Field(
+        default=50 * 1024 * 1024,  # 50MB
+        description="Maximum file size for exports",
+    )
+
+    # Password policy (NIST SP 800-63B compliant)
+    PASSWORD_MIN_LENGTH: int = Field(default=12, ge=8, le=128)
+    PASSWORD_MAX_LENGTH: int = Field(default=128, ge=12, le=256)
+    PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True)
+    PASSWORD_REQUIRE_LOWERCASE: bool = Field(default=True)
+    PASSWORD_REQUIRE_DIGITS: bool = Field(default=True)
+    PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True)
+    PASSWORD_EXPIRATION_DAYS: int = Field(default=90, ge=30, le=365)
+    PASSWORD_HISTORY_COUNT: int = Field(default=5, ge=0, le=20)
+    PREVENT_COMMON_PASSWORDS: bool = Field(default=True)
+
+    # Rate limiting
+    RATE_LIMIT_LOGIN_ATTEMPTS: str = Field(default="5 per minute")
+    RATE_LIMIT_PASSWORD_CHANGE: str = Field(default="3 per hour")
+    RATE_LIMIT_FILE_UPLOAD: str = Field(default="10 per minute")
+    RATE_LIMIT_EXPORT: str = Field(default="5 per hour")
+    RATE_LIMIT_OTP_REQUEST: str = Field(default="5 per minute")
+
+    # Export limits
+    MAX_EXPORT_RECORDS: int = Field(default=10000, ge=1000, le=100000)
+    REQUIRE_EXPORT_CONSENT: bool = Field(default=True)
+
+    # Security headers
+    HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds
+    HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=True)
+    HSTS_PRELOAD: bool = Field(default=True)
+
+    # Content Security Policy (even for REST APIs)
+    CSP_POLICY: Optional[str] = Field(
+        default="default-src 'self'; script-src 'none'; object-src 'none';",
+        description="Content-Security-Policy header value",
+    )
 
     # ── Sentry ───────────────────────────────────────────────────────────────
     SENTRY_DSN: Optional[str] = None
@@ -75,21 +126,32 @@ class Settings(BaseSettings):
         Refuse to start in production/staging with default insecure credentials.
         """
         insecure_key = "super-secret-key-change-me"
-        
+
         if self.APP_ENV != "development":
             if self.JWT_SECRET_KEY == insecure_key:
                 raise ValueError(
                     f"JWT_SECRET_KEY must be changed for {self.APP_ENV} environment. "
                     'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
                 )
-            
+
             # Enforce non-local infrastructure for production
             if "localhost" in self.MONGODB_URI or "127.0.0.1" in self.MONGODB_URI:
-                raise ValueError("MONGODB_URI must not point to localhost in non-development environments.")
-            
+                raise ValueError(
+                    "MONGODB_URI must not point to localhost in non-development environments."
+                )
+
             if "localhost" in self.REDIS_HOST or "127.0.0.1" in self.REDIS_HOST:
-                raise ValueError("REDIS_HOST must not point to localhost in non-development environments.")
-                
+                raise ValueError(
+                    "REDIS_HOST must not point to localhost in non-development environments."
+                )
+
+            # Enforce secure CORS (no wildcard)
+            if "*" in self.ALLOWED_ORIGINS:
+                raise ValueError(
+                    "ALLOWED_ORIGINS must not contain wildcard (*) in non-development environments. "
+                    "Specify explicit trusted origins."
+                )
+
         return self
 
 

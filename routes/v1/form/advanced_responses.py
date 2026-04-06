@@ -6,21 +6,16 @@ from models import Form, FormResponse
 from routes.v1.form.helper import get_current_user, has_form_permission
 from mongoengine import DoesNotExist
 from logger.unified_logger import app_logger, error_logger, audit_logger
+from utils.mongodb_query_helper import NoSQLInjector
+from utils.sensitive_data_redaction import safe_log_info, safe_log_error
 
 advanced_responses_bp = Blueprint("advanced_responses", __name__)
 
 
 @advanced_responses_bp.route("/fetch/external", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from(
+    {"tags": ["Advanced_Responses"], "responses": {"200": {"description": "Success"}}}
+)
 @jwt_required()
 def fetch_external_form_data():
     """
@@ -40,7 +35,9 @@ def fetch_external_form_data():
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -57,51 +54,54 @@ def fetch_external_form_data():
         # Alternatively, find any response where data contains the value for question_id
 
         # Simplified: iterate through sections if known, or use raw mongo query
+        # Sanitize inputs to prevent NoSQL injection
+        safe_question_id = NoSQLInjector.sanitize_key(question_id)
+        safe_value = NoSQLInjector.escape_value(value)
+
+        # Build safe OR query
+        or_conditions = []
+        if form.versions:
+            for section in form.versions[-1].sections:
+                section_id_str = NoSQLInjector.sanitize_key(str(section.id))
+                or_conditions.append(
+                    {f"data.{section_id_str}.{safe_question_id}": safe_value}
+                )
+
         responses = FormResponse.objects(
             __raw__={
                 "form": form.id,
                 "deleted": False,
-                "$or": (
-                    [
-                        {f"data.{section.id}.{question_id}": value}
-                        for section in form.versions[-1].sections
-                    ]
-                    if form.versions
-                    else []
-                ),
+                "$or": or_conditions,
             }
         )
 
-        app_logger.info(f"Fetched {len(responses)} external responses for form {form_id}")
+        app_logger.info(
+            f"Fetched {len(responses)} external responses for form {form_id}"
+        )
         return jsonify([r.to_mongo().to_dict() for r in responses]), 200
 
     except DoesNotExist:
-        error_logger.warning(f"Form {form_id} not found during external data fetch")
+        safe_log_info(
+            app_logger, "Form %s not found during external data fetch", form_id
+        )
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        error_logger.error(f"Error fetching external form data: {str(e)}")
+        safe_log_error(
+            app_logger, "Error fetching external form data: %s", str(e), exc_info=True
+        )
         return jsonify({"error": str(e)}), 500
 
 
 @advanced_responses_bp.route("/<form_id>/fetch/same", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def fetch_same_form_data(form_id):
     """
@@ -120,7 +120,9 @@ def fetch_same_form_data(form_id):
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -143,7 +145,9 @@ def fetch_same_form_data(form_id):
             }
         )
 
-        app_logger.info(f"Fetched {len(responses)} same-form responses for form {form_id}")
+        app_logger.info(
+            f"Fetched {len(responses)} same-form responses for form {form_id}"
+        )
         return jsonify([r.to_mongo().to_dict() for r in responses]), 200
 
     except DoesNotExist:
@@ -155,24 +159,15 @@ def fetch_same_form_data(form_id):
 
 
 @advanced_responses_bp.route("/<form_id>/responses/questions", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def fetch_specific_questions(form_id):
     """
@@ -191,7 +186,9 @@ def fetch_specific_questions(form_id):
 
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -199,7 +196,7 @@ def fetch_specific_questions(form_id):
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        responses = FormResponse.objects(form=form.id, deleted=False)
+        responses = FormResponse.objects(form=form.id, is_deleted=False)
 
         result = []
         for r in responses:
@@ -231,24 +228,15 @@ def fetch_specific_questions(form_id):
 
 
 @advanced_responses_bp.route("/<form_id>/responses/meta", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def fetch_response_meta(form_id):
     """
@@ -257,7 +245,9 @@ def fetch_response_meta(form_id):
     app_logger.info(f"Fetching response meta for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
@@ -265,15 +255,15 @@ def fetch_response_meta(form_id):
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        total_responses = FormResponse.objects(form=form.id, deleted=False).count()
+        total_responses = FormResponse.objects(form=form.id, is_deleted=False).count()
         draft_responses = FormResponse.objects(
-            form=form.id, deleted=False, is_draft=True
+            form=form.id, is_deleted=False, is_draft=True
         ).count()
         submitted_responses = total_responses - draft_responses
 
         # Last submission
         last_response = (
-            FormResponse.objects(form=form.id, deleted=False)
+            FormResponse.objects(form=form.id, is_deleted=False)
             .order_by("-submitted_at")
             .first()
         )
@@ -302,28 +292,16 @@ def fetch_response_meta(form_id):
         return jsonify({"error": str(e)}), 500
 
 
-
-
-
 @advanced_responses_bp.route("/<form_id>/access-control", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_form_access_control(form_id):
     """
@@ -333,7 +311,9 @@ def get_form_access_control(form_id):
     app_logger.info(f"Fetching access control report for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
 
         # Granular checks
         permissions = {
@@ -395,24 +375,15 @@ def get_form_access_control(form_id):
 
 
 @advanced_responses_bp.route("/<form_id>/access-policy", methods=["POST", "PUT"])
-@swag_from({
-    "tags": [
-        "Advanced_Responses"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def update_access_policy(form_id):
     """
@@ -422,7 +393,9 @@ def update_access_policy(form_id):
     app_logger.info(f"Updating access policy for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
 
         if not has_form_permission(current_user, form, "manage_access"):
             error_logger.warning(

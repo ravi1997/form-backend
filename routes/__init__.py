@@ -17,6 +17,7 @@ from routes.v1.form.advanced_responses import advanced_responses_bp
 from routes.v1.admin.system_settings_route import system_settings_bp
 from routes.v1.admin.env_config_route import env_config_bp
 from routes.v1.form.nlp_search import nlp_search_bp
+from routes.v1.form.anomaly import anomaly_bp
 from routes.v1.admin.system_route import system_bp
 from routes.health import health_bp
 
@@ -47,7 +48,8 @@ def register_blueprints(app):
     app.register_blueprint(dashboard_bp, url_prefix=f"{base_prefix}/api/v1/dashboards")
     app.register_blueprint(dashboard_settings_bp, url_prefix=f"{base_prefix}/api/v1/dashboard-settings")
     app.register_blueprint(analytics_bp, url_prefix=f"{base_prefix}/api/v1/analytics")
-    
+    app.register_blueprint(anomaly_bp, url_prefix=f"{base_prefix}/api/v1/forms")
+
     # Workflows & Integrations
     app.register_blueprint(workflow_bp, url_prefix=f"{base_prefix}/api/v1/workflows")
     app.register_blueprint(webhooks_bp, url_prefix=f"{base_prefix}/api/v1/webhooks")

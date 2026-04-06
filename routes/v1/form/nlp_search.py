@@ -108,7 +108,7 @@ def nlp_search(form_id: str):
         try:
             from models import Form
 
-            form = Form.objects.get(id=form_id)
+            form = Form.objects.get(id=form_id, organization_id=user.organization_id)
             form_schema = form.to_mongo().to_dict()
             is_valid, invalid_fields = NLPSearchService.validate_field_names(
                 filters["field_filters"], form_schema
@@ -295,7 +295,7 @@ def semantic_search(form_id: str):
         try:
             from models import Form
 
-            form = Form.objects.get(id=form_id)
+            form = Form.objects.get(id=form_id, organization_id=user.organization_id)
             form_schema = form.to_mongo().to_dict()
             is_valid, invalid_fields = NLPSearchService.validate_field_names(
                 field_filters, form_schema
@@ -432,7 +432,7 @@ def semantic_search_stream(form_id: str):
     Pure semantic search using Ollama embeddings with streaming response and advanced filtering.
     """
     app_logger.info(f"Entering semantic_search_stream for form_id: {form_id}")
-    get_current_user()
+    user = get_current_user()
     data = request.get_json()
 
     if not data or "query" not in data:
@@ -463,7 +463,7 @@ def semantic_search_stream(form_id: str):
         try:
             from models import Form
 
-            form = Form.objects.get(id=form_id)
+            form = Form.objects.get(id=form_id, organization_id=user.organization_id)
             form_schema = form.to_mongo().to_dict()
             is_valid, invalid_fields = NLPSearchService.validate_field_names(
                 field_filters, form_schema

@@ -51,7 +51,7 @@ def index():
 def view_form(form_id):
     app_logger.info(f"Viewing form {form_id}")
     try:
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, is_deleted=False)
         if not getattr(form, 'is_public', False):
             return "Form is private or requires authentication", 403
             

@@ -447,7 +447,7 @@ def get_form_template_endpoint(template_id):
     app_logger.info(f"Entering get_form_template_endpoint for ID {template_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=template_id, is_template=True)
+        form = Form.objects.get(id=template_id, organization_id=current_user.organization_id, is_template=True)
         if not has_form_permission(current_user, form, "view"):
             app_logger.warning(f"User {current_user.id} unauthorized to view template {template_id}")
             return error_response(message="Unauthorized", status_code=403)

@@ -18,10 +18,15 @@ def create_app():
 
     # ── Tracing (OpenTelemetry) ────────────────────────────────────────────
     from config.tracing import init_tracing
+
     init_tracing()
 
     # ── Flask App ───────────────────────────────────────────────────────────
     app = Flask(settings.APP_NAME)
+
+    # Set request size limits (prevents DoS attacks)
+    app.config["MAX_CONTENT_LENGTH"] = settings.MAX_CONTENT_LENGTH
+
     app.config.from_mapping(
         SECRET_KEY=settings.JWT_SECRET_KEY,
         JWT_SECRET_KEY=settings.JWT_SECRET_KEY,
@@ -41,64 +46,108 @@ def create_app():
 
     # ── JWT, CORS, Limiter & Talisman, Swagger ────────────────────────────────
     from extensions import jwt, cors, limiter, talisman, swagger
-    
+
     # Configure CORS to support credentials (cookies) cross-origin
     cors.init_app(
-        app, 
+        app,
         origins=settings.ALLOWED_ORIGINS,
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization", "X-CSRF-TOKEN-ACCESS", "X-CSRF-TOKEN-REFRESH", "X-Organization-ID"]
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-CSRF-TOKEN-ACCESS",
+            "X-CSRF-TOKEN-REFRESH",
+            "X-Organization-ID",
+        ],
     )
     jwt.init_app(app)
-    
+
     # Configure Limiter with Redis
     limiter.init_app(app)
     # Note: In a production setup, we would inject the storage URI here
     # from settings.REDIS_HOST/PORT/DB
-    
+
     # Secure headers with Talisman
     talisman.init_app(
         app,
-        content_security_policy=None,  # REST API, usually no inline scripts
-        force_https=False, # Temporarily disabled for local validation
+        content_security_policy=settings.CSP_POLICY,  # Content-Security-Policy
+        force_https=False,  # Temporarily disabled for local validation
         strict_transport_security=True,
+        strict_transport_security_preload=settings.HSTS_PRELOAD,
+        strict_transport_security_max_age=settings.HSTS_MAX_AGE,
+        strict_transport_security_include_subdomains=settings.HSTS_INCLUDE_SUBDOMAINS,
+        feature_policy={
+            "accelerometer": "'none'",
+            "ambient-light-sensor": "'none'",
+            "autoplay": "'none'",
+            "battery": "'none'",
+            "camera": "'none'",
+            "display-capture": "'none'",
+            "document-domain": "'none'",
+            "encrypted-media": "'none'",
+            "execution-while-not-rendered": "'none'",
+            "fullscreen": "'none'",
+            "geolocation": "'none'",
+            "gyroscope": "'none'",
+            "magnetometer": "'none'",
+            "microphone": "'none'",
+            "midi": "'none'",
+            "navigation-override": "'none'",
+            "payment": "'none'",
+            "picture-in-picture": "'none'",
+            "publickey-credentials-get": "'none'",
+            "speaker": "'none'",
+            "sync-xhr": "'none'",
+            "usb": "'none'",
+            "wake-lock": "'none'",
+            "xr-spatial-tracking": "'none'",
+        },
+        frame_options="DENY",
+        x_content_type_options="nosniff",
+        x_xss_protection="1; mode=block",
     )
-    
-    app.config['SWAGGER'] = {
+
+    app.config["SWAGGER"] = {
         "title": settings.APP_NAME,
         "uiversion": 3,
         "specs_route": "/form/docs",
         "static_url_path": "/form/flasgger_static",
         "specs": [
             {
-                "endpoint": 'apispec_1',
-                "route": '/form/apispec_1.json',
+                "endpoint": "apispec_1",
+                "route": "/form/apispec_1.json",
                 "rule_filter": lambda rule: True,
                 "model_filter": lambda tag: True,
             }
         ],
-        "swagger_ui": True
+        "swagger_ui": True,
     }
     swagger.init_app(app)
 
     from utils.jwt_handlers import register_jwt_handlers
+
     register_jwt_handlers(app)
 
     # ── Middleware ───────────────────────────────────────────────────────────
     from middleware.request_id import setup_request_id
+
     setup_request_id(app)
-    
+
     from middleware.security_waf import waf
+
     waf.init_app(app)
-    
+
     from middleware.tenant_db import setup_tenant_db
+
     setup_tenant_db(app)
 
     # ── MongoDB ─────────────────────────────────────────────────────────────
     import sys
+
     try:
         connect(host=settings.MONGODB_URI, serverSelectionTimeoutMS=5000)
         from mongoengine.connection import get_db
+
         get_db().command("ping")
         logger.info("Connected to MongoDB successfully.")
     except Exception as e:
@@ -126,14 +175,17 @@ def create_app():
 
     # ── Blueprints ──────────────────────────────────────────────────────────
     from routes import register_blueprints
+
     register_blueprints(app)
 
     # ── Instrument Flask ──────────────────────────────────────────────────
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
+
     FlaskInstrumentor().instrument_app(app)
 
     # ── Global Error Handlers ───────────────────────────────────────────────
     from utils.error_handlers import register_error_handlers
+
     register_error_handlers(app)
 
     return app

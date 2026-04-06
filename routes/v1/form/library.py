@@ -106,7 +106,7 @@ def save_field_template():
         # If formId is provided, we are creating a template from an existing form
         if form_id:
             try:
-                form = Form.objects.get(id=form_id)
+                form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
                 if not has_form_permission(current_user, form, "view"):
                     app_logger.warning(f"User {current_user.id} unauthorized to access form {form_id} for template creation")
                     return jsonify({"error": "Unauthorized to access form"}), 403

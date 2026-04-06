@@ -181,14 +181,14 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized AI analysis attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        response = FormResponse.objects.get(id=response_id, form=form.id)
+        response = FormResponse.objects.get(id=response_id, form=form.id, organization_id=current_user.organization_id)
 
         # 1. Sentiment Analysis
         all_text: List[str] = []
@@ -290,14 +290,14 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized moderation attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        response = FormResponse.objects.get(id=response_id, form=form.id)
+        response = FormResponse.objects.get(id=response_id, form=form.id, organization_id=current_user.organization_id)
 
         # 1. Extract all text
         all_text: List[str] = []
@@ -697,14 +697,14 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized sentiment trend fetch attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        responses = FormResponse.objects(form=form.id, deleted=False)
+        responses = FormResponse.objects(form=form.id, is_deleted=False)
 
         counts = {"positive": 0, "negative": 0, "neutral": 0, "unprocessed": 0}
         total_score = 0
@@ -801,7 +801,7 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
             app_logger.info(f"Cache invalidated for query: {query}")
 
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized AI search attempt by user {current_user.id} for form {form_id}"
@@ -1068,14 +1068,14 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized anomaly detection attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        responses = FormResponse.objects(form=form.id, deleted=False)
+        responses = FormResponse.objects(form=form.id, is_deleted=False)
         if len(responses) < 3:
             app_logger.info(f"Not enough data for anomaly detection in form {form_id}")
             return (
@@ -1232,14 +1232,14 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized predictive anomaly detection attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        responses = FormResponse.objects(form=form.id, deleted=False)
+        responses = FormResponse.objects(form=form.id, is_deleted=False)
         responses_list = list(responses)
 
         if len(responses_list) < 3:
@@ -1567,7 +1567,7 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "edit"):
             error_logger.warning(
                 f"Unauthorized security scan attempt by user {current_user.id} for form {form_id}"
@@ -1717,7 +1717,7 @@ def compare_forms_ai() -> Tuple[Any, int]:
 
         for fid in form_ids:
             try:
-                form = Form.objects.get(id=fid)
+                form = Form.objects.get(id=fid, organization_id=current_user.organization_id)
                 # Check permission for each form
                 if not has_form_permission(current_user, form, "view"):
                     # For security, we can either fail hard or skip.
@@ -1727,7 +1727,7 @@ def compare_forms_ai() -> Tuple[Any, int]:
                     )
                     return jsonify({"error": f"Unauthorized access to form {fid}"}), 403
 
-                responses = FormResponse.objects(form=fid, deleted=False)
+                responses = FormResponse.objects(form=fid, is_deleted=False)
                 resp_count = len(responses)
 
                 # Aggregation
@@ -1837,7 +1837,7 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
             app_logger.info(f"Summarization cache invalidated for form {form_id}")
 
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized summarization attempt by user {current_user.id} for form {form_id}"
@@ -1847,10 +1847,10 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
         # Get responses
         if response_ids:
             responses = FormResponse.objects(
-                id__in=response_ids, form=form.id, deleted=False
+                id__in=response_ids, form=form.id, is_deleted=False
             )
         else:
-            responses = FormResponse.objects(form=form.id, deleted=False)
+            responses = FormResponse.objects(form=form.id, is_deleted=False)
 
         responses = list(responses)
         if len(responses) < 2:
@@ -2127,7 +2127,7 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
 
         # Authentication and authorization
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized export report attempt by user {current_user.id} for form {form_id}"
@@ -2135,7 +2135,7 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
             return jsonify({"error": "Unauthorized"}), 403
 
         # Get all form responses
-        responses = FormResponse.objects(form=form.id, deleted=False)
+        responses = FormResponse.objects(form=form.id, is_deleted=False)
         responses_list = list(responses)
         total_responses = len(responses_list)
 
@@ -2475,7 +2475,7 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
         query = data.get("query")
 
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "edit"):
             error_logger.warning(
                 f"Unauthorized cache invalidation attempt by user {current_user.id} for form {form_id}"
@@ -2577,7 +2577,7 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Clearing all cache for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         if not has_form_permission(current_user, form, "edit"):
             error_logger.warning(
                 f"Unauthorized cache clear attempt by user {current_user.id} for form {form_id}"

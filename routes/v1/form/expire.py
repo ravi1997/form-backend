@@ -38,7 +38,7 @@ def set_form_expiration(form_id):
     data = request.get_json(silent=True) or {}
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id)
+        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         expiration_date = data.get("expires_at")
         if not expiration_date:
             app_logger.warning(f"Form expiration update failed: No date provided for form_id: {form_id}")
