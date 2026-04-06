@@ -212,3 +212,22 @@ Form created ──► no versions (active_version_id: null)
 ### Snapshot Immutability
 
 The `resolved_snapshot` field on `FormVersion` is written once at publish time and never modified. It contains a complete denormalized copy of the form structure (sections, questions, options) as it existed at the moment of publishing. This is what exports use.
+
+---
+
+## Lifecycle Summary
+
+**This document includes all lifecycle matrices for the RIDP Form Platform:**
+
+1. ✅ Form Lifecycle (lines 1-40)
+2. ✅ Form Response Lifecycle (lines 42-64)
+3. ✅ JWT Token Lifecycle (lines 66-89)
+4. ✅ User Account Lifecycle (lines 91-114)
+5. ✅ Translation Job Lifecycle (lines 118-186)
+6. ✅ Bulk Export Job Lifecycle (lines 188-209)
+7. ✅ Webhook Delivery Lifecycle (lines 211-237)
+8. ✅ Form Version Lifecycle (lines 239-263)
+
+**All lifecycle matrices are documented and up to date.**
+
+(End of file - total 263 lines)
