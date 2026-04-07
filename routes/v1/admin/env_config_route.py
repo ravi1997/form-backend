@@ -2,6 +2,9 @@
 Environment Configuration Routes (SuperAdmin)
 Allows viewing and updating .env file configurations.
 WARNING: This is a highly sensitive administrative interface.
+
+DEPRECATED: This route is only available in development environment.
+In production/staging environments, it returns 403 Forbidden to prevent state drift.
 """
 
 import os
@@ -13,26 +16,54 @@ from utils.response_helper import success_response, error_response
 from models.User import Role
 from dotenv import set_key, dotenv_values
 from logger.unified_logger import app_logger, error_logger, audit_logger
+from config.settings import settings
 
 env_config_bp = Blueprint("env_config", __name__)
 
 ENV_FILE_PATH = os.path.join(os.getcwd(), ".env")
 
 
+def _check_development_only():
+    """
+    Check if the current environment is development.
+    Raises Forbidden if not.
+
+    SECURITY: This function must be called at the start of every route
+    handler in this module to prevent unauthorized environment access.
+    """
+    if settings.APP_ENV != "development":
+        app_logger.warning(
+            f"SECURITY: Blocked access to env-config in non-development environment: {settings.APP_ENV}"
+        )
+        audit_logger.warning(
+            f"SECURITY: Blocked access to env-config in {settings.APP_ENV} environment"
+        )
+        return False
+    return True
+
+
 @env_config_bp.route("/", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Env_Config"
-    ],
-    "responses": {
-        "200": {
-            "description": "Retrieve all backend environment configurations. SUPERADMIN ONLY."
-        }
+@swag_from(
+    {
+        "tags": ["Env_Config"],
+        "responses": {
+            "200": {
+                "description": "Retrieve all backend environment configurations. SUPERADMIN ONLY."
+            },
+            "403": {
+                "description": "Forbidden - Only available in development environment"
+            },
+        },
     }
-})
+)
 @require_roles(Role.SUPERADMIN.value)
 def get_env_configs():
     """Retrieve all backend environment configurations. SUPERADMIN ONLY."""
+
+    # SECURITY: Check environment before proceeding
+    if not _check_development_only():
+        return
+
     admin_id = get_jwt_identity()
     app_logger.info(f"Entering get_env_configs by super-admin: {admin_id}")
     try:
@@ -48,19 +79,27 @@ def get_env_configs():
 
 
 @env_config_bp.route("/", methods=["PUT", "POST"])
-@swag_from({
-    "tags": [
-        "Env_Config"
-    ],
-    "responses": {
-        "200": {
-            "description": "Update backend environment configurations. SUPERADMIN ONLY."
-        }
+@swag_from(
+    {
+        "tags": ["Env_Config"],
+        "responses": {
+            "200": {
+                "description": "Update backend environment configurations. SUPERADMIN ONLY."
+            },
+            "403": {
+                "description": "Forbidden - Only available in development environment"
+            },
+        },
     }
-})
+)
 @require_roles(Role.SUPERADMIN.value)
 def update_env_configs():
     """Update backend environment configurations. SUPERADMIN ONLY."""
+
+    # SECURITY: Check environment before proceeding
+    if not _check_development_only():
+        return
+
     admin_id = get_jwt_identity()
     app_logger.info(f"Entering update_env_configs by super-admin: {admin_id}")
     data = request.get_json(silent=True)
@@ -82,9 +121,10 @@ def update_env_configs():
         )
 
         configs = dotenv_values(ENV_FILE_PATH)
-        app_logger.info(f"Exiting update_env_configs successfully. Updated keys: {keys_updated}")
+        app_logger.info(
+            f"Exiting update_env_configs successfully. Updated keys: {keys_updated}"
+        )
         return success_response(data=configs)
     except Exception as e:
         error_logger.error(f"Failed to update env configs: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
-

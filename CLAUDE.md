@@ -87,7 +87,7 @@ Log files rotate at 10MB (10 backups). PII and secrets are automatically masked 
 | Path | Purpose |
 |------|---------|
 | `app.py` | Flask app factory |
-| `extensions.py` | JWT, CORS, Limiter, Talisman, Swagger init |
+| `extensions.py` | JWT, <!-- CORS, --> Limiter, <!-- Talisman, --> Swagger init |
 | `config/` | Settings (Pydantic), Celery, logging, Redis, Sentry, tracing |
 | `models/` | MongoEngine documents (PascalCase filenames) |
 | `schemas/` | Pydantic v2 validation schemas |

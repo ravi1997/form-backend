@@ -219,7 +219,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"alice@hospital.org\",\n  \"password\": \"SecurePass123!\",\n  \"username\": \"alice\",\n  \"organization_id\": \"{{org_id}}\"\n}",
+              "raw": "{\n  \"email\": \"alice@hospital.org\",\n  \"password\": \"SecureP@ss2026\",\n  \"username\": \"alice\",\n  \"user_type\": \"employee\",\n  \"is_admin\": true,\n  \"roles\": [\"admin\"],\n  \"organization_id\": \"{{org_id}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -227,7 +227,25 @@
               }
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Registration successful\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.user && jsonData.data.user.id) {",
+                  "    pm.environment.set(\"user_id\", jsonData.data.user.id);",
+                  "    console.log(\"Saved user_id: \" + jsonData.data.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "1.2 Login (password)",
@@ -267,7 +285,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"alice@hospital.org\",\n  \"password\": \"SecurePass123!\"\n}",
+              "raw": "{\n  \"email\": \"alice@hospital.org\",\n  \"password\": \"SecureP@ss2026\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -275,7 +293,33 @@
               }
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Login successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.access_token) {",
+                  "    pm.environment.set(\"access_token\", jsonData.data.access_token);",
+                  "    pm.environment.set(\"token\", jsonData.data.access_token);",
+                  "    console.log(\"Saved access_token\");",
+                  "}",
+                  "if (jsonData.data && jsonData.data.refresh_token) {",
+                  "    pm.environment.set(\"refresh_token\", jsonData.data.refresh_token);",
+                  "    console.log(\"Saved refresh_token\");",
+                  "}",
+                  "if (jsonData.data && jsonData.data.user && jsonData.data.user.id) {",
+                  "    pm.environment.set(\"user_id\", jsonData.data.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "1.3 Request OTP (step 1)",
@@ -404,85 +448,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "1.6 Logout",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/form/api/v1/auth/logout",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "form",
-                "api",
-                "v1",
-                "auth",
-                "logout"
-              ],
-              "variable": [],
-              "query": []
-            },
-            "description": "Blocklists current access_token in Redis. Clears cookies.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "1.7 Revoke All Sessions",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/form/api/v1/auth/revoke-all",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "form",
-                "api",
-                "v1",
-                "auth",
-                "revoke-all"
-              ],
-              "variable": [],
-              "query": []
-            },
-            "description": "Blocklists ALL active sessions for the current user. Use for security incidents or forced re-login.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{access_token}}",
+                  "value": "{{refresh_token}}",
                   "type": "string"
                 }
               ]
@@ -490,17 +456,7 @@
           },
           "response": []
         }
-      ],
-      "auth": {
-        "type": "bearer",
-        "bearer": [
-          {
-            "key": "token",
-            "value": "{{access_token}}",
-            "type": "string"
-          }
-        ]
-      }
+      ]
     },
     {
       "name": "2. User Management",
@@ -583,7 +539,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"current_password\": \"OldPass123!\",\n  \"new_password\": \"NewPass456!\"\n}",
+              "raw": "{\n  \"current_password\": \"SecureP@ss2026\",\n  \"new_password\": \"BetterP@ssWord2026\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -669,7 +625,7 @@
               "variable": [
                 {
                   "key": "user_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1069,7 +1025,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1114,7 +1070,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1169,7 +1125,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1224,7 +1180,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1271,12 +1227,12 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 },
                 {
                   "key": "section_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1332,12 +1288,12 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 },
                 {
                   "key": "section_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1431,7 +1387,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1485,7 +1441,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1547,7 +1503,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1579,7 +1535,7 @@
         {
           "name": "4.2 Archive Form",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1602,7 +1558,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1625,7 +1581,7 @@
         {
           "name": "4.3 Restore Form",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1648,7 +1604,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1671,7 +1627,7 @@
         {
           "name": "4.4 Toggle Public Access",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1694,7 +1650,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1717,7 +1673,7 @@
         {
           "name": "4.5 Set Expiry",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1725,7 +1681,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/form/api/v1/forms/:form_id/expiry",
+              "raw": "{{base_url}}/form/api/v1/forms/:form_id/expire",
               "host": [
                 "{{base_url}}"
               ],
@@ -1735,12 +1691,12 @@
                 "v1",
                 "forms",
                 ":form_id",
-                "expiry"
+                "expire"
               ],
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1772,7 +1728,7 @@
         {
           "name": "4.6 Remove Expiry",
           "request": {
-            "method": "DELETE",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -1780,7 +1736,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/form/api/v1/forms/:form_id/expiry",
+              "raw": "{{base_url}}/form/api/v1/forms/:form_id/expire",
               "host": [
                 "{{base_url}}"
               ],
@@ -1790,12 +1746,12 @@
                 "v1",
                 "forms",
                 ":form_id",
-                "expiry"
+                "expire"
               ],
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1841,7 +1797,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1864,7 +1820,7 @@
         {
           "name": "4.8 Update Slug",
           "request": {
-            "method": "PATCH",
+            "method": "PUT",
             "header": [
               {
                 "key": "Content-Type",
@@ -1872,7 +1828,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/form/api/v1/forms/:form_id/slug",
+              "raw": "{{base_url}}/form/api/v1/forms/:form_id",
               "host": [
                 "{{base_url}}"
               ],
@@ -1881,13 +1837,12 @@
                 "api",
                 "v1",
                 "forms",
-                ":form_id",
-                "slug"
+                ":form_id"
               ],
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -1997,7 +1952,7 @@
               "variable": [
                 {
                   "key": "template_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2127,7 +2082,7 @@
               "variable": [
                 {
                   "key": "template_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2172,7 +2127,7 @@
               "variable": [
                 {
                   "key": "template_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2234,7 +2189,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2280,7 +2235,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2450,17 +2405,17 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 },
                 {
                   "key": "question_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 },
                 {
                   "key": "filename",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2522,7 +2477,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2577,7 +2532,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2697,7 +2652,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2754,7 +2709,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2810,7 +2765,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2856,7 +2811,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -2902,7 +2857,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3065,7 +3020,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3111,7 +3066,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3180,7 +3135,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3227,7 +3182,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3280,7 +3235,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3326,7 +3281,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3389,7 +3344,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3436,7 +3391,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3533,7 +3488,7 @@
               "variable": [
                 {
                   "key": "job_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3580,7 +3535,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3651,7 +3606,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3691,7 +3646,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/form/api/v1/ai/search/semantic-search",
+              "raw": "{{base_url}}/form/api/v1/ai/search/:form_id/nlp-search",
               "host": [
                 "{{base_url}}"
               ],
@@ -3701,9 +3656,15 @@
                 "v1",
                 "ai",
                 "search",
-                "semantic-search"
+                ":form_id",
+                "nlp-search"
               ],
-              "variable": [],
+              "variable": [
+                {
+                  "key": "form_id",
+                  "value": "{{form_id}}"
+                }
+              ],
               "query": []
             },
             "description": "Semantic NLP search across form responses. SSE stream of matching results.",
@@ -3740,7 +3701,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/form/api/v1/ai/search/search-history",
+              "raw": "{{base_url}}/form/api/v1/ai/search/:form_id/search-history",
               "host": [
                 "{{base_url}}"
               ],
@@ -3750,9 +3711,15 @@
                 "v1",
                 "ai",
                 "search",
+                ":form_id",
                 "search-history"
               ],
-              "variable": [],
+              "variable": [
+                {
+                  "key": "form_id",
+                  "value": "{{form_id}}"
+                }
+              ],
               "query": []
             },
             "description": "Previous NLP search queries by the current user.",
@@ -3796,7 +3763,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -3994,7 +3961,7 @@
               "variable": [
                 {
                   "key": "job_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4042,7 +4009,7 @@
               "variable": [
                 {
                   "key": "job_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4114,7 +4081,7 @@
         {
           "name": "13.7 Cancel Translation Job",
           "request": {
-            "method": "POST",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
@@ -4139,7 +4106,7 @@
               "variable": [
                 {
                   "key": "job_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4184,7 +4151,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4298,7 +4265,7 @@
               "variable": [
                 {
                   "key": "dashboard_slug",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4343,7 +4310,7 @@
               "variable": [
                 {
                   "key": "dashboard_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4397,7 +4364,7 @@
               "variable": [
                 {
                   "key": "dashboard_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4624,7 +4591,7 @@
               "variable": [
                 {
                   "key": "widget_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4679,7 +4646,7 @@
               "variable": [
                 {
                   "key": "widget_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -4928,7 +4895,7 @@
               "variable": [
                 {
                   "key": "workflow_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5012,7 +4979,7 @@
               "variable": [
                 {
                   "key": "workflow_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5066,7 +5033,7 @@
               "variable": [
                 {
                   "key": "workflow_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5176,7 +5143,7 @@
               "variable": [
                 {
                   "key": "webhook_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5222,7 +5189,7 @@
               "variable": [
                 {
                   "key": "webhook_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5268,7 +5235,7 @@
               "variable": [
                 {
                   "key": "webhook_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5401,7 +5368,7 @@
               "variable": [
                 {
                   "key": "webhook_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5466,12 +5433,12 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 },
                 {
                   "key": "question_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5529,12 +5496,12 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 },
                 {
                   "key": "section_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5590,7 +5557,7 @@
               "variable": [
                 {
                   "key": "form_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5647,7 +5614,7 @@
               "variable": [
                 {
                   "key": "project_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5752,7 +5719,7 @@
               "variable": [
                 {
                   "key": "hook_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -5940,7 +5907,7 @@
               "variable": [
                 {
                   "key": "org_id",
-                  "value": "{{{vname}}}",
+                  "value": "{{user_id}}",
                   "description": ""
                 }
               ],
@@ -6555,6 +6522,44 @@
           }
         ]
       }
+    },
+    {
+      "name": "99. Cleanup & Security Test",
+      "description": "Logout and Session Revocation test. MUST RUN LAST.",
+      "item": [
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/form/api/v1/auth/logout",
+              "host": ["localhost"],
+              "port": "8051",
+              "path": ["form", "api", "v1", "auth", "logout"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [{"key": "token", "value": "{{access_token}}", "type": "string"}]
+            }
+          }
+        },
+        {
+          "name": "Revoke All Sessions",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/form/api/v1/auth/revoke-all",
+              "host": ["localhost"],
+              "port": "8051",
+              "path": ["form", "api", "v1", "auth", "revoke-all"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [{"key": "token", "value": "{{access_token}}", "type": "string"}]
+            }
+          }
+        }
+      ]
     }
   ]
 }

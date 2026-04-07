@@ -1,3 +1,4 @@
+<!-- 
 # Security Headers
 
 **Purpose:** Documentation for enhanced security headers including CSP, HSTS, Feature-Policy, and X-Frame-Options.
@@ -548,3 +549,4 @@ talisman.init_app(
 - [HSTS Preload List](https://hstspreload.org/)
 - [Mozilla Observatory](https://observatory.mozilla.org/)
 - [Security Headers Scanner](https://securityheaders.com/)
+-->

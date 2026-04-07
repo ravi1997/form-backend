@@ -5,6 +5,7 @@ from models.User import User
 from models.Form import Form
 from utils.exceptions import UnauthorizedError, ForbiddenError, NotFoundError
 from utils.response_helper import error_response
+from services.access_control_service import AccessControlService
 
 
 def get_current_user():
@@ -27,41 +28,15 @@ def get_current_user():
 
 def has_form_permission(user, form, action):
     """
-    Centralized check for form permissions.
+    Centralized check for form permissions using AccessControlService.
     """
-    if not user or not form:
-        return False
-
-    user_id_str = str(user.id)
-
-    # 1. Multi-tenant check: User's organization must match the form's organization
-    if user.organization_id != form.organization_id:
-        current_app.logger.warning(
-            f"Tenant violation: User {user_id_str} (org: {user.organization_id}) attempted to access form {form.id} (org: {form.organization_id})"
-        )
-        return False
-
-    # 2. Superadmin / Admin escape hatch
-    user_roles = getattr(user, "roles", []) or []
-    if "superadmin" in user_roles or "admin" in user_roles:
-        return True
-
-    # 3. Creator always has permission
-    if str(form.created_by) == user_id_str:
-        return True
-
-    # 4. Access Policy / Roles check
-    # Note: This logic should match the detailed checks in form_helper.py
-    # but consolidated for performance and safety.
-    from routes.v1.form.helper import has_form_permission as legacy_check
-
-    return legacy_check(user, form, action)
+    return AccessControlService.check_form_permission(user, form, action)
 
 
 def require_permission(resource_type, action):
     """
-    Decorator to enforce resource-level permissions.
-    Assumes the route has a 'form_id' or 'response_id' parameter.
+    Decorator to enforce resource-level permissions using AccessControlService.
+    Assumes the route has a 'form_id', 'response_id', 'dashboard_id', or 'project_id' parameter.
     """
 
     def decorator(fn):
@@ -89,12 +64,32 @@ def require_permission(resource_type, action):
                 if not form:
                     raise NotFoundError("Form not found")
 
-                if not has_form_permission(user, form, action):
+                if not AccessControlService.check_form_permission(user, form, action):
                     raise ForbiddenError(
                         f"Insufficient permissions to {action} this form"
                     )
 
-            if resource_type == "dashboard":
+            elif resource_type == "response":
+                response_id = kwargs.get("response_id")
+                if not response_id:
+                    raise ForbiddenError("Missing response_id for permission check")
+
+                from models.Response import FormResponse
+
+                response = FormResponse.objects(
+                    id=response_id, is_deleted=False
+                ).first()
+                if not response:
+                    raise NotFoundError("Response not found")
+
+                if not AccessControlService.check_response_permission(
+                    user, response, action
+                ):
+                    raise ForbiddenError(
+                        f"Insufficient permissions to {action} this response"
+                    )
+
+            elif resource_type == "dashboard":
                 dashboard_id = kwargs.get("dashboard_id")
                 if not dashboard_id:
                     slug = kwargs.get("slug")
@@ -113,8 +108,64 @@ def require_permission(resource_type, action):
                     ).first()
                 if not dashboard:
                     raise NotFoundError("Dashboard not found")
-                if user.organization_id != dashboard.organization_id:
+
+                if not AccessControlService.check_dashboard_permission(
+                    user, dashboard, action
+                ):
                     raise ForbiddenError("Insufficient permissions for this dashboard")
+
+            elif resource_type == "project":
+                project_id = kwargs.get("project_id")
+                if not project_id:
+                    raise ForbiddenError("Missing project_id for permission check")
+
+                from models.Form import Project
+
+                project = Project.objects(id=project_id, is_deleted=False).first()
+                if not project:
+                    raise NotFoundError("Project not found")
+
+                if not AccessControlService.check_project_permission(
+                    user, project, action
+                ):
+                    raise ForbiddenError("Insufficient permissions for this project")
+
+            else:
+                raise ForbiddenError(f"Unknown resource type: {resource_type}")
+
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def require_org_match(model_class):
+    """
+    Decorator to ensure the requested resource belongs to the user's organization.
+    """
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            verify_jwt_in_request()
+            user = get_current_user()
+
+            # Extract ID from kwargs (form_id, user_id, etc.)
+            resource_id = None
+            for key in ["id", "form_id", "user_id", "project_id"]:
+                if key in kwargs:
+                    resource_id = kwargs[key]
+                    break
+
+            if resource_id:
+                resource = model_class.objects(
+                    id=resource_id, organization_id=user.organization_id
+                ).first()
+                if not resource:
+                    raise NotFoundError(
+                        f"{model_class.__name__} not found in your organization"
+                    )
 
             return fn(*args, **kwargs)
 

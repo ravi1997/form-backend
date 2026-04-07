@@ -101,7 +101,7 @@ Never return raw `jsonify()` in new code (legacy code uses it — don't copy tha
 
 ```
 app.py                  # Flask app factory — create_app()
-extensions.py           # JWT, CORS, Limiter, Talisman, Swagger init
+extensions.py           # JWT, <!-- CORS, --> Limiter, <!-- Talisman, --> Swagger init
 config/                 # Pydantic settings, Celery config, logging, Redis, Sentry
 models/                 # MongoEngine document models (PascalCase filenames)
   base.py               # TenantIsolatedSoftDeleteQuerySet — MUST use as base
@@ -475,7 +475,7 @@ Tests use real MongoDB + Redis via `testcontainers`. No mocking of database. `AP
 | `MONGODB_URI` | yes | Full MongoDB connection string |
 | `REDIS_HOST` / `REDIS_PORT` | yes | Redis host and port |
 | `JWT_SECRET_KEY` | yes | Must be changed in production |
-| `ALLOWED_ORIGINS` | yes | CORS allowed origins list |
+| <!-- `ALLOWED_ORIGINS` --> | <!-- yes --> | <!-- CORS allowed origins list --> |
 | `ELASTICSEARCH_URL` | no | For search |
 | `AI_PROVIDER` | no | `local` / `ollama` / `openai` (default: `ollama`) |
 | `SENTRY_DSN` | no | Error tracking |

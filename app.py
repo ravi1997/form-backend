@@ -45,21 +45,21 @@ def create_app():
     )
 
     # ── JWT, CORS, Limiter & Talisman, Swagger ────────────────────────────────
-    from extensions import jwt, cors, limiter, talisman, swagger
+    from extensions import jwt, limiter, swagger # cors, talisman
 
-    # Configure CORS to support credentials (cookies) cross-origin
-    cors.init_app(
-        app,
-        origins=settings.ALLOWED_ORIGINS,
-        supports_credentials=True,
-        allow_headers=[
-            "Content-Type",
-            "Authorization",
-            "X-CSRF-TOKEN-ACCESS",
-            "X-CSRF-TOKEN-REFRESH",
-            "X-Organization-ID",
-        ],
-    )
+    # # Configure CORS to support credentials (cookies) cross-origin
+    # cors.init_app(
+    #     app,
+    #     origins=settings.ALLOWED_ORIGINS,
+    #     supports_credentials=True,
+    #     allow_headers=[
+    #         "Content-Type",
+    #         "Authorization",
+    #         "X-CSRF-TOKEN-ACCESS",
+    #         "X-CSRF-TOKEN-REFRESH",
+    #         "X-Organization-ID",
+    #     ],
+    # )
     jwt.init_app(app)
 
     # Configure Limiter with Redis
@@ -67,45 +67,45 @@ def create_app():
     # Note: In a production setup, we would inject the storage URI here
     # from settings.REDIS_HOST/PORT/DB
 
-    # Secure headers with Talisman
-    talisman.init_app(
-        app,
-        content_security_policy=settings.CSP_POLICY,  # Content-Security-Policy
-        force_https=False,  # Temporarily disabled for local validation
-        strict_transport_security=True,
-        strict_transport_security_preload=settings.HSTS_PRELOAD,
-        strict_transport_security_max_age=settings.HSTS_MAX_AGE,
-        strict_transport_security_include_subdomains=settings.HSTS_INCLUDE_SUBDOMAINS,
-        feature_policy={
-            "accelerometer": "'none'",
-            "ambient-light-sensor": "'none'",
-            "autoplay": "'none'",
-            "battery": "'none'",
-            "camera": "'none'",
-            "display-capture": "'none'",
-            "document-domain": "'none'",
-            "encrypted-media": "'none'",
-            "execution-while-not-rendered": "'none'",
-            "fullscreen": "'none'",
-            "geolocation": "'none'",
-            "gyroscope": "'none'",
-            "magnetometer": "'none'",
-            "microphone": "'none'",
-            "midi": "'none'",
-            "navigation-override": "'none'",
-            "payment": "'none'",
-            "picture-in-picture": "'none'",
-            "publickey-credentials-get": "'none'",
-            "speaker": "'none'",
-            "sync-xhr": "'none'",
-            "usb": "'none'",
-            "wake-lock": "'none'",
-            "xr-spatial-tracking": "'none'",
-        },
-        frame_options="DENY",
-        x_content_type_options="nosniff",
-        x_xss_protection="1; mode=block",
-    )
+    # # Secure headers with Talisman
+    # talisman.init_app(
+    #     app,
+    #     content_security_policy=settings.CSP_POLICY,  # Content-Security-Policy
+    #     force_https=False,  # Temporarily disabled for local validation
+    #     strict_transport_security=True,
+    #     strict_transport_security_preload=settings.HSTS_PRELOAD,
+    #     strict_transport_security_max_age=settings.HSTS_MAX_AGE,
+    #     strict_transport_security_include_subdomains=settings.HSTS_INCLUDE_SUBDOMAINS,
+    #     feature_policy={
+    #         "accelerometer": "'none'",
+    #         "ambient-light-sensor": "'none'",
+    #         "autoplay": "'none'",
+    #         "battery": "'none'",
+    #         "camera": "'none'",
+    #         "display-capture": "'none'",
+    #         "document-domain": "'none'",
+    #         "encrypted-media": "'none'",
+    #         "execution-while-not-rendered": "'none'",
+    #         "fullscreen": "'none'",
+    #         "geolocation": "'none'",
+    #         "gyroscope": "'none'",
+    #         "magnetometer": "'none'",
+    #         "microphone": "'none'",
+    #         "midi": "'none'",
+    #         "navigation-override": "'none'",
+    #         "payment": "'none'",
+    #         "picture-in-picture": "'none'",
+    #         "publickey-credentials-get": "'none'",
+    #         "speaker": "'none'",
+    #         "sync-xhr": "'none'",
+    #         "usb": "'none'",
+    #         "wake-lock": "'none'",
+    #         "xr-spatial-tracking": "'none'",
+    #     },
+    #     frame_options="DENY",
+    #     x_content_type_options="nosniff",
+    #     x_xss_protection="1; mode=block",
+    # )
 
     app.config["SWAGGER"] = {
         "title": settings.APP_NAME,

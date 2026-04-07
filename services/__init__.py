@@ -25,17 +25,7 @@ from .response_service import (
     DynamicViewDefinitionCreateSchema,
     DynamicViewDefinitionUpdateSchema,
 )
-from .access_control_service import (
-    UserGroupService,
-    ResourceAccessControlService,
-    ApprovalWorkflowService,
-    UserGroupCreateSchema,
-    UserGroupUpdateSchema,
-    ResourceAccessControlCreateSchema,
-    ResourceAccessControlUpdateSchema,
-    ApprovalWorkflowCreateSchema,
-    ApprovalWorkflowUpdateSchema,
-)
+from .access_control_service import AccessControlService
 from .workflow_service import (
     WorkflowInstanceService,
     WorkflowInstanceCreateSchema,
@@ -91,15 +81,7 @@ __all__ = [
     "FormResponseUpdateSchema",
     "DynamicViewDefinitionCreateSchema",
     "DynamicViewDefinitionUpdateSchema",
-    "UserGroupService",
-    "ResourceAccessControlService",
-    "ApprovalWorkflowService",
-    "UserGroupCreateSchema",
-    "UserGroupUpdateSchema",
-    "ResourceAccessControlCreateSchema",
-    "ResourceAccessControlUpdateSchema",
-    "ApprovalWorkflowCreateSchema",
-    "ApprovalWorkflowUpdateSchema",
+    "AccessControlService",
     "WorkflowInstanceService",
     "WorkflowInstanceCreateSchema",
     "WorkflowInstanceUpdateSchema",

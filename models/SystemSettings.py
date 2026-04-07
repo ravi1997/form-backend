@@ -61,7 +61,7 @@ class SystemSettings(BaseDocument):
     redis_socket_timeout_seconds = IntField(default=5)
 
     # ── CORS / Security ──────────────────────────────────────────────────
-    cors_enabled = BooleanField(default=True)
+    # cors_enabled = BooleanField(default=True)
     debug_mode = BooleanField(default=False)
     rate_limit_enabled = BooleanField(default=True)
     rate_limit_requests_per_minute = IntField(default=100)

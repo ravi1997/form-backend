@@ -57,9 +57,9 @@ class SecurityWAF:
     def init_app(self, app):
         @app.before_request
         def waf_check():
-            # Skip for OPTIONS requests (CORS preflight)
-            if request.method == "OPTIONS":
-                return
+            # # Skip for OPTIONS requests (CORS preflight)
+            # if request.method == "OPTIONS":
+            #     return
 
             # Skip for static assets or specific routes if needed
             if any(request.path.startswith(p) for p in ["/static", "/flasgger_static", "/form/static", "/form/flasgger_static", "/form/docs"]):

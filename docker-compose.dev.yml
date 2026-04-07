@@ -14,9 +14,9 @@ services:
     volumes:
       - .:/app
       - ./logs:/app/logs
-    # Use Flask's built-in development server with --debug for hot-reloading
+    # Use Flask's built-in development server with --debug and --reload for hot-reloading
     # Listens on port 6000, mapped to host via docker-compose.yml (default 8051)
-    command: [ "python", "-m", "flask", "--app", "app", "run", "--host", "0.0.0.0", "--port", "6000", "--debug" ]
+    command: [ "python", "-m", "flask", "--app", "app", "run", "--host", "0.0.0.0", "--port", "6000", "--debug", "--reload" ]
     restart: "no"
 
   celery:

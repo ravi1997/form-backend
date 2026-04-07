@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     FIELD_ENCRYPTION_KEY: Optional[str] = None
 
     # CORS: Never use wildcard (*) in production - specific origins only
-    ALLOWED_ORIGINS: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:8080"]
-    )
+    # ALLOWED_ORIGINS: list[str] = Field(
+    #     default_factory=lambda: ["*"]
+    # )
 
     # Request size limits (prevents DoS attacks)
     MAX_CONTENT_LENGTH: int = Field(
@@ -84,15 +84,15 @@ class Settings(BaseSettings):
     REQUIRE_EXPORT_CONSENT: bool = Field(default=True)
 
     # Security headers
-    HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds
-    HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=True)
-    HSTS_PRELOAD: bool = Field(default=True)
+    # HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds
+    # HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=True)
+    # HSTS_PRELOAD: bool = Field(default=True)
 
     # Content Security Policy (even for REST APIs)
-    CSP_POLICY: Optional[str] = Field(
-        default="default-src 'self'; script-src 'none'; object-src 'none';",
-        description="Content-Security-Policy header value",
-    )
+    # CSP_POLICY: Optional[str] = Field(
+    #     default="default-src 'self'; script-src 'none'; object-src 'none';",
+    #     description="Content-Security-Policy header value",
+    # )
 
     # ── Sentry ───────────────────────────────────────────────────────────────
     SENTRY_DSN: Optional[str] = None
@@ -146,11 +146,11 @@ class Settings(BaseSettings):
                 )
 
             # Enforce secure CORS (no wildcard)
-            if "*" in self.ALLOWED_ORIGINS:
-                raise ValueError(
-                    "ALLOWED_ORIGINS must not contain wildcard (*) in non-development environments. "
-                    "Specify explicit trusted origins."
-                )
+            # if "*" in self.ALLOWED_ORIGINS:
+            #     raise ValueError(
+            #         "ALLOWED_ORIGINS must not contain wildcard (*) in non-development environments. "
+            #         "Specify explicit trusted origins."
+            #     )
 
         return self
 

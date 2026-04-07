@@ -211,7 +211,7 @@ def export_form_with_responses(form_id):
                 form_id,
                 str(getattr(current_user, "id", "unknown")),
             )
-            return error_response(message="Unauthorized", status_code=403        )
+            return error_response(message="Unauthorized", status_code=403)
 
         responses = (
             FormResponse.objects(
@@ -228,7 +228,7 @@ def export_form_with_responses(form_id):
                 # Require user to consent for large exports
                 return error_response(
                     message=f"Export would return {response_count} records. Maximum allowed is {settings.MAX_EXPORT_RECORDS}. Please contact admin for larger exports.",
-                    status_code=400
+                    status_code=400,
                 )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -236,7 +236,7 @@ def export_form_with_responses(form_id):
             audit_logger,
             "JSON streaming export initiated for form_id: %s by user: %s",
             form_id,
-            str(current_user.id)
+            str(current_user.id),
         )
 
         return Response(
@@ -249,8 +249,11 @@ def export_form_with_responses(form_id):
     except DoesNotExist:
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
-        safe_log_error(app_logger, "Error in export_form_with_responses for form_id: %s", form_id, exc_info=True)
-            f"Error in export_form_with_responses for form_id {form_id}: {str(e)}"
+        safe_log_error(
+            app_logger,
+            "Error in export_form_with_responses for form_id: %s",
+            form_id,
+            exc_info=True,
         )
         return error_response(message="Internal server error", status_code=500)
 

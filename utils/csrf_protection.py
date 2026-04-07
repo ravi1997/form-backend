@@ -75,10 +75,9 @@ class CSRFProtection:
         """
         # Skip validation for:
         # - GET requests (safe)
-        # - OPTIONS requests (CORS preflight)
-        # - Static files
-        # - Specific public endpoints
-        if request.method in ("GET", "OPTIONS", "HEAD"):
+        # # - OPTIONS requests (CORS preflight)
+        # if request.method in ("GET", "OPTIONS", "HEAD"):
+        if request.method in ("GET", "HEAD"):
             return
 
         # Skip for paths that are explicitly excluded

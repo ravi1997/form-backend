@@ -40,6 +40,13 @@ def set_form_expiration(form_id):
         current_user = get_current_user()
         form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         expiration_date = data.get("expires_at")
+        
+        if expiration_date is None:
+            # Explicitly remove expiration
+            form.update(unset__expires_at=True)
+            audit_logger.info(f"Form expiration REMOVED for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}")
+            return jsonify({"message": "Form expiration removed"}), 200
+
         if not expiration_date:
             app_logger.warning(f"Form expiration update failed: No date provided for form_id: {form_id}")
             return jsonify({"error": "Expiration date is required"}), 400

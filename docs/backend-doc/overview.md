@@ -65,7 +65,7 @@ Flask Application (Gunicorn / Flask Dev Server)
 | ODM / Database | MongoEngine + MongoDB | Multi-tenant with soft-delete |
 | Auth tokens | Flask-JWT-Extended | Dual mode: header + HttpOnly cookie |
 | Rate limiting | Flask-Limiter | Redis-backed, tenant-aware |
-| Security headers | Flask-Talisman | HSTS enabled, CSP disabled (REST API) |
+| Security headers | <!-- Flask-Talisman --> | <!-- HSTS enabled, CSP disabled (REST API) --> |
 | API documentation | Flasgger (Swagger 2.0) | Live UI at `/form/docs` |
 | Background tasks | Celery + Redis | Multiple named queues |
 | Caching | Redis | 3 DB logical separation |
@@ -75,7 +75,7 @@ Flask Application (Gunicorn / Flask Dev Server)
 | Observability | OpenTelemetry | Flask instrumented, Jaeger/OTLP exporter |
 | Logging | Python logging + RotatingFileHandler | 5 named loggers, 10MB rotate, PII masking |
 | Error tracking | Sentry (optional) | Configured via `SENTRY_DSN` env var |
-| CORS | Flask-CORS | Credentials-enabled, per `ALLOWED_ORIGINS` |
+| <!-- CORS --> | <!-- Flask-CORS --> | <!-- Credentials-enabled, per ALLOWED_ORIGINS --> |
 
 ---
 
@@ -86,8 +86,8 @@ The application is assembled inside `create_app()`. The startup sequence is:
 1. `setup_logging()` — configure all 5 loggers with PII filter
 2. `init_tracing()` — initialize OpenTelemetry with OTLP exporter
 3. Create Flask app, load configuration from `settings` object
-4. Initialize CORS (credentials + allowed origins)
-5. Initialize JWT, Limiter, Talisman, Swagger
+5. <!-- Initialize CORS (credentials + allowed origins) -->
+6. <!-- Initialize JWT, Limiter, Talisman, Swagger -->
 6. Register JWT event handlers (token expired, invalid, missing)
 7. Register middleware: `request_id`, `security_waf`, `tenant_db`
 8. Connect to MongoDB (ping to verify); exit on failure in non-dev
@@ -464,7 +464,7 @@ Tests use `testcontainers` to spin real MongoDB and Redis — no mocks. `APP_ENV
 | `REDIS_HOST` / `REDIS_PORT` | Redis host and port |
 | `REDIS_DB` | Base DB index (session = DB+1, queue = CELERY_BROKER_DB) |
 | `JWT_SECRET_KEY` | Must be changed in production |
-| `ALLOWED_ORIGINS` | CORS allowed origins list |
+| <!-- `ALLOWED_ORIGINS` --> | <!-- CORS allowed origins list --> |
 | `ELASTICSEARCH_URL` | For search and analytics |
 | `AI_PROVIDER` | `local` / `ollama` / `openai` |
 | `OLAP_ENGINE` | `duckdb` (default) or `clickhouse` |

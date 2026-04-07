@@ -201,34 +201,37 @@ class SensitiveDataRedactor:
         else:
             return obj
 
-    def redact_log_message(self, message: str, **kwargs) -> str:
+    def redact_log_message(self, message: str, *args) -> str:
         """
-        Redact sensitive data from log message with kwargs.
+        Redact sensitive data from log message with positional args.
 
         Useful for formatted log messages like:
-            logger.info("User %s logged in from %s", username, ip_address)
+            logger.info("User %s logged in", username)
 
         Args:
             message: Log message format string
-            **kwargs: Values to redact and format
+            *args: Values to redact and format
 
         Returns:
             Redacted log message
         """
-        # Redact each value
-        redacted_kwargs = {}
-        for key, value in kwargs.items():
+        if not args:
+            return self.redact_string(message)
+
+        # Redact each value in args
+        redacted_args = []
+        for value in args:
             if isinstance(value, str):
-                redacted_kwargs[key] = self.redact_string(value)
+                redacted_args.append(self.redact_string(value))
             else:
-                redacted_kwargs[key] = self.redact_object(value, deep=False)
+                redacted_args.append(self.redact_object(value, deep=False))
 
         # Format message
         try:
-            return message % tuple(redacted_kwargs.values())
-        except TypeError:
-            # If not a format string, just return as-is
-            return message
+            return message % tuple(redacted_args)
+        except (TypeError, ValueError):
+            # If format fails, return redacted message + redacted args as string
+            return f"{self.redact_string(message)} | Args: {str(redacted_args)}"
 
 
 def redact_sensitive(func):
@@ -264,40 +267,40 @@ full_redactor = SensitiveDataRedactor(redact_uuid=True, redact_ip=True)
 debug_redactor = SensitiveDataRedactor(redact_uuid=False, redact_ip=False)
 
 
-def redact_for_log(message: str, **kwargs) -> str:
+def redact_for_log(message: str, *args) -> str:
     """
     Convenience function to redact sensitive data for logging.
 
     Usage:
         app_logger.info(redact_for_log("User %s logged in", username))
     """
-    return full_redactor.redact_log_message(message, **kwargs)
+    return full_redactor.redact_log_message(message, *args)
 
 
-def safe_log_info(logger, message: str, **kwargs):
+def safe_log_info(logger, message: str, *args):
     """
     Safely log info message with automatic redaction.
 
     Args:
         logger: Logger instance
         message: Log message
-        **kwargs: Values to log (will be redacted)
+        *args: Values to log (will be redacted)
     """
-    redacted_message = redact_for_log(message, **kwargs)
+    redacted_message = redact_for_log(message, *args)
     logger.info(redacted_message)
 
 
-def safe_log_error(logger, message: str, exc_info: bool = False, **kwargs):
+def safe_log_error(logger, message: str, *args, exc_info: bool = False):
     """
     Safely log error message with automatic redaction.
 
     Args:
         logger: Logger instance
         message: Error message
+        *args: Values to log (will be redacted)
         exc_info: Whether to include exception info
-        **kwargs: Values to log (will be redacted)
     """
-    redacted_message = redact_for_log(message, **kwargs)
+    redacted_message = redact_for_log(message, *args)
     if exc_info:
         logger.error(redacted_message, exc_info=True)
     else:

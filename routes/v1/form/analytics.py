@@ -9,6 +9,8 @@ from mongoengine.errors import DoesNotExist
 from datetime import datetime, timedelta, timezone
 from collections import Counter, defaultdict
 from logger.unified_logger import app_logger, error_logger
+from services.analytics_service import AnalyticsService
+from services.analytics_cache import analytics_cache
 
 # -------------------- Analytics Endpoints --------------------
 
@@ -38,33 +40,25 @@ def get_analytics_summary(form_id):
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        # Python-side aggregation for robustness
-        responses = FormResponse.objects(form=form.id, is_deleted=False)
+        cache_key_params = {"metric_type": "summary"}
+        cached_result = analytics_cache.get(form_id, "summary", cache_key_params)
 
-        total = responses.count()
+        if cached_result:
+            app_logger.info(
+                f"Returning cached analytics summary for form_id: {form_id}"
+            )
+            return jsonify(cached_result), 200
 
-        # Optimize: fetch only status
-        statuses = [r.status or "submitted" for r in responses.only("status")]
-        status_breakdown = dict(Counter(statuses))
-
-        last_submission = responses.order_by("-submitted_at").first()
-        last_submitted_at = (
-            last_submission.submitted_at.isoformat() if last_submission else None
+        result = AnalyticsService.get_analytics_summary(
+            form_id, current_user.organization_id
         )
+
+        analytics_cache.set(form_id, "summary", result, cache_key_params, ttl=300)
 
         app_logger.info(
             f"Successfully retrieved analytics summary for form_id: {form_id}"
         )
-        return (
-            jsonify(
-                {
-                    "total_responses": total,
-                    "status_breakdown": status_breakdown,
-                    "last_submitted_at": last_submitted_at,
-                }
-            ),
-            200,
-        )
+        return jsonify(result), 200
 
     except DoesNotExist:
         app_logger.warning(f"Form not found for analytics summary: {form_id}")
@@ -102,27 +96,26 @@ def get_analytics_timeline(form_id):
             return jsonify({"error": "Unauthorized"}), 403
 
         days = request.args.get("days", 30, type=int)
-        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cache_key_params = {"metric_type": "timeline", "days": days}
 
-        # Python-side aggregation
-        responses = FormResponse.objects(
-            form=form.id, is_deleted=False, submitted_at__gte=start_date
-        ).only("submitted_at")
+        cached_result = analytics_cache.get(form_id, "timeline", cache_key_params)
 
-        date_counts = Counter()
-        for r in responses:
-            if r.submitted_at:
-                date_str = r.submitted_at.strftime("%Y-%m-%d")
-                date_counts[date_str] += 1
+        if cached_result:
+            app_logger.info(
+                f"Returning cached analytics timeline for form_id: {form_id}"
+            )
+            return jsonify(cached_result), 200
 
-        # Sort by date
-        sorted_dates = sorted(date_counts.keys())
-        timeline = [{"date": d, "count": date_counts[d]} for d in sorted_dates]
+        result = AnalyticsService.get_analytics_timeline(
+            form_id, current_user.organization_id, days
+        )
+
+        analytics_cache.set(form_id, "timeline", result, cache_key_params, ttl=300)
 
         app_logger.info(
             f"Successfully retrieved analytics timeline for form_id: {form_id}"
         )
-        return jsonify({"period_days": days, "timeline": timeline}), 200
+        return jsonify(result), 200
 
     except DoesNotExist:
         app_logger.warning(f"Form not found for analytics timeline: {form_id}")
@@ -157,79 +150,25 @@ def get_analytics_distribution(form_id):
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        # Identify choice-based questions from latest version
-        if not form.versions:
+        cache_key_params = {"metric_type": "distribution"}
+        cached_result = analytics_cache.get(form_id, "distribution", cache_key_params)
+
+        if cached_result:
             app_logger.info(
-                f"No versions found for form_id: {form_id}, returning empty distribution"
+                f"Returning cached analytics distribution for form_id: {form_id}"
             )
-            return jsonify({"distribution": {}}), 200
+            return jsonify(cached_result), 200
 
-        latest_version = form.versions[-1]
-        choice_questions = {}  # qid -> label
+        result = AnalyticsService.get_analytics_distribution(
+            form_id, current_user.organization_id, form
+        )
 
-        target_types = ["radio", "select", "checkbox", "rating", "boolean"]
-
-        for section in latest_version.sections:
-            sid = str(section.id)
-            for q in section.questions:
-                if q.field_type in target_types:
-                    choice_questions[str(q.id)] = {
-                        "label": q.label,
-                        "sid": sid,
-                        "type": q.field_type,
-                    }
-
-        # Process responses (Python-side for flexibility)
-        # Fetch only necessary fields to optimize
-        responses = FormResponse.objects(form=form.id, is_deleted=False).only("data")
-
-        distribution = defaultdict(Counter)  # qid -> Counter
-
-        for r in responses:
-            for qid, info in choice_questions.items():
-                sid = info["sid"]
-                section_data = r.data.get(sid)
-
-                if not section_data:
-                    continue
-
-                # Handle Repeatable Sections?
-                # If repeatable, we aggregate ALL answers from that section
-                entries = (
-                    section_data if isinstance(section_data, list) else [section_data]
-                )
-
-                for entry in entries:
-                    if not isinstance(entry, dict):
-                        continue
-                    val = entry.get(qid)
-
-                    if val is None or val == "":
-                        continue
-
-                    if isinstance(val, list):
-                        # Checkboxes
-                        for v in val:
-                            distribution[qid][str(v)] += 1
-                    else:
-                        distribution[qid][str(val)] += 1
-
-        # Format result
-        results = []
-        for qid, counts in distribution.items():
-            results.append(
-                {
-                    "question_id": qid,
-                    "label": choice_questions[qid]["label"],
-                    "type": choice_questions[qid]["type"],
-                    "counts": dict(counts),
-                }
-            )
+        analytics_cache.set(form_id, "distribution", result, cache_key_params, ttl=300)
 
         app_logger.info(
             f"Successfully retrieved analytics distribution for form_id: {form_id}"
         )
-        return jsonify({"distribution": results}), 200
+        return jsonify(result), 200
 
     except DoesNotExist:
         app_logger.warning(f"Form not found for analytics distribution: {form_id}")

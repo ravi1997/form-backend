@@ -1,3 +1,4 @@
+<!-- 
 # CORS Configuration
 
 **Purpose:** Documentation for Cross-Origin Resource Sharing (CORS) configuration, security considerations, and wildcard restrictions.
@@ -537,3 +538,4 @@ cors.init_app(
 - [OWASP CORS Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Origin_Resource_Sharing_Cheat_Sheet.html)
 - [W3C CORS Specification](https://www.w3.org/TR/cors/)
 - [HTTP Access Control (MDN)](https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS)
+-->

@@ -102,7 +102,7 @@ The Forms Backend is a production-ready REST API for the RIDP platform, providin
 │  └─────────────────────────────────────────────────────────┘    │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                Middleware Layers                          │    │
-│  │  Request ID, Tenant DB, WAF, JWT, CORS, Rate Limit       │    │
+│  │  Request ID, Tenant DB, WAF, JWT, <!-- CORS, --> Rate Limit       │    │
 │  └─────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -488,7 +488,7 @@ spec:
 - **Authentication**: JWT with refresh token rotation
 - **Authorization**: RBAC with permission scopes
 - **Rate Limiting**: Tenant-aware limits via Redis
-- **CORS**: Configurable origins with credentials control
+<!-- - **CORS**: Configurable origins with credentials control -->
 - **WAF**: ModSecurity rules for attack mitigation
 - **Data Encryption**: TLS in transit, at-rest encryption via MongoDB
 - **Audit Logging**: Immutable logs for compliance
@@ -497,12 +497,14 @@ spec:
 
 ```python
 # app.py security headers
+<!-- 
 talisman.init_app(
     app,
     force_https=False,  # Enable in production
     strict_transport_security=True,
     content_security_policy=None,
 )
+-->
 ```
 
 ---

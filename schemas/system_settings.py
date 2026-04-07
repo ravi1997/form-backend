@@ -45,7 +45,7 @@ class SystemSettingsSchema(BaseSchema):
     redis_socket_timeout_seconds: int = 5
 
     # Security Layer
-    cors_enabled: bool = True
+    # cors_enabled: bool = True
     debug_mode: bool = False
     rate_limit_enabled: bool = True
     rate_limit_requests_per_minute: int = 100
