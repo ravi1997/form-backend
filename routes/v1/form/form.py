@@ -8,20 +8,26 @@ Delegates all business logic to FormService.
 import traceback
 import re
 from datetime import datetime, timezone
-from flask import current_app, request, jsonify
+from flask import current_app, request, jsonify, g
 from flask_jwt_extended import jwt_required
 from mongoengine import DoesNotExist
 
 from logger.unified_logger import app_logger, error_logger, audit_logger
-from utils.response_helper import success_response, error_response, BaseSerializer
+from utils.response_helper import success_response, error_response, BaseSerializer, FormSerializer
 from utils.security_helpers import get_current_user, require_permission, require_org_match
 from models import Section
 from tasks.form_tasks import async_clone_form, async_publish_form
-from services.form_service import FormService, FormCreateSchema, FormUpdateSchema
+from services.form_service import (
+    FormService,
+    FormCreateSchema,
+    FormUpdateSchema,
+    ProjectService,
+)
 from routes.v1.form.helper import has_form_permission, apply_translations
-from models.Form import Form
+from models.Form import Form, Project
 
 form_service = FormService()
+project_service = ProjectService()
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -51,15 +57,17 @@ form_service = FormService()
 })
 @jwt_required()
 def create_form():
-    """Create a new form. Sets the current user as creator and editor."""
+    """Create a new form inside the current project context."""
     app_logger.info("Entering create_form")
-    data = request.get_json(silent=True) or {}
     current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
     try:
+        project_id = getattr(g, "project_id", None)
+        if not project_id:
+            return error_response(message="Project context missing from route", status_code=400)
         if not current_user:
             app_logger.warning("User not found in create_form")
             return error_response(message="User not found", status_code=401)
-
         if not current_user.organization_id:
             app_logger.warning(f"User {current_user.id} has no organization_id; form creation requires tenant context")
             return error_response(
@@ -67,23 +75,30 @@ def create_form():
                 status_code=400,
             )
 
+        data["project"] = project_id
         data.setdefault("created_by", str(current_user.id))
         data.setdefault("editors", [str(current_user.id)])
         data.setdefault("organization_id", current_user.organization_id)
         if not data.get("slug") and data.get("title"):
             slug = re.sub(r"[^a-z0-9]+", "-", data["title"].strip().lower()).strip("-")
             data["slug"] = slug or f"form-{str(current_user.id)[:8]}"
-        schema = FormCreateSchema(**data)
-        form = form_service.create(schema)
-        audit_logger.info(f"Form created with ID {form.id} by user {current_user.id}")
-        app_logger.info(f"Form created by user {current_user.id}")
-        return success_response(data={"form_id": str(form.id)}, message="Form created", status_code=201)
+
+        form = project_service.create_form_in_project(
+            project_id, data, current_user.organization_id
+        )
+        audit_logger.info(
+            f"AUDIT: Form {form.id} created in project {project_id} by user {current_user.id}"
+        )
+        return success_response(
+            data={"form_id": str(form.id)},
+            message="Form created",
+            status_code=201,
+        )
     except Exception as e:
         error_logger.error(f"Create form error: {e}\n{traceback.format_exc()}")
         return error_response(message=str(e), status_code=400)
 
 
-from utils.response_helper import success_response, error_response, FormSerializer
 
 @form_bp.route("/", methods=["GET"])
 @swag_from({
@@ -98,17 +113,20 @@ from utils.response_helper import success_response, error_response, FormSerializ
 })
 @jwt_required()
 def list_forms():
-    """List forms belonging to the current user's organization."""
+    """List forms belonging to the current project."""
     app_logger.info("Entering list_forms")
     current_user = get_current_user()
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 50, type=int)
     is_template = request.args.get("is_template", "false").lower() == "true"
+    project_id = getattr(g, "project_id", None)
     
     filters = {
         "organization_id": current_user.organization_id,
         "is_deleted": False
     }
+    if project_id:
+        filters["project"] = project_id
     if is_template:
         filters["is_template"] = True
 
@@ -547,7 +565,49 @@ def create_form_section(form_id):
     data = request.get_json()
     try:
         section = section_service.create_section(form_id, data, current_user.organization_id)
-        return success_response(data=BaseSerializer.clean_dict(section.to_mongo().to_dict()), status_code=201)
+        from models.Form import FormVersion, Version
+
+        form_version = (
+            FormVersion.objects(form=form_id, status="draft")
+            .order_by("-created_at")
+            .first()
+        )
+        version_string = None
+        if form_version and form_version.version:
+            version_doc = Version.objects(
+                id=getattr(form_version.version, "id", form_version.version)
+            ).first()
+            if version_doc:
+                version_string = version_doc.version_string
+        section_payload = (
+            section.to_dict() if hasattr(section, "to_dict") else section.to_mongo().to_dict()
+        )
+        return success_response(
+            data={
+                "section": BaseSerializer.clean_dict(section_payload),
+                "version": version_string,
+                "form_version_id": str(form_version.id) if form_version else None,
+            },
+            status_code=201,
+        )
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/projects/<project_id>/forms/<form_id>/sections", methods=["POST"])
+@jwt_required()
+def create_project_form_section(project_id, form_id):
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        section = section_service.create_section(str(form.id), data, current_user.organization_id)
+        return success_response(data={"section": BaseSerializer.clean_dict(section.to_dict())}, status_code=201)
     except Exception as e:
         return error_response(message=str(e), status_code=400)
 
@@ -558,7 +618,58 @@ def list_form_sections(form_id):
     current_user = get_current_user()
     try:
         form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
-        return success_response(data=[BaseSerializer.clean_dict(s.to_mongo().to_dict()) for s in form.sections])
+        serialized_sections = []
+        for section_ref in form.sections or []:
+            section_doc = None
+
+            # Already dereferenced MongoEngine document.
+            if hasattr(section_ref, "to_mongo"):
+                section_doc = section_ref
+            # bson.dbref.DBRef or similar reference object.
+            elif hasattr(section_ref, "id"):
+                section_doc = Section.objects(
+                    id=section_ref.id,
+                    organization_id=current_user.organization_id,
+                    is_deleted=False,
+                ).first()
+            # Raw UUID/string fallback.
+            else:
+                section_doc = Section.objects(
+                    id=section_ref,
+                    organization_id=current_user.organization_id,
+                    is_deleted=False,
+                ).first()
+
+            if section_doc:
+                serialized_sections.append(
+                    BaseSerializer.clean_dict(
+                        section_doc.to_dict()
+                        if hasattr(section_doc, "to_dict")
+                        else section_doc.to_mongo().to_dict()
+                    )
+                )
+
+        return success_response(data=serialized_sections)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/projects/<project_id>/forms/<form_id>/sections", methods=["GET"])
+@jwt_required()
+def list_project_form_sections(project_id, form_id):
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        serialized_sections = []
+        for section_ref in form.sections or []:
+            section_doc = section_ref if hasattr(section_ref, "to_mongo") else Section.objects.get(id=getattr(section_ref, "id", section_ref), organization_id=current_user.organization_id, is_deleted=False)
+            serialized_sections.append(BaseSerializer.clean_dict(section_doc.to_dict()))
+        return success_response(data=serialized_sections)
     except Exception as e:
         return error_response(message=str(e), status_code=400)
 
@@ -572,7 +683,15 @@ def update_form_section(form_id, section_id):
         # Verify form exists and belongs to org
         Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         section = section_service.update(section_id, data, organization_id=current_user.organization_id)
-        return success_response(data=BaseSerializer.clean_dict(section.to_mongo().to_dict()))
+        if hasattr(section, "to_dict"):
+            payload = BaseSerializer.clean_dict(section.to_dict())
+        elif hasattr(section, "to_mongo"):
+            payload = BaseSerializer.clean_dict(section.to_mongo().to_dict())
+        elif hasattr(section, "model_dump"):
+            payload = BaseSerializer.clean_dict(section.model_dump())
+        else:
+            payload = BaseSerializer.clean_dict(section)
+        return success_response(data=payload)
     except Exception as e:
         return error_response(message=str(e), status_code=400)
 

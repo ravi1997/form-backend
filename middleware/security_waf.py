@@ -80,7 +80,7 @@ class SecurityWAF:
                     "user-agent", "referer", "cookie", "accept", 
                     "accept-language", "accept-encoding", "content-type", 
                     "authorization", "if-none-match", "cache-control",
-                    "x-csrf-token-access", "x-csrf-token-refresh", "x-organization-id"
+                    "x-organization-id"
                 ]:
                     continue
                 # Check key and value separately to avoid false positives on `=...;` regex

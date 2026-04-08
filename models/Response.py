@@ -91,51 +91,61 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
         If a field is marked as sensitive in the Form definition, it is moved to encrypted_data.
         """
         from utils.encryption import encrypt_value
-        from models.Form import FormVersion
+        from models.Form import Form, FormVersion
         
         # 1. Identify sensitive fields from the version snapshot
         sensitive_fields = set()
         
         # We prefer using the linked form_version which should be a FormVersion instance
         version_doc = None
-        if self.form_version:
+        raw_form_version = self._data.get("form_version")
+        if raw_form_version:
             # If it's a reference, MongoEngine might have it already or we fetch it
-            if isinstance(self.form_version, FormVersion):
-                version_doc = self.form_version
+            if isinstance(raw_form_version, FormVersion):
+                version_doc = raw_form_version
             else:
-                version_doc = FormVersion.objects(id=self.form_version).first()
+                version_doc = FormVersion.objects(id=getattr(raw_form_version, "id", raw_form_version)).first()
         
-        if not version_doc and self.form:
-            # Fallback to active version
-            active_id = getattr(self.form, "active_version_id", None)
-            if active_id:
-                version_doc = FormVersion.objects(form=self.form.id, version=active_id).first()
+        if not version_doc:
+            # Avoid dereferencing self.form directly; ReferenceField dereference can fail
+            # when raw refs/DBRefs are present in request-time save paths.
+            raw_form_ref = self._data.get("form")
+            form_id = getattr(raw_form_ref, "id", raw_form_ref)
+            if form_id:
+                form_doc = Form.objects(
+                    id=form_id,
+                    organization_id=self.organization_id,
+                    is_deleted=False,
+                ).only("active_version").first()
+                active_id = getattr(form_doc, "active_version_id", None) if form_doc else None
+                if active_id:
+                    version_doc = FormVersion.objects(
+                        form=form_id,
+                        version=active_id,
+                        organization_id=self.organization_id,
+                    ).first()
 
         if version_doc:
-            if version_doc.snapshot:
-                # Optimized: Use snapshot tree
-                def extract_sensitive(sections):
-                    for sec in sections:
-                        for q in sec.get("questions", []):
-                            if q.get("is_sensitive"):
-                                var_name = q.get("variable_name")
-                                if var_name: sensitive_fields.add(var_name)
-                        if sec.get("sections"):
-                            extract_sensitive(sec["sections"])
-                extract_sensitive(version_doc.snapshot.get("sections", []))
-            else:
-                # Legacy fallback
-                for section in version_doc.sections:
-                    for question in section.questions:
-                        if question.is_sensitive:
-                            sensitive_fields.add(question.variable_name)
+            snapshot = version_doc.resolved_snapshot or {}
+            def extract_sensitive(sections):
+                for sec in sections:
+                    for q in sec.get("questions", []):
+                        if q.get("is_sensitive"):
+                            var_name = q.get("variable_name")
+                            if var_name:
+                                sensitive_fields.add(var_name)
+                    if sec.get("sections"):
+                        extract_sensitive(sec["sections"])
+            extract_sensitive(snapshot.get("sections", []))
 
         # 2. Process data payload
         for field in list(self.data.keys()):
             if field in sensitive_fields:
-                val = self.data.pop(field)
+                val = self.data.get(field)
                 if val:
                     self.encrypted_data[field] = encrypt_value(str(val))
+                    # Keep key shape for downstream logic while preventing plaintext at rest.
+                    self.data[field] = None
 
         return super().save(*args, **kwargs)
 

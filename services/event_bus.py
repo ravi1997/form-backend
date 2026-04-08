@@ -25,9 +25,13 @@ class EventBus:
                 "event_id": str(uuid.uuid4()),
                 "timestamp": str(time.time()),
                 "payload": json.dumps(payload, default=self._json_default),
-                "trace_id": format(trace.get_current_span().get_span_context().trace_id, '032x') if trace.get_current_span().is_recording() else None,
-                "span_id": format(trace.get_current_span().get_span_context().span_id, '016x') if trace.get_current_span().is_recording() else None
             }
+            current_span = trace.get_current_span()
+            if current_span and current_span.is_recording():
+                span_ctx = current_span.get_span_context()
+                envelope["trace_id"] = format(span_ctx.trace_id, "032x")
+                envelope["span_id"] = format(span_ctx.span_id, "016x")
+
             organization_id = "unknown"
             if payload.get("organization_id"):
                 organization_id = str(payload.get("organization_id"))
@@ -39,6 +43,13 @@ class EventBus:
                         envelope["organization_id"] = organization_id
                 except Exception:
                     pass
+
+            # Redis Streams require all field values to be non-None scalar types.
+            envelope = {
+                k: (v if isinstance(v, (bytes, str, int, float)) else str(v))
+                for k, v in envelope.items()
+                if v is not None
+            }
             
             # XADD stores the payload in the stream map with max length limiting
             redis_service.cache.client.xadd(topic, envelope, maxlen=100000)

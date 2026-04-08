@@ -324,6 +324,8 @@ def apply_translations(form_dict, lang_code):
 
         # Check snapshot translations first
         snapshot = latest_version.get("snapshot", {})
+        if not snapshot and hasattr(latest_version, "resolved_snapshot"):
+            snapshot = latest_version.resolved_snapshot or {}
         if snapshot and "translations" in snapshot:
             translations = snapshot["translations"]
         elif "translations" in latest_version:
@@ -397,10 +399,12 @@ def apply_translations(form_dict, lang_code):
     if "versions" in form_dict and form_dict["versions"]:
         latest_version = form_dict["versions"][-1]
         snapshot = latest_version.get("snapshot", {})
+        if not snapshot and hasattr(latest_version, "resolved_snapshot"):
+            snapshot = latest_version.resolved_snapshot or {}
         if snapshot and "sections" in snapshot:
             sections = snapshot["sections"]
-        else:
-            sections = latest_version.get("sections", [])
+        elif "sections" in latest_version:
+            sections = latest_version["sections"]
     else:
         sections = form_dict.get("sections", [])
 

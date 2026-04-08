@@ -46,6 +46,8 @@ class UserCreateSchema(UserSchema, InboundPayloadSchema):
 
 
 class UserUpdateSchema(UserSchema, InboundPayloadSchema):
+    # Updates are partial; user_type should not be mandatory on every PUT.
+    user_type: Optional[Literal["employee", "general"]] = None
     password: Optional[str] = Field(
         None,
         min_length=8,

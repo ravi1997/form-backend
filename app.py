@@ -39,9 +39,10 @@ def create_app():
         JWT_COOKIE_SECURE=not settings.DEBUG,
         JWT_COOKIE_HTTPONLY=True,
         JWT_COOKIE_SAMESITE="Lax",
-        JWT_COOKIE_CSRF_PROTECT=True,
-        JWT_ACCESS_CSRF_HEADER_NAME="X-CSRF-TOKEN-ACCESS",
-        JWT_REFRESH_CSRF_HEADER_NAME="X-CSRF-TOKEN-REFRESH",
+        # Cookie-based JWT auth needs a CSRF header on state-changing requests.
+        # Keep that protection in non-development environments, but disable it
+        # explicitly for local Docker/dev workflows.
+        JWT_COOKIE_CSRF_PROTECT=not settings.DEBUG,
     )
 
     # ── JWT, CORS, Limiter & Talisman, Swagger ────────────────────────────────

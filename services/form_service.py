@@ -26,11 +26,92 @@ class FormService(BaseService):
     def __init__(self):
         super().__init__(model=Form, schema=FormSchema)
 
+    def _stamp_sections_with_version(self, form_doc: Form, version_doc: Version, form_version: FormVersion) -> None:
+        """Persist version references on all direct and nested sections."""
+        def stamp(section_ref):
+            section_id = getattr(section_ref, "id", section_ref)
+            section_doc = Section.objects(id=section_id, organization_id=form_doc.organization_id, is_deleted=False).first()
+            if not section_doc:
+                return
+            section_doc.version = version_doc
+            section_doc.save()
+            for nested_ref in section_doc.sections or []:
+                stamp(nested_ref)
+
+        for section_ref in form_doc.sections or []:
+            stamp(section_ref)
+
+    def _build_draft_snapshot(self, form_doc: Form) -> Dict[str, Any]:
+        """Build a normalized snapshot from the current form structure."""
+        sections_data = []
+        for section_ref in form_doc.sections or []:
+            sections_data.append(self._snapshot_section(section_ref))
+        return {"sections": sections_data, "translations": form_doc.translations or {}}
+
+    def sync_draft_version(self, form_id: str, organization_id: str) -> FormVersion:
+        """
+        Ensure a draft Version + FormVersion snapshot exists for the current form state.
+        This gives forms/sections version metadata immediately after create/update.
+        """
+        app_logger.info(f"Entering sync_draft_version for Form ID {form_id}")
+        form_doc = self.model.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
+        if not form_doc:
+            raise NotFoundError("Form not found for draft version sync")
+
+        existing_version = form_doc._data.get("active_version")
+        version_doc = None
+        if existing_version:
+            version_id = getattr(existing_version, "id", existing_version)
+            version_doc = Version.objects(id=version_id).first()
+
+        if not version_doc:
+            version_doc = Version(form=form_doc, major=0, minor=1, patch=0)
+            version_doc.save()
+            form_doc.active_version = version_doc
+
+        snapshot_data = self._build_draft_snapshot(form_doc)
+        import json
+        import zlib
+        from models.Form import SnapshotStore
+
+        snapshot_json = json.dumps(snapshot_data, default=str)
+        compressed_data = zlib.compress(snapshot_json.encode("utf-8"))
+        store = SnapshotStore(
+            organization_id=form_doc.organization_id,
+            compressed_data=compressed_data,
+            is_compressed=True,
+            size_bytes=len(snapshot_json),
+        )
+        store.save()
+
+        form_version = FormVersion.objects(form=form_doc.id, version=version_doc).first()
+        if not form_version:
+            form_version = FormVersion(
+                form=form_doc,
+                version=version_doc,
+                status="draft",
+                snapshot_ref=store,
+                translations=form_doc.translations or {},
+            )
+        else:
+            form_version.snapshot_ref = store
+            form_version.translations = form_doc.translations or {}
+            form_version.status = "draft"
+
+        form_version.save()
+        form_doc.save()
+        self._stamp_sections_with_version(form_doc, version_doc, form_version)
+        app_logger.info(f"Successfully completed sync_draft_version for Form ID {form_id}")
+        return form_version
+
     @enforce_sla(max_ms=100)
     def create(self, create_schema: FormCreateSchema) -> FormSchema:
         app_logger.info(f"Entering FormService.create with title: {create_schema.title}")
         try:
             form = super().create(create_schema)
+            self.sync_draft_version(str(form.id), form.organization_id)
             event_bus.publish("form.indexed", form.model_dump())
             audit_logger.info(f"AUDIT: Form created with ID {form.id} and title {form.title}")
             app_logger.info(f"Successfully completed FormService.create for ID {form.id}")
@@ -73,13 +154,26 @@ class FormService(BaseService):
 
     def _snapshot_section(self, section: Section) -> Dict[str, Any]:
         """Deep snapshots a section and its sub-sections/questions into a dictionary."""
-        data = section.to_mongo().to_dict()
+        if hasattr(section, "to_mongo"):
+            data = section.to_mongo().to_dict()
+        else:
+            # Handle DBRef/raw reference values from legacy forms.
+            section_doc = Section.objects(
+                id=getattr(section, "id", section),
+                is_deleted=False,
+            ).first()
+            if not section_doc:
+                raise NotFoundError("Section not found while snapshotting form")
+            data = section_doc.to_mongo().to_dict()
         if "_id" in data:
             data["id"] = str(data.pop("_id"))
         
         # Snapshot sub-sections recursively
-        if section.sections:
-            data["sections"] = [self._snapshot_section(s) for s in section.sections]
+        nested_sections = []
+        for nested in getattr(section, "sections", []) or []:
+            nested_sections.append(self._snapshot_section(nested))
+        if nested_sections:
+            data["sections"] = nested_sections
         
         # Snapshot questions (Questions are embedded, so to_mongo handles them, 
         # but we ensure IDs are strings)
@@ -144,7 +238,7 @@ class FormService(BaseService):
             import zlib
             import json
             
-            snapshot_json = json.dumps(snapshot_data)
+            snapshot_json = json.dumps(snapshot_data, default=str)
             size_bytes = len(snapshot_json)
             
             # Compress snapshot for storage efficiency
@@ -167,9 +261,9 @@ class FormService(BaseService):
                 status="published",
                 snapshot_ref=store,
                 translations=form_doc.translations or {}, # Keep for compatibility
-                sections=form_doc.sections # Keep for legacy compatibility
             )
             snapshot.save()
+            self._stamp_sections_with_version(form_doc, new_version, snapshot)
 
             # 3. Update active form
             form_doc.status = "published"
@@ -211,6 +305,38 @@ class ProjectUpdateSchema(ProjectSchema, InboundPayloadSchema):
 class ProjectService(BaseService):
     def __init__(self):
         super().__init__(model=Project, schema=ProjectSchema)
+
+    def create_project_with_form(self, project_data: Dict[str, Any], form_data: Dict[str, Any], organization_id: str) -> Dict[str, Any]:
+        app_logger.info("Entering create_project_with_form")
+        project_data = dict(project_data or {})
+        form_data = dict(form_data or {})
+        project_data["organization_id"] = organization_id
+        form_data["organization_id"] = organization_id
+        project_schema = ProjectCreateSchema(**project_data)
+        project = super().create(project_schema)
+        form_data["project"] = str(project.id)
+        form_schema = FormCreateSchema(**form_data)
+        form = FormService().create(form_schema)
+        project_doc = Project.objects(id=project.id, organization_id=organization_id, is_deleted=False).first()
+        form_doc = Form.objects(id=form.id, organization_id=organization_id, is_deleted=False).first()
+        if project_doc and form_doc:
+            project_doc.forms.append(form_doc)
+            project_doc.save()
+        return {"project": project, "form": form}
+
+    def create_form_in_project(self, project_id: str, form_data: Dict[str, Any], organization_id: str) -> FormSchema:
+        app_logger.info(f"Entering create_form_in_project for project {project_id}")
+        project = Project.objects(id=project_id, organization_id=organization_id, is_deleted=False).first()
+        if not project:
+            raise NotFoundError("Project not found")
+        form_data = dict(form_data or {})
+        form_data["organization_id"] = organization_id
+        form_data["project"] = str(project.id)
+        form_schema = FormCreateSchema(**form_data)
+        form = FormService().create(form_schema)
+        project.forms.append(Form.objects(id=form.id, organization_id=organization_id, is_deleted=False).first())
+        project.save()
+        return form
 
     def list_forms_in_project(self, project_id: str, organization_id: str = None) -> List[FormSchema]:
         """Deep queries safely resolved linked active forms in a project tree."""

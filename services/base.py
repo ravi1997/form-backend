@@ -5,6 +5,7 @@ from models.base import BaseDocument
 from .exceptions import NotFoundError, ValidationError, ConflictError
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from schemas.base import PaginatedResult
+from uuid import UUID
 
 TModel = TypeVar('TModel', bound=BaseDocument)
 TSchema = TypeVar('TSchema', bound=BaseModel)
@@ -30,7 +31,17 @@ class BaseService:
             
             if '_id' in doc_dict and 'id' not in doc_dict:
                 doc_dict['id'] = str(doc_dict.pop('_id'))
-            
+
+            def normalize(value):
+                if isinstance(value, UUID):
+                    return str(value)
+                if isinstance(value, dict):
+                    return {k: normalize(v) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [normalize(v) for v in value]
+                return value
+
+            doc_dict = normalize(doc_dict)
             return self.schema.model_validate(doc_dict)
         except Exception as e:
             error_logger.error(f"Schema validation failed for Model {self.model.__name__}: {str(e)}", exc_info=True)
@@ -73,6 +84,7 @@ class BaseService:
             filters.setdefault('is_deleted', False)
         
         if organization_id:
+            app_logger.info(f"Organization ID: {organization_id}")
             filters['organization_id'] = organization_id
             
         skip = (page - 1) * page_size
@@ -128,7 +140,15 @@ class BaseService:
             if hasattr(document, 'is_deleted') and document.is_deleted:
                 raise DoesNotExist()
             
-            update_data = update_schema.model_dump(exclude_unset=True)
+            if hasattr(update_schema, "model_dump"):
+                update_data = update_schema.model_dump(exclude_unset=True)
+            elif isinstance(update_schema, dict):
+                update_data = update_schema
+            else:
+                raise ValidationError(
+                    f"Invalid update payload type for {self.model.__name__}",
+                    details={"type": str(type(update_schema))}
+                )
             if update_data:
                 document.update(**{f"set__{k}": v for k, v in update_data.items()})
                 document.reload()

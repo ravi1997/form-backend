@@ -6,6 +6,42 @@ import re
 
 class FormValidationService:
     @staticmethod
+    def _section_ref_to_dict(
+        section_ref: Any, organization_id: Optional[str]
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve Section references (Document/DBRef/UUID) into nested dict snapshots."""
+        from models.Form import Section
+
+        section_doc = None
+        if hasattr(section_ref, "to_mongo"):
+            section_doc = section_ref
+        elif hasattr(section_ref, "id"):
+            section_doc = Section.objects(
+                id=section_ref.id, organization_id=organization_id, is_deleted=False
+            ).first()
+        else:
+            section_doc = Section.objects(
+                id=section_ref, organization_id=organization_id, is_deleted=False
+            ).first()
+
+        if not section_doc:
+            return None
+
+        data = section_doc.to_mongo().to_dict()
+        if "_id" in data:
+            data["id"] = str(data.pop("_id"))
+
+        nested_sections = []
+        for nested_ref in section_doc.sections or []:
+            nested_data = FormValidationService._section_ref_to_dict(
+                nested_ref, organization_id
+            )
+            if nested_data:
+                nested_sections.append(nested_data)
+        data["sections"] = nested_sections
+        return data
+
+    @staticmethod
     def validate_submission(
         form_id: str, 
         payload: Dict[str, Any], 
@@ -29,16 +65,45 @@ class FormValidationService:
             
         if not version_id:
             version_id = form.active_version_id
-            
-        if not version_id:
-            return False, {}, [{"error": "No active version for this form"}], {}
-            
-        version_doc = FormVersion.objects(id=version_id, form=form.id, organization_id=organization_id).first()
-        if not version_doc:
-            return False, {}, [{"error": "Form version not found"}], {}
 
-        # 2. Get Snapshot or Reconstruct from Legacy Sections
-        sections_data = version_doc.resolved_snapshot.get("sections", [])
+        # 2. Resolve schema source:
+        #    preferred: active FormVersion snapshot
+        #    fallback: latest published snapshot
+        #    fallback: current form sections (draft/unpublished forms)
+        sections_data: List[Dict[str, Any]] = []
+        if version_id:
+            from models.Form import Version
+
+            resolved_version = Version.objects(id=version_id).first()
+            version_doc = None
+            if resolved_version:
+                version_doc = FormVersion.objects(
+                    form=form.id, version=resolved_version
+                ).first()
+                if not version_doc:
+                    version_doc = FormVersion.objects(
+                        form=form.id, version__id=resolved_version.id
+                    ).first()
+
+            if not version_doc:
+                version_doc = (
+                    FormVersion.objects(form=form.id, status="published")
+                    .order_by("-created_at")
+                    .first()
+                )
+            if version_doc:
+                sections_data = version_doc.resolved_snapshot.get("sections", [])
+
+        if not sections_data:
+            for section_ref in form.sections or []:
+                section_data = FormValidationService._section_ref_to_dict(
+                    section_ref, organization_id
+                )
+                if section_data:
+                    sections_data.append(section_data)
+
+        if not sections_data:
+            return False, {}, [{"error": "No sections available for this form"}], {}
 
         # 3. Initialize Evaluator
         evaluator = ConditionEvaluator(payload)

@@ -1603,29 +1603,30 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
         text_fields_without_validation = 0
         sensitive_fields_found = []
 
-        for section in form.versions[-1].sections:
-            for question in section.questions:
-                label_lower = question.label.lower()
+        latest_version = form.versions[-1] if form.versions else None
+        sections = latest_version.resolved_snapshot.get("sections", []) if latest_version and hasattr(latest_version, "resolved_snapshot") else []
+
+        for section in sections:
+            for question in section.get("questions", []):
+                label_lower = (question.get("label") or "").lower()
 
                 # Identify sensitive fields
                 if any(kw in label_lower for kw in sensitive_keywords):
-                    sensitive_fields_found.append(question.label)
+                    sensitive_fields_found.append(question.get("label"))
                     if is_public:
                         findings.append(
                             {
                                 "severity": "HIGH",
-                                "issue": f"Sensitive field '{question.label}' exposed on Public Form",
+                                "issue": f"Sensitive field '{question.get('label')}' exposed on Public Form",
                                 "detail": "Asking for sensitive information on a form without authentication is a significant privacy risk.",
                             }
                         )
                         score -= 20
 
                 # Spam risk check
-                if question.field_type in ["input", "textarea"]:
+                if question.get("field_type") in ["input", "textarea"]:
                     # Check if any validation exists (required or regex rules)
-                    has_validation = question.is_required or getattr(
-                        question, "validation_rules", None
-                    )
+                    has_validation = bool(question.get("validation", {}).get("is_required")) or bool(question.get("validation_rules"))
                     if not has_validation:
                         text_fields_without_validation += 1
 
@@ -2621,4 +2622,3 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
     except Exception as e:
         error_logger.error(f"Clear Cache Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
-

@@ -10,6 +10,7 @@ services:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
       - PYTHONUNBUFFERED=1
+      - FIELD_ENCRYPTION_KEY=8x1r9dNq9kYxX6vS7fR7I2g8xQm2Ue4nZsJ5pT3wCkM=
     # Bind-mount the entire source code directory for live reloading
     volumes:
       - .:/app
@@ -22,6 +23,7 @@ services:
   celery:
     environment:
       - APP_ENV=development
+      - FIELD_ENCRYPTION_KEY=8x1r9dNq9kYxX6vS7fR7I2g8xQm2Ue4nZsJ5pT3wCkM=
     volumes:
       - .:/app
       - ./logs:/app/logs
@@ -32,6 +34,7 @@ services:
   celery-beat:
     environment:
       - APP_ENV=development
+      - FIELD_ENCRYPTION_KEY=8x1r9dNq9kYxX6vS7fR7I2g8xQm2Ue4nZsJ5pT3wCkM=
     volumes:
       - .:/app
       - ./logs:/app/logs
@@ -40,6 +43,7 @@ services:
   event-listener:
     environment:
       - APP_ENV=development
+      - FIELD_ENCRYPTION_KEY=8x1r9dNq9kYxX6vS7fR7I2g8xQm2Ue4nZsJ5pT3wCkM=
     volumes:
       - .:/app
       - ./logs:/app/logs

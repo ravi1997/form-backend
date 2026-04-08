@@ -160,8 +160,10 @@ class FormResponseService(BaseService):
                 organization_id=data.organization_id
             )
             
-            # Update data with cleaned and calculated values
-            data.data = cleaned_data
+            # Update data with cleaned values.
+            # If validator cannot map fields (e.g., missing variable_name in draft forms),
+            # preserve original payload instead of writing an empty dict.
+            data.data = cleaned_data if cleaned_data else (data.data or {})
             if calculated_values:
                 if "meta_data" not in data.__dict__:
                     data.meta_data = {}
@@ -172,14 +174,26 @@ class FormResponseService(BaseService):
             )
 
             # 2. Fetch Active Version and Snapshot for the response record
-            form_doc = Form.objects(id=data.form).first()
-            if form_doc and form_doc.active_version:
-                data.version = form_doc.active_version.version_string
-                # Resolve FormVersion for snapshot reference
-                from models.Form import FormVersion
-                fv = FormVersion.objects(form=form_doc.id, version=form_doc.active_version.id).first()
-                if fv:
-                    data.form_version = str(fv.id)
+            form_doc = Form.objects(id=data.form, organization_id=data.organization_id, is_deleted=False).first()
+            if form_doc:
+                raw_active_version = form_doc._data.get("active_version")
+                active_version_id = getattr(raw_active_version, "id", raw_active_version)
+                if active_version_id:
+                    from models.Form import Version, FormVersion
+
+                    version_doc = Version.objects(id=active_version_id).first()
+                    if version_doc:
+                        data.version = version_doc.version_string
+
+                    fv = None
+                    if version_doc:
+                        fv = FormVersion.objects(form=form_doc.id, version=version_doc).first()
+                        if not fv:
+                            fv = FormVersion.objects(form=form_doc.id, version__id=version_doc.id).first()
+                    if not fv:
+                        fv = FormVersion.objects(form=form_doc.id, status="published").order_by("-created_at").first()
+                    if fv:
+                        data.form_version = str(fv.id)
 
             # Create the response document
             response = self.create(data)
@@ -221,10 +235,30 @@ class FormResponseService(BaseService):
         logger.debug(
             f"Pulling paginated responses for form {form_id} org {organization_id}"
         )
+        from uuid import UUID
+        from models import Form
+        try:
+            form_lookup_id = UUID(form_id)
+        except Exception:
+            form_lookup_id = form_id
+
+        form_doc = Form.objects(
+            id=form_lookup_id, organization_id=organization_id, is_deleted=False
+        ).first()
+        if not form_doc:
+            logger.info(f"Form {form_id} not found")
+            return PaginatedResult(
+                items=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                has_next=False,
+                success=True,
+            )
         return self.list_paginated(
             page=page,
             page_size=page_size,
-            form=form_id,
+            form=form_doc,
             organization_id=organization_id,
             is_deleted=False,
         )

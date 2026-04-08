@@ -10,7 +10,7 @@ from mongoengine import (
     BinaryField,
     ValidationError,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 
 from models.enumerations import (
     FIELD_TYPE_CHOICES,
@@ -212,6 +212,7 @@ class Section(BaseDocument, SoftDeleteMixin):
     description = StringField()
     help_text = StringField()
     order = IntField()
+    version = ReferenceField("Version")
 
     logic = EmbeddedDocumentField(SectionLogic, default=lambda: SectionLogic())
     ui = EmbeddedDocumentField(SectionUI, default=lambda: SectionUI())
@@ -270,6 +271,7 @@ class Form(BaseDocument, SoftDeleteMixin):
     )
     organization_id = StringField(required=True)  # Tenant isolation
     created_by = StringField(required=True)
+    project = ReferenceField("Project")
     status = StringField(choices=STATUS_CHOICES, default="draft")
     ui_type = StringField(choices=UI_TYPE_CHOICES, default="flex")
     active_version = ReferenceField("Version")
@@ -314,8 +316,15 @@ class Form(BaseDocument, SoftDeleteMixin):
         return str(getattr(raw_value, "id", raw_value))
 
     def clean(self):
-        if self.publish_at and self.expires_at and self.publish_at > self.expires_at:
-            raise ValidationError("publish_at cannot be after expires_at.")
+        if self.publish_at and self.expires_at:
+            publish_at = self.publish_at
+            expires_at = self.expires_at
+            if publish_at.tzinfo is None:
+                publish_at = publish_at.replace(tzinfo=timezone.utc)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if publish_at > expires_at:
+                raise ValidationError("publish_at cannot be after expires_at.")
 
 
 class Project(BaseDocument, SoftDeleteMixin):
@@ -414,24 +423,24 @@ class FormVersion(BaseDocument):
     
     # New separate storage reference
     snapshot_ref = ReferenceField(SnapshotStore)
-    
-    # Legacy/Inline snapshot storage
-    snapshot = DictField(help_text="Full immutable snapshot of the form structure")
-    
-    # Legacy field - kept for backward compatibility but should be avoided for new versions
-    sections = ListField(ReferenceField(Section))
-    
     translations = DictField()
     status = StringField(choices=STATUS_CHOICES, default="draft")
 
     @property
     def resolved_snapshot(self) -> dict:
         """Automatically resolves snapshot from SnapshotStore (compressed) or inline DictField."""
-        if self.snapshot_ref:
+        snapshot_ref = self._data.get("snapshot_ref")
+        if snapshot_ref:
             import zlib
             import json
             try:
-                store = self.snapshot_ref
+                store = snapshot_ref
+                if not hasattr(store, "is_compressed"):
+                    store = SnapshotStore.objects(
+                        id=getattr(snapshot_ref, "id", snapshot_ref)
+                    ).first()
+                if not store:
+                    raise DoesNotExist("Snapshot store not found")
                 if store.is_compressed:
                     raw_json = zlib.decompress(store.compressed_data).decode('utf-8')
                     return json.loads(raw_json)
@@ -439,12 +448,9 @@ class FormVersion(BaseDocument):
             except Exception:
                 pass
         
-        if self.snapshot:
-            return self.snapshot
-            
         # Legacy reconstruction from reference list
         sections_data = []
-        if self.sections:
+        if hasattr(self, "sections") and self.sections:
             for sec in self.sections:
                 if hasattr(sec, "to_mongo"):
                     data = sec.to_mongo().to_dict()

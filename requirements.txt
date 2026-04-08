@@ -10,6 +10,7 @@ flask-jwt-extended==4.7.1
 flask-cors==5.0.0
 PyJWT==2.10.1
 bcrypt==4.2.1
+cryptography==44.0.3
 pytest==8.3.4
 pytest-mock==3.14.0
 python-dotenv==1.0.1
@@ -30,4 +31,3 @@ opentelemetry-instrumentation-celery
 opentelemetry-exporter-otlp
 python-magic==0.4.27
 watchfiles==0.24.0
-

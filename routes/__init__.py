@@ -1,4 +1,5 @@
 from routes.v1.form import form_bp
+from routes.v1.project_route import project_bp
 from routes.v1.auth_route import auth_bp
 from routes.v1.view_route import view_bp
 from routes.v1.user_route import user_bp
@@ -30,7 +31,8 @@ def register_blueprints(app):
     app.register_blueprint(health_bp, url_prefix=f"{base_prefix}/health")
 
     # Core Form Management
-    app.register_blueprint(form_bp, url_prefix=f"{base_prefix}/api/v1/forms")
+    app.register_blueprint(form_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
+    app.register_blueprint(project_bp, url_prefix=f"{base_prefix}/api/v1/projects")
     app.register_blueprint(translation_bp, url_prefix=f"{base_prefix}/api/v1/forms/translations")
     app.register_blueprint(library_bp, url_prefix=f"{base_prefix}/api/v1/custom-fields")
     app.register_blueprint(

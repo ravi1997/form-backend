@@ -73,7 +73,7 @@ def async_index_response_vector(self, response_id, organization_id):
         text_content = json.dumps(response.data)
         
         metadata = {
-            "form_id": str(response.form.id),
+            "form_id": str(getattr(response.form, "id", response.form)),
             "submitted_at": response.submitted_at.isoformat(),
             "status": response.status
         }
@@ -113,4 +113,3 @@ def async_export_to_olap(self, event_payload):
     except Exception as e:
         error_logger.error(f"OLAP Export Task failed: {str(e)}", exc_info=True)
         raise self.retry(exc=e)
-

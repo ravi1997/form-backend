@@ -67,11 +67,13 @@ def get_file(form_id, question_id, filename):
 
         # Check if the question is of file_upload type
         question_found = False
-        for section in form.versions[-1].sections:
-            for question in section.questions:
+        latest_version = form.versions[-1] if form.versions else None
+        sections = latest_version.resolved_snapshot.get("sections", []) if latest_version else []
+        for section in sections:
+            for question in section.get("questions", []):
                 if (
-                    str(question.id) == str(question_id)
-                    and question.field_type == "file_upload"
+                    str(question.get("id")) == str(question_id)
+                    and question.get("field_type") == "file_upload"
                 ):
                     question_found = True
                     break

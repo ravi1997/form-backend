@@ -175,6 +175,7 @@ class FormSchema(SoftDeleteBaseSchema):
     slug: str = Field(..., max_length=255, pattern=r"^[a-z0-9-]+$")
     organization_id: str
     created_by: str
+    project: Optional[str] = None
     status: Literal["draft", "published", "archived"] = "draft"
     ui_type: Literal[
         "flex",

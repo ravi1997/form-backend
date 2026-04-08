@@ -142,17 +142,18 @@ class AnalyticsService:
             return {"distribution": []}
 
         latest_version = form.versions[-1]
+        sections = latest_version.resolved_snapshot.get("sections", []) if hasattr(latest_version, "resolved_snapshot") else []
         choice_questions = {}
         target_types = ["radio", "select", "checkbox", "rating", "boolean"]
 
-        for section in latest_version.sections:
-            sid = str(section.id)
-            for q in section.questions:
-                if q.field_type in target_types:
-                    choice_questions[str(q.id)] = {
-                        "label": q.label,
+        for section in sections:
+            sid = str(section.get("id"))
+            for q in section.get("questions", []):
+                if q.get("field_type") in target_types:
+                    choice_questions[str(q.get("id"))] = {
+                        "label": q.get("label"),
                         "sid": sid,
-                        "type": q.field_type,
+                        "type": q.get("field_type"),
                     }
 
         if not choice_questions:

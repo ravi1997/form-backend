@@ -112,9 +112,7 @@ class HookService(BaseService):
         return results
 
     def _find_question(self, form, question_id):
-        if not hasattr(form, 'sections'):
-            return None
-        for section in form.sections:
+        for section in self._latest_sections(form):
             q = self._search_section_for_question(section, question_id)
             if q: return q
         return None
@@ -129,9 +127,7 @@ class HookService(BaseService):
         return None
 
     def _find_section(self, form, section_id):
-        if not hasattr(form, 'sections'):
-            return None
-        for section in form.sections:
+        for section in self._latest_sections(form):
             s = self._search_section_for_section(section, section_id)
             if s: return s
         return None
@@ -143,6 +139,18 @@ class HookService(BaseService):
             s = self._search_section_for_section(sub_section, section_id)
             if s: return s
         return None
+
+    def _latest_sections(self, form):
+        latest_version = None
+        try:
+            versions = list(form.versions)
+            if versions:
+                latest_version = versions[-1]
+        except Exception:
+            latest_version = None
+        if latest_version and hasattr(latest_version, "resolved_snapshot"):
+            return latest_version.resolved_snapshot.get("sections", [])
+        return list(getattr(form, "sections", []) or [])
 
     def _execute_hook(self, trigger, payload, organization_id):
         action_type = trigger.action_type

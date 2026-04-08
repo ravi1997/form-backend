@@ -61,8 +61,10 @@ def fetch_external_form_data():
         # Build safe OR query
         or_conditions = []
         if form.versions:
-            for section in form.versions[-1].sections:
-                section_id_str = NoSQLInjector.sanitize_key(str(section.id))
+            latest = form.versions[-1]
+            sections = latest.resolved_snapshot.get("sections", []) if hasattr(latest, "resolved_snapshot") else []
+            for section in sections:
+                section_id_str = NoSQLInjector.sanitize_key(str(section.get("id")))
                 or_conditions.append(
                     {f"data.{section_id_str}.{safe_question_id}": safe_value}
                 )
@@ -136,8 +138,8 @@ def fetch_same_form_data(form_id):
                 "deleted": False,
                 "$or": (
                     [
-                        {f"data.{section.id}.{question_id}": value}
-                        for section in form.versions[-1].sections
+                        {f"data.{section.get('id')}.{question_id}": value}
+                        for section in (form.versions[-1].resolved_snapshot.get("sections", []) if form.versions else [])
                     ]
                     if form.versions
                     else []
