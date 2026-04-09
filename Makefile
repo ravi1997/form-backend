@@ -1,6 +1,6 @@
 # Makefile — form-backend (RIDP platform)
 
-.PHONY: help up up-dev down restart logs shell \
+.PHONY: help up up-dev down restart restart-dev logs shell \
         build bootstrap ps test lint clean
 
 # ANSI colors
@@ -43,8 +43,11 @@ up-dev: ## Start in development mode (with live reload)
 down: ## Stop all services
 	@docker compose down
 
-restart: ## Restart backend and worker only
-	@docker compose restart backend celery celery-beat
+restart: ## Restart backend, worker, beat, and event listener
+	@docker compose restart backend celery celery-beat event-listener
+
+restart-dev: ## Restart dev stack services using the dev compose override
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml restart backend celery celery-beat event-listener
 
 logs: ## Follow backend logs
 	@docker compose logs -f backend

@@ -137,27 +137,52 @@ LOGGING_CONFIG: Dict[str, Any] = {
     "loggers": {
         "": {  # Root logger
             "handlers": ["console", "app_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": True,
+        },
+        "application": {
+            "handlers": ["console", "app_file"],
+            "level": "DEBUG",
+            "propagate": False,
         },
         "error_logger": {
             "handlers": ["error_file", "console"],
-            "level": "ERROR",
+            "level": "DEBUG",
             "propagate": False,
         },
         "audit_logger": {
             "handlers": ["audit_file", "console"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "performance_logger": {
             "handlers": ["performance_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "access_logger": {
             "handlers": ["access_file", "console"],
-            "level": "INFO",
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "pymongo": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "pymongo.command": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "pymongo.topology": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "mongoengine": {
+            "handlers": ["console"],
+            "level": "WARNING",
             "propagate": False,
         },
     },

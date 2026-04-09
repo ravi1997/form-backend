@@ -117,7 +117,13 @@ def async_publish_form(
             f"Form {form_id} published successfully via background task. Org: {organization_id}"
         )
         app_logger.info(f"Exiting async_publish_form: successfully published {form_id}")
-        return {"status": "success", "form_id": str(result.id)}
+        form_id_result = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
+        version_metadata = result.get("version_metadata") if isinstance(result, dict) else None
+        return {
+            "status": "success",
+            "form_id": str(form_id_result) if form_id_result else str(form_id),
+            "version_metadata": version_metadata,
+        }
     except Exception as e:
         error_logger.error(
             f"Task async_publish_form failed for {form_id}: {str(e)}", exc_info=True

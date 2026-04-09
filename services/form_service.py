@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
 from logger.sla import enforce_sla
 from services.base import BaseService
+from services.access_control_service import AccessControlService
 from utils.exceptions import NotFoundError, StateTransitionError
+from utils.response_helper import FormSerializer
 from models import Form, Project, Version, FormVersion, Section
 from schemas.form import FormSchema, ProjectSchema
 from schemas.base import InboundPayloadSchema
@@ -324,17 +326,20 @@ class ProjectService(BaseService):
             project_doc.save()
         return {"project": project, "form": form}
 
-    def create_form_in_project(self, project_id: str, form_data: Dict[str, Any], organization_id: str) -> FormSchema:
+    def create_form_in_project(self, project_id: str, form_data: Dict[str, Any], organization_id: str, user: Optional[Any] = None) -> FormSchema:
         app_logger.info(f"Entering create_form_in_project for project {project_id}")
         project = Project.objects(id=project_id, organization_id=organization_id, is_deleted=False).first()
         if not project:
             raise NotFoundError("Project not found")
+        if user and not AccessControlService.check_project_permission(user, project, "edit"):
+            raise PermissionError("Unauthorized to manage this project")
         form_data = dict(form_data or {})
         form_data["organization_id"] = organization_id
         form_data["project"] = str(project.id)
         form_schema = FormCreateSchema(**form_data)
         form = FormService().create(form_schema)
-        project.forms.append(Form.objects(id=form.id, organization_id=organization_id, is_deleted=False).first())
+        project_form = Form.objects(id=form.id, organization_id=organization_id, is_deleted=False).first()
+        project.forms.append(project_form)
         project.save()
         return form
 
@@ -351,21 +356,41 @@ class ProjectService(BaseService):
                 app_logger.warning(f"Project {project_id} not found")
                 raise NotFoundError("Project not found")
 
+            app_logger.info(f"Project {project_id} found")
+            app_logger.info(f"Project forms: {project_doc.forms}")
             # Extract safely avoiding dereferencing destroyed models
             forms = []
-            for form in project_doc.forms:
+            for form_ref in project_doc.forms or []:
                 try:
-                    if not form.is_deleted:
-                        # Double check organization_id on the linked form
-                        if organization_id and form.organization_id != organization_id:
-                            continue
-                        forms.append(FormSchema.model_validate(form.to_dict()))
-                except Exception as e:
-                    app_logger.warning(
-                        f"Corrupt form pointer in project {project_id}: {str(e)}"
-                    )
+                    app_logger.info(f"Form reference {form_ref}")
 
-            app_logger.info(f"Successfully completed list_forms_in_project for Project ID {project_id}")
+                    form_id = getattr(form_ref, "id", None)
+                    if form_id is None:
+                        form_id = form_ref if isinstance(form_ref, str) else None
+                    if not form_id:
+                        app_logger.warning(f"Form reference {form_ref} is invalid")
+                        continue
+
+                    form = Form.objects(
+                        id=form_id,
+                        is_deleted=False,
+                        **({"organization_id": organization_id} if organization_id else {})
+                    ).first()
+                    if not form:
+                        app_logger.warning(f"Form {form_id} not found")
+                        continue
+                    app_logger.info(f"Form {form_id} found")
+                    form_payload = FormSerializer.serialize(form.to_dict())
+                    form_payload["organization_id"] = str(getattr(form, "organization_id", organization_id))
+                    form_payload["project"] = str(form_payload["project"]) if form_payload.get("project") is not None else None
+                    if form_payload.get("active_version") is not None:
+                        form_payload["active_version"] = str(form_payload["active_version"])
+                    forms.append(FormSchema.model_validate(form_payload))
+                except Exception as e:
+                    app_logger.warning(f"Error in list_forms_in_project for Project ID {project_id}: {str(e)}")
+                    continue
+
+            app_logger.info(f"Successfully completed list_forms_in_project for Project ID {project_id} with total forms {len(forms)}")
             return forms
         except Exception as e:
             if not isinstance(e, NotFoundError):

@@ -232,7 +232,7 @@ class FormResponseService(BaseService):
         self, form_id: str, organization_id: str, page: int = 1, page_size: int = 50
     ) -> PaginatedResult:
         """Pull highly paginated subsets of heavy analytics collections scoped to standard Tenant boundaries."""
-        logger.debug(
+        app_logger.info(
             f"Pulling paginated responses for form {form_id} org {organization_id}"
         )
         from uuid import UUID
@@ -255,12 +255,36 @@ class FormResponseService(BaseService):
                 has_next=False,
                 success=True,
             )
-        return self.list_paginated(
+
+        app_logger.debug(
+            f"Resolved form for response listing: form_id={form_id}, resolved_form_id={form_doc.id}, org={organization_id}"
+        )
+
+        page = max(1, page)
+        from config.settings import settings
+        page_size = page_size or settings.DEFAULT_PAGE_SIZE
+        page_size = min(page_size, settings.MAX_PAGE_SIZE)
+        skip = (page - 1) * page_size
+
+        query = self.model.objects(
+            form=form_doc.id,
+            # organization_id=organization_id,
+            is_deleted=False,
+        ).order_by("-created_at")
+        total = query.count()
+        documents = query.skip(skip).limit(page_size)
+        items = [self._to_schema(doc) for doc in documents]
+
+        app_logger.info(
+            f"Exiting list_by_form for Form ID {form_id}: {len(items)}/{total} items"
+        )
+        return PaginatedResult(
+            items=items,
+            total=total,
             page=page,
             page_size=page_size,
-            form=form_doc,
-            organization_id=organization_id,
-            is_deleted=False,
+            has_next=(skip + page_size < total),
+            success=True,
         )
 
     def list_by_project(

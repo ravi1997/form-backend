@@ -3,6 +3,7 @@ from models.User import User
 from models.Response import FormResponse
 from models.Dashboard import Dashboard
 from models.Form import Form, Project
+from models.AccessControl import ResourceAccessControl
 from logger.unified_logger import app_logger
 from utils.sensitive_data_redaction import safe_log_info
 
@@ -433,12 +434,48 @@ class AccessControlService:
         if "superadmin" in user_roles:
             return True
 
-        # 3. Project owner can do anything
-        if str(project.created_by) == user_id_str:
+        # 3. Project owner can do anything, when the model carries creator metadata
+        project_created_by = getattr(project, "created_by", None)
+        if project_created_by is not None and str(project_created_by) == user_id_str:
             return True
 
         # 4. Admin can do anything
         if "admin" in user_roles:
             return True
+
+        # 5. Resource-level ACLs for the project
+        try:
+            resource_acl = ResourceAccessControl.objects(
+                resource_type="project",
+                resource_id=str(project.id),
+                is_deleted=False,
+            ).first()
+        except Exception:
+            resource_acl = None
+
+        if resource_acl:
+            acl_permissions = {"edit", "manage_access", "publish"}
+
+            if action == "view" and resource_acl.access_level in (
+                "organization",
+                "public",
+            ):
+                return True
+
+            if action in ("edit", "delete") and resource_acl.owner and str(resource_acl.owner.id) == user_id_str:
+                return True
+
+            if action in ("edit", "delete"):
+                for entry in resource_acl.access_list or []:
+                    if entry.grantee_type == "user" and entry.grantee_user:
+                        if str(entry.grantee_user.id) == user_id_str and acl_permissions.intersection(
+                            set(entry.permissions or [])
+                        ):
+                            return True
+                    if entry.grantee_type == "group" and entry.grantee_group:
+                        group = entry.grantee_group
+                        if user_id_str in [str(member.id) for member in (group.members or [])]:
+                            if acl_permissions.intersection(set(entry.permissions or [])):
+                                return True
 
         return False

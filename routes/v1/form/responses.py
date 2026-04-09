@@ -7,6 +7,7 @@ from services.response_service import FormResponseService, FormResponseCreateSch
 from routes.v1.form.helper import get_current_user, has_form_permission
 from models.Form import Form, FormVersion
 from mongoengine import DoesNotExist
+from bson.dbref import DBRef
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from datetime import datetime, timezone
 
@@ -88,9 +89,13 @@ def submit_response(form_id):
             "user_agent": request.user_agent.string
         }
         
-        form_project = getattr(form, "project", None)
-        if form_project:
+        form_project = form._data.get("project")
+        if isinstance(form_project, DBRef):
             submission_data["project"] = str(form_project.id)
+        elif hasattr(form_project, "id"):
+            submission_data["project"] = str(form_project.id)
+        elif form_project:
+            submission_data["project"] = str(form_project)
             
         create_schema = FormResponseCreateSchema(**submission_data)
         response = response_service.create_submission(create_schema)
@@ -111,7 +116,7 @@ def submit_response(form_id):
         )
         
     except DoesNotExist:
-        app_logger.warning(f"Form {form_id} not found: {form_id}")
+        error_logger.error(f"Form {form_id} not found: {form_id}", exc_info=True)
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error submitting response to form {form_id}: {str(e)}", exc_info=True)

@@ -72,8 +72,8 @@ class BaseService:
             raise
 
     def list_paginated(self, page: int = 1, page_size: int = None, sort_by: str = '-created_at', organization_id: str = None, **filters) -> PaginatedResult:
-        app_logger.debug(f"Entering list_paginated for {self.model.__name__} (org: {organization_id})")
         from config.settings import settings
+        app_logger.info(f"Entering list_paginated for {self.model.__name__}")
         
         # Enforce limits
         page = max(1, page)
@@ -86,6 +86,10 @@ class BaseService:
         if organization_id:
             app_logger.info(f"Organization ID: {organization_id}")
             filters['organization_id'] = organization_id
+
+        app_logger.debug(
+            f"list_paginated filters for {self.model.__name__}: page={page}, page_size={page_size}, sort_by={sort_by}, filters={filters}"
+        )
             
         skip = (page - 1) * page_size
         query = self.model.objects(**filters).order_by(sort_by)
@@ -93,8 +97,11 @@ class BaseService:
         documents = query.skip(skip).limit(page_size)
         
         items = [self._to_schema(doc) for doc in documents]
+        app_logger.debug(
+            f"list_paginated query result for {self.model.__name__}: skip={skip}, total={total}, returned={len(items)}"
+        )
         
-        app_logger.debug(f"Exiting list_paginated for {self.model.__name__} successfully: {len(items)}/{total} items")
+        app_logger.info(f"Exiting list_paginated for {self.model.__name__} successfully: {len(items)}/{total} items")
         return PaginatedResult(
             items=items,
             total=total,

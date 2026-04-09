@@ -25,6 +25,7 @@ from services.form_service import (
 )
 from routes.v1.form.helper import has_form_permission, apply_translations
 from models.Form import Form, Project
+from services.access_control_service import AccessControlService
 
 form_service = FormService()
 project_service = ProjectService()
@@ -75,6 +76,20 @@ def create_form():
                 status_code=400,
             )
 
+        project = Project.objects.get(
+            id=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if not AccessControlService.check_project_permission(current_user, project, "edit"):
+            audit_logger.info(
+                f"AUDIT: Unauthorized form creation attempt in project {project_id} by user {current_user.id}"
+            )
+            return error_response(
+                message="Unauthorized to manage this project",
+                status_code=403,
+            )
+
         data["project"] = project_id
         data.setdefault("created_by", str(current_user.id))
         data.setdefault("editors", [str(current_user.id)])
@@ -84,7 +99,7 @@ def create_form():
             data["slug"] = slug or f"form-{str(current_user.id)[:8]}"
 
         form = project_service.create_form_in_project(
-            project_id, data, current_user.organization_id
+            project_id, data, current_user.organization_id, current_user
         )
         audit_logger.info(
             f"AUDIT: Form {form.id} created in project {project_id} by user {current_user.id}"
@@ -94,6 +109,8 @@ def create_form():
             message="Form created",
             status_code=201,
         )
+    except DoesNotExist:
+        return error_response(message="Project not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Create form error: {e}\n{traceback.format_exc()}")
         return error_response(message=str(e), status_code=400)

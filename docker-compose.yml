@@ -76,6 +76,10 @@ services:
     <<: *app-env
     environment:
       - APP_ENV=${APP_ENV:-production}
+      - ELASTICSEARCH_URL=http://forms_elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
     labels:
       - ridp.managed=true
       - ridp.app=form-backend

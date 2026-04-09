@@ -1,4 +1,5 @@
 from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import ConnectionError as ESConnectionError, TransportError
 from config.settings import settings
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
@@ -7,10 +8,22 @@ class SearchService:
         self.es = Elasticsearch([settings.ELASTICSEARCH_URL])
         self.index_name = "forms_index"
 
+    def _is_es_available(self) -> bool:
+        try:
+            return bool(self.es.ping())
+        except Exception as e:
+            app_logger.warning(f"Elasticsearch unavailable: {str(e)}")
+            return False
+
     def init_index(self):
         """Initializes the Elasticsearch index with proper mappings."""
         app_logger.info(f"Checking if Elasticsearch index exists: {self.index_name}")
         try:
+            if not self._is_es_available():
+                app_logger.warning(
+                    f"Skipping Elasticsearch index initialization because {settings.ELASTICSEARCH_URL} is unavailable"
+                )
+                return
             if not self.es.indices.exists(index=self.index_name):
                 mappings = {
                     "mappings": {
@@ -37,10 +50,19 @@ class SearchService:
         form_id = form_data.get("id")
         app_logger.info(f"Indexing form {form_id} into Elasticsearch")
         try:
+            if not self._is_es_available():
+                app_logger.warning(
+                    f"Skipping Elasticsearch indexing for form {form_id} because the cluster is unavailable"
+                )
+                return
             res = self.es.index(
                 index=self.index_name, id=form_id, body=form_data
             )
             audit_logger.info(f"Indexed form {form_id}: {res['result']}")
+        except (ESConnectionError, TransportError) as e:
+            app_logger.warning(
+                f"Elasticsearch unavailable while indexing form {form_id}; skipping indexing: {str(e)}"
+            )
         except Exception as e:
             error_logger.error(f"Failed to index form {form_id}: {str(e)}", exc_info=True)
 
@@ -67,6 +89,11 @@ class SearchService:
             },
         }
         try:
+            if not self._is_es_available():
+                app_logger.warning(
+                    f"Elasticsearch unavailable; returning empty search results for query '{query_text}'"
+                )
+                return {"items": [], "total": 0, "page": page, "page_size": page_size}
             res = self.es.search(index=self.index_name, body=body)
             hits = res["hits"]["hits"]
             total = res["hits"]["total"]["value"]
