@@ -594,7 +594,7 @@ def create_form_section(form_id):
         return error_response(message=str(e), status_code=400)
 
 
-@form_bp.route("/projects/<project_id>/forms/<form_id>/sections", methods=["POST"])
+@form_bp.route("/forms/<form_id>/sections", methods=["POST"])
 @jwt_required()
 def create_project_form_section(project_id, form_id):
     current_user = get_current_user()
@@ -654,7 +654,7 @@ def list_form_sections(form_id):
         return error_response(message=str(e), status_code=400)
 
 
-@form_bp.route("/projects/<project_id>/forms/<form_id>/sections", methods=["GET"])
+@form_bp.route("/forms/<form_id>/sections", methods=["GET"])
 @jwt_required()
 def list_project_form_sections(project_id, form_id):
     current_user = get_current_user()

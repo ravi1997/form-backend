@@ -100,7 +100,7 @@ def trigger_form_hooks(form_id):
         error_logger.error(f"Trigger form hooks error for {form_id}: {e}")
         return jsonify({"error": str(e)}), 400
 
-@form_bp.route("/projects/<project_id>/hooks/trigger", methods=["POST"])
+@form_bp.route("/hooks/trigger", methods=["POST"])
 @swag_from({
     "tags": ["Project Hooks"],
     "summary": "Synchronously trigger all hooks for a project",

@@ -21,12 +21,16 @@ permissions_bp = Blueprint("permissions", __name__)
     }
 )
 @jwt_required()
-def get_form_permissions(form_id):
-    app_logger.info(f"Entering get_form_permissions for form_id: {form_id}")
+def get_form_permissions(project_id, form_id):
+    app_logger.info(
+        f"Entering get_form_permissions for project_id: {project_id}, form_id: {form_id}"
+    )
     try:
         current_user = get_current_user()
         form = Form.objects.get(
-            id=form_id, organization_id=current_user.organization_id
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
         )
         if not has_form_permission(current_user, form, "edit"):
             app_logger.warning(
@@ -34,7 +38,9 @@ def get_form_permissions(form_id):
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        app_logger.info(f"Exiting get_form_permissions for form_id: {form_id}")
+        app_logger.info(
+            f"Exiting get_form_permissions for project_id: {project_id}, form_id: {form_id}"
+        )
         return (
             jsonify(
                 {
@@ -46,11 +52,12 @@ def get_form_permissions(form_id):
             200,
         )
     except DoesNotExist:
-        app_logger.warning(f"Form not found: {form_id}")
+        app_logger.warning(f"Form not found: project_id={project_id}, form_id={form_id}")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
         error_logger.error(
-            f"Error in get_form_permissions for form {form_id}: {str(e)}", exc_info=True
+            f"Error in get_form_permissions for project {project_id}, form {form_id}: {str(e)}",
+            exc_info=True,
         )
         return jsonify({"error": "Internal server error"}), 500
 
@@ -66,12 +73,16 @@ def get_form_permissions(form_id):
     }
 )
 @jwt_required()
-def update_form_permissions(form_id):
-    app_logger.info(f"Entering update_form_permissions for form_id: {form_id}")
+def update_form_permissions(project_id, form_id):
+    app_logger.info(
+        f"Entering update_form_permissions for project_id: {project_id}, form_id: {form_id}"
+    )
     try:
         current_user = get_current_user()
         form = Form.objects.get(
-            id=form_id, organization_id=current_user.organization_id
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
         )
         if not has_form_permission(current_user, form, "edit"):
             app_logger.warning(
@@ -112,14 +123,16 @@ def update_form_permissions(form_id):
             },
         )
 
-        app_logger.info(f"Exiting update_form_permissions for form_id: {form_id}")
+        app_logger.info(
+            f"Exiting update_form_permissions for project_id: {project_id}, form_id: {form_id}"
+        )
         return jsonify({"message": "Permissions updated"}), 200
     except DoesNotExist:
-        app_logger.warning(f"Form not found: {form_id}")
+        app_logger.warning(f"Form not found: project_id={project_id}, form_id={form_id}")
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
         error_logger.error(
-            f"Error in update_form_permissions for form {form_id}: {str(e)}",
+            f"Error in update_form_permissions for project {project_id}, form {form_id}: {str(e)}",
             exc_info=True,
         )
         return jsonify({"error": str(e)}), 400

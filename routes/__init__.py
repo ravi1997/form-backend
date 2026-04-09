@@ -38,7 +38,7 @@ def register_blueprints(app):
     app.register_blueprint(
         library_bp, url_prefix=f"{base_prefix}/api/v1/templates", name="form_templates"
     )
-    app.register_blueprint(permissions_bp, url_prefix=f"{base_prefix}/api/v1/forms")
+    app.register_blueprint(permissions_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
     app.register_blueprint(view_bp, url_prefix=f"{base_prefix}/api/v1/view")
     
     # Auth & AI
@@ -50,7 +50,7 @@ def register_blueprints(app):
     app.register_blueprint(dashboard_bp, url_prefix=f"{base_prefix}/api/v1/dashboards")
     app.register_blueprint(dashboard_settings_bp, url_prefix=f"{base_prefix}/api/v1/dashboard-settings")
     app.register_blueprint(analytics_bp, url_prefix=f"{base_prefix}/api/v1/analytics")
-    app.register_blueprint(anomaly_bp, url_prefix=f"{base_prefix}/api/v1/forms")
+    app.register_blueprint(anomaly_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
 
     # Workflows & Integrations
     app.register_blueprint(workflow_bp, url_prefix=f"{base_prefix}/api/v1/workflows")
