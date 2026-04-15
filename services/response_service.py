@@ -229,14 +229,19 @@ class FormResponseService(BaseService):
             raise
 
     def list_by_form(
-        self, form_id: str, organization_id: str, page: int = 1, page_size: int = 50
+        self,
+        form_id: str,
+        organization_id: str,
+        page: int = 1,
+        page_size: int = 50,
+        project_id: str = None,
     ) -> PaginatedResult:
         """Pull highly paginated subsets of heavy analytics collections scoped to standard Tenant boundaries."""
         app_logger.info(
             f"Pulling paginated responses for form {form_id} org {organization_id}"
         )
         from uuid import UUID
-        from models import Form
+        from models import Form, Project
         try:
             form_lookup_id = UUID(form_id)
         except Exception:
@@ -255,36 +260,44 @@ class FormResponseService(BaseService):
                 has_next=False,
                 success=True,
             )
-
         app_logger.debug(
             f"Resolved form for response listing: form_id={form_id}, resolved_form_id={form_doc.id}, org={organization_id}"
         )
+        filters = {
+            "form": form_doc.id,
+            "organization_id": organization_id,
+            "is_deleted": False,
+        }
+        if project_id:
+            try:
+                project_lookup_id = UUID(str(project_id))
+            except Exception:
+                project_lookup_id = project_id
 
-        page = max(1, page)
-        from config.settings import settings
-        page_size = page_size or settings.DEFAULT_PAGE_SIZE
-        page_size = min(page_size, settings.MAX_PAGE_SIZE)
-        skip = (page - 1) * page_size
+            project_doc = Project.objects(
+                id=project_lookup_id,
+                organization_id=organization_id,
+                is_deleted=False,
+            ).first()
+            if project_doc:
+                filters["project"] = project_doc.id
+            else:
+                app_logger.warning(
+                    f"Project {project_id} not found for response listing in org {organization_id}"
+                )
+                return PaginatedResult(
+                    items=[],
+                    total=0,
+                    page=page,
+                    page_size=page_size,
+                    has_next=False,
+                    success=True,
+                )
 
-        query = self.model.objects(
-            form=form_doc.id,
-            # organization_id=organization_id,
-            is_deleted=False,
-        ).order_by("-created_at")
-        total = query.count()
-        documents = query.skip(skip).limit(page_size)
-        items = [self._to_schema(doc) for doc in documents]
-
-        app_logger.info(
-            f"Exiting list_by_form for Form ID {form_id}: {len(items)}/{total} items"
-        )
-        return PaginatedResult(
-            items=items,
-            total=total,
+        return self.list_paginated(
             page=page,
             page_size=page_size,
-            has_next=(skip + page_size < total),
-            success=True,
+            **filters,
         )
 
     def list_by_project(

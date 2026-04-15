@@ -1,15 +1,19 @@
 from . import form_bp
 from flasgger import swag_from
 from flask import request, jsonify, current_app
+from flask import g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from routes.v1.form import form_bp
 from services.response_service import FormResponseService, FormResponseCreateSchema
 from routes.v1.form.helper import get_current_user, has_form_permission
-from models.Form import Form, FormVersion
+from models.Form import Form, FormVersion, Project
+from models.Response import FormResponse
 from mongoengine import DoesNotExist
 from bson.dbref import DBRef
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from datetime import datetime, timezone
+from bson import json_util
+from bson.binary import Binary, UuidRepresentation
 
 from utils.response_helper import success_response, error_response
 
@@ -152,29 +156,88 @@ def list_responses(form_id):
     page_size = request.args.get("page_size", 20, type=int)
     
     try:
-        form = Form.objects.get(
-            id=form_id,
-            organization_id=current_user.organization_id,
-            is_deleted=False,
-        )
+        from uuid import UUID
+        try:
+            project_uuid = UUID(str(g.project_id)) if getattr(g, "project_id", None) else None
+        except ValueError:
+            app_logger.warning(f"Invalid project ID format: {getattr(g, 'project_id', None)}")
+            return error_response(message="Invalid project ID format", status_code=400)
+
+        project_doc = None
+        if project_uuid:
+            project_doc = Project.objects.get(
+                id=project_uuid,
+                organization_id=current_user.organization_id,
+                is_deleted=False,
+            )
+
+        try:
+            form_uuid = UUID(str(form_id))
+        except ValueError:
+            app_logger.warning(f"Invalid form ID format: {form_id}")
+            return error_response(message="Invalid form ID format", status_code=400)
+
+        form = None
+        if project_doc:
+            for form_ref in project_doc.forms or []:
+                ref_id = getattr(form_ref, "id", form_ref)
+                if str(ref_id) == str(form_uuid):
+                    form = Form.objects.get(
+                        id=ref_id,
+                        organization_id=current_user.organization_id,
+                        is_deleted=False,
+                    )
+                    break
+        if not form:
+            form = Form.objects.get(
+                id=form_uuid,
+                organization_id=current_user.organization_id,
+                is_deleted=False,
+            )
         
+        if not form:
+            app_logger.warning(f"Form not found: {form_id}")
+            return error_response(message=f"Form not found : {form_id}", status_code=404)
+
         if not has_form_permission(current_user, form, "view_responses"):
             app_logger.warning(f"User {current_user.id} does not have permission to view responses for form {form_id}")
             return error_response(message="You do not have permission to view responses for this form", status_code=403)
-            
-        result = response_service.list_by_form(
-            form_id=str(form.id),
-            organization_id=current_user.organization_id,
-            page=page,
-            page_size=page_size
+        
+        app_logger.info(f"Form id : {form.id} org id : {current_user.organization_id}")
+
+        target_form_binary = Binary.from_uuid(
+            UUID(form_id),
+            uuid_representation=UuidRepresentation.PYTHON_LEGACY,
         )
+    
+        query = FormResponse.objects(
+            __raw__={
+                "organization_id":current_user.organization_id,
+                "is_deleted": False,
+                "form": target_form_binary,
+            }
+        )
+        app_logger.info("Pass 1")
+        total = query.count()
+        items = query.order_by("-created_at").skip((page - 1) * page_size).limit(page_size)
+        payload = [response_service._to_schema(item).model_dump() for item in items]
+        app_logger.info("Pass 2")
+
+        result = {
+            "items": payload,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "has_next": (page * page_size) < total,
+            "success": True,
+        }
+
+        app_logger.info(f"Exiting list_responses for form_id: {form_id}, count: {len(payload)}")
+        return success_response(data=result)
         
-        app_logger.info(f"Exiting list_responses for form_id: {form_id}, count: {len(result.items)}")
-        return success_response(data=result.to_dict())
-        
-    except DoesNotExist:
-        app_logger.warning(f"Form {form_id} not found: {form_id}")
+    except DoesNotExist  as e:
+        app_logger.warning(f"Form {form_id} not found: {form_id} {str(e)}", exc_info=True)
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
-        error_logger.error(f"Error listing responses for form {form_id}: {str(e)}", exc_info=True)
+        app_logger.warning(f"Error listing responses for form {form_id}: {str(e)}", exc_info=True)
         return error_response(message=str(e), status_code=400)

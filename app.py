@@ -46,21 +46,22 @@ def create_app():
     )
 
     # ── JWT, CORS, Limiter & Talisman, Swagger ────────────────────────────────
-    from extensions import jwt, limiter, swagger # cors, talisman
+    from extensions import cors, jwt, limiter, swagger # talisman
 
-    # # Configure CORS to support credentials (cookies) cross-origin
-    # cors.init_app(
-    #     app,
-    #     origins=settings.ALLOWED_ORIGINS,
-    #     supports_credentials=True,
-    #     allow_headers=[
-    #         "Content-Type",
-    #         "Authorization",
-    #         "X-CSRF-TOKEN-ACCESS",
-    #         "X-CSRF-TOKEN-REFRESH",
-    #         "X-Organization-ID",
-    #     ],
-    # )
+    # Configure CORS so the frontend can call the API from a different origin.
+    cors.init_app(
+        app,
+        origins=settings.ALLOWED_ORIGINS,
+        supports_credentials=False,
+        send_wildcard=True,
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-CSRF-TOKEN-ACCESS",
+            "X-CSRF-TOKEN-REFRESH",
+            "X-Organization-ID",
+        ],
+    )
     jwt.init_app(app)
 
     # Configure Limiter with Redis

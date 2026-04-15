@@ -17,6 +17,9 @@ from utils.response_helper import success_response, error_response
 import json
 from utils.script_engine import execute_safe_script
 from logger.unified_logger import app_logger, error_logger, audit_logger
+from bson import json_util
+from bson.binary import Binary, UuidRepresentation
+from uuid import UUID
 
 
 # -------------------- Public Anonymous Submission --------------------
@@ -156,16 +159,18 @@ def form_submission_history(form_id):
             f"User {current_user.username} is requesting submission history for form {form_id}, question {question_id} with value '{primary_value}'"
         )
 
-        # Enforce tenant isolation
-        # Construct the search query directly instead of using test_client anti-pattern
-        query = {
-            f"data__{question_id}": primary_value,
-            "form": form_id,
-            "organization_id": current_user.organization_id,
-            "is_deleted": False,
-        }
-
-        responses = FormResponse.objects(**query).order_by("submitted_at").limit(100)
+        target_form_binary = Binary.from_uuid(
+            UUID(form_id),
+            uuid_representation=UuidRepresentation.PYTHON_LEGACY,
+        )
+        responses = FormResponse.objects(
+            __raw__={
+                "organization_id": current_user.organization_id,
+                "is_deleted": False,
+                "form": target_form_binary,
+                f"data.{question_id}": primary_value,
+            }
+        ).order_by("submitted_at").limit(100)
 
         result = [
             {"_id": str(r.id), "submitted_at": r.submitted_at.isoformat()}

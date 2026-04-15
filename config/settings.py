@@ -42,10 +42,9 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FIELD_ENCRYPTION_KEY: Optional[str] = None
 
-    # CORS: Never use wildcard (*) in production - specific origins only
-    # ALLOWED_ORIGINS: list[str] = Field(
-    #     default_factory=lambda: ["*"]
-    # )
+    ALLOWED_ORIGINS: list[str] = Field(
+        default_factory=lambda: ["*"]
+    )
 
     # Request size limits (prevents DoS attacks)
     MAX_CONTENT_LENGTH: int = Field(
@@ -144,13 +143,6 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "REDIS_HOST must not point to localhost in non-development environments."
                 )
-
-            # Enforce secure CORS (no wildcard)
-            # if "*" in self.ALLOWED_ORIGINS:
-            #     raise ValueError(
-            #         "ALLOWED_ORIGINS must not contain wildcard (*) in non-development environments. "
-            #         "Specify explicit trusted origins."
-            #     )
 
         return self
 

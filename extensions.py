@@ -1,5 +1,5 @@
 from flask_jwt_extended import JWTManager, get_jwt
-# from flask_cors import CORS
+from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 # from flask_talisman import Talisman
@@ -29,7 +29,7 @@ def tenant_aware_key_func():
     return get_remote_address()
 
 jwt = JWTManager()
-# cors = CORS()
+cors = CORS()
 
 # Construct storage URI for Limiter
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")

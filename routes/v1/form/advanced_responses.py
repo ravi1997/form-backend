@@ -8,8 +8,47 @@ from mongoengine import DoesNotExist
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from utils.mongodb_query_helper import NoSQLInjector
 from utils.sensitive_data_redaction import safe_log_info, safe_log_error
+from utils.response_helper import success_response, error_response, FormSerializer
+from services.form_service import FormService
 
 advanced_responses_bp = Blueprint("advanced_responses", __name__)
+form_service = FormService()
+
+
+@advanced_responses_bp.route("/", methods=["GET"])
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "responses": {"200": {"description": "List forms for the current organization"}},
+    }
+)
+@jwt_required()
+def list_forms():
+    """
+    Compatibility endpoint for the dashboard client.
+
+    The Flutter dashboard expects GET /form/api/v1/forms/, so we expose a
+    tenant-scoped listing here that mirrors the newer form listing behavior.
+    """
+    current_user = get_current_user()
+    if not current_user:
+        return error_response(message="User not found", status_code=401)
+
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 50, type=int)
+    is_template = request.args.get("is_template", "false").lower() == "true"
+
+    filters = {
+        "organization_id": current_user.organization_id,
+        "is_deleted": False,
+    }
+    if is_template:
+        filters["is_template"] = True
+
+    result = form_service.list_paginated(page=page, page_size=page_size, **filters)
+    data = result.to_dict()
+    data["items"] = [FormSerializer.serialize(item) for item in data.get("items", [])]
+    return success_response(data=data)
 
 
 @advanced_responses_bp.route("/fetch/external", methods=["GET"])

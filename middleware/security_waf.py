@@ -57,9 +57,9 @@ class SecurityWAF:
     def init_app(self, app):
         @app.before_request
         def waf_check():
-            # # Skip for OPTIONS requests (CORS preflight)
-            # if request.method == "OPTIONS":
-            #     return
+            # Skip CORS preflight requests so Flask-CORS can answer them cleanly.
+            if request.method == "OPTIONS":
+                return
 
             # Skip for static assets or specific routes if needed
             if any(request.path.startswith(p) for p in ["/static", "/flasgger_static", "/form/static", "/form/flasgger_static", "/form/docs"]):
@@ -80,7 +80,15 @@ class SecurityWAF:
                     "user-agent", "referer", "cookie", "accept", 
                     "accept-language", "accept-encoding", "content-type", 
                     "authorization", "if-none-match", "cache-control",
-                    "x-organization-id"
+                    "x-organization-id",
+                    "sec-ch-ua",
+                    "sec-ch-ua-mobile",
+                    "sec-ch-ua-platform",
+                    "sec-ch-ua-full-version-list",
+                    "sec-fetch-site",
+                    "sec-fetch-mode",
+                    "sec-fetch-dest",
+                    "sec-fetch-user",
                 ]:
                     continue
                 # Check key and value separately to avoid false positives on `=...;` regex
