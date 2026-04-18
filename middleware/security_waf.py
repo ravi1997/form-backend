@@ -44,6 +44,31 @@ CMD_INJECTION_PATTERNS = [
     re.compile(r"`.*`", re.IGNORECASE),
 ]
 
+# JSON paths that commonly contain safe design values which should not be
+# inspected with the raw SQLi/XSS heuristics.
+SAFE_JSON_PATHS = {
+    "style.backgroundColor",
+    "style.borderColor",
+    "style.titleColor",
+    "style.descriptionColor",
+    "style.headerBackgroundColor",
+    "style.textColor",
+    "style.focusColor",
+    "style.errorColor",
+    "style.iconColor",
+    "style.penColor",
+    "backgroundColor",
+    "borderColor",
+    "titleColor",
+    "descriptionColor",
+    "headerBackgroundColor",
+    "textColor",
+    "focusColor",
+    "errorColor",
+    "iconColor",
+    "penColor",
+}
+
 class SecurityWAF:
     """
     Web Application Firewall (WAF) Middleware for Flask.
@@ -98,9 +123,14 @@ class SecurityWAF:
             # Check JSON body if applicable
             if request.is_json:
                 try:
-                    body_str = request.get_data(as_text=True)
-                    if body_str:
-                        self._check_value(body_str, "JSON Body", client_ip, request_id)
+                    body_json = request.get_json(silent=True)
+                    if body_json is not None:
+                        self._check_json_value(
+                            body_json,
+                            "JSON Body",
+                            client_ip,
+                            request_id,
+                        )
                 except Exception:
                     pass
 
@@ -132,10 +162,40 @@ class SecurityWAF:
                     continue
                 self._block_request("Command Injection", source, value, client_ip, request_id)
 
+    def _check_json_value(self, value, source, client_ip, request_id, path=""):
+        if isinstance(value, dict):
+            for key, nested_value in value.items():
+                nested_path = f"{path}.{key}" if path else str(key)
+                self._check_json_value(
+                    nested_value,
+                    source,
+                    client_ip,
+                    request_id,
+                    nested_path,
+                )
+            return
+
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                nested_path = f"{path}[{index}]"
+                self._check_json_value(
+                    item,
+                    source,
+                    client_ip,
+                    request_id,
+                    nested_path,
+                )
+            return
+
+        if isinstance(value, str):
+            if path in SAFE_JSON_PATHS:
+                return
+            self._check_value(value, f"{source}.{path}" if path else source, client_ip, request_id)
+
     def _block_request(self, attack_type, source, value, client_ip, request_id):
         error_msg = f"SECURITY ALERT: Blocked {attack_type} attempt from IP {client_ip} in {source}. Value: '{value}'"
-        error_logger.error(f"[ReqID: {request_id}] {error_msg}")
-        audit_logger.warning(f"[ReqID: {request_id}] {error_msg}")
+        error_logger.error("%s", error_msg)
+        audit_logger.warning("%s", error_msg)
         
         # Abort the request with 403 Forbidden
         abort(403, description="Access blocked by security policy.")

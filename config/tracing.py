@@ -2,6 +2,7 @@
 config/tracing.py
 OpenTelemetry configuration for distributed tracing.
 """
+import os
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
@@ -19,10 +20,11 @@ def init_tracing(app=None):
 
     provider = TracerProvider(resource=resource)
     
-    # In a real system, use an OTLP exporter (Jaeger, OTLP collectors)
-    # For remediation, we'll use a ConsoleExporter and skip if no collector is configured
-    processor = BatchSpanProcessor(ConsoleSpanExporter())
-    provider.add_span_processor(processor)
+    # Keep tracing available, but avoid dumping raw span JSON into the console
+    # unless explicitly requested for local debugging.
+    if os.getenv("OTEL_CONSOLE_SPANS", "false").lower() in {"1", "true", "yes"}:
+        processor = BatchSpanProcessor(ConsoleSpanExporter())
+        provider.add_span_processor(processor)
     
     trace.set_tracer_provider(provider)
 

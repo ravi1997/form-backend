@@ -45,16 +45,42 @@ class SectionService(BaseService):
     def _normalize_section_payload(section_data: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(section_data or {})
 
-        # Allow callers to send repeat controls at section top-level.
+        # Frontend compatibility: map camelCase/front-end names to backend model names.
+        if "gridColumns" in normalized and "grid_columns" not in normalized:
+            normalized["grid_columns"] = normalized.pop("gridColumns")
+        if "isHidden" in normalized and "is_hidden" not in normalized:
+            normalized["is_hidden"] = normalized.pop("isHidden")
+        if "isRepeatable" in normalized and "is_repeatable" not in normalized:
+            normalized["is_repeatable"] = normalized.pop("isRepeatable")
+        if "repeatMin" in normalized and "repeat_min" not in normalized:
+            normalized["repeat_min"] = normalized.pop("repeatMin")
+        if "repeatMax" in normalized and "repeat_max" not in normalized:
+            normalized["repeat_max"] = normalized.pop("repeatMax")
+        if "conditionalLogic" in normalized and "conditional_logic" not in normalized:
+            normalized["conditional_logic"] = normalized.pop("conditionalLogic")
+        if "metadata" in normalized and "meta_data" not in normalized:
+            normalized["meta_data"] = normalized.pop("metadata")
+
+        if "helpText" in normalized and "help_text" not in normalized:
+            normalized["help_text"] = normalized.pop("helpText")
+        if "responseTemplates" in normalized and "response_templates" not in normalized:
+            normalized["response_templates"] = normalized.pop("responseTemplates")
+        if "metaData" in normalized and "meta_data" not in normalized:
+            normalized["meta_data"] = normalized.pop("metaData")
+
+        # Keep a compatible embedded logic object in sync when repeat controls
+        # are sent from the frontend.
         if any(k in normalized for k in ("is_repeatable", "repeat_min", "repeat_max")):
-            logic = dict(normalized.get("logic") or {})
+            logic = dict(normalized.get("conditional_logic") or {})
             if "is_repeatable" in normalized:
-                logic["is_repeatable"] = bool(normalized.pop("is_repeatable"))
+                logic["is_repeatable"] = bool(normalized["is_repeatable"])
             if "repeat_min" in normalized:
-                logic["repeat_min"] = normalized.pop("repeat_min")
+                logic["repeat_min"] = normalized["repeat_min"]
             if "repeat_max" in normalized:
-                logic["repeat_max"] = normalized.pop("repeat_max")
-            normalized["logic"] = logic
+                logic["repeat_max"] = normalized["repeat_max"]
+            normalized["conditional_logic"] = logic
+        if normalized.get("conditional_logic") is not None and "logic" not in normalized:
+            normalized["logic"] = {"conditional_logic": normalized["conditional_logic"]}
 
         if isinstance(normalized.get("questions"), list):
             normalized["questions"] = [

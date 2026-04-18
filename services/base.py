@@ -158,7 +158,22 @@ class BaseService:
                 )
             if update_data:
                 document.update(**{f"set__{k}": v for k, v in update_data.items()})
-                document.reload()
+                try:
+                    document.reload()
+                except DoesNotExist as reload_error:
+                    # Some documents contain stale/broken references that can fail
+                    # during reload even though the update itself succeeded.
+                    if "Trying to dereference unknown document" in str(reload_error):
+                        app_logger.warning(
+                            f"{self.model.__name__} {doc_id} reload skipped due to broken reference: {reload_error}"
+                        )
+                        document = (
+                            self.model.objects(**filters)
+                            .no_dereference()
+                            .first()
+                        ) or document
+                    else:
+                        raise
             
             app_logger.info(f"Updated {self.model.__name__} {doc_id} (org: {organization_id})")
             audit_logger.info(f"Audit: Updated {self.model.__name__} {doc_id} (org: {organization_id})")

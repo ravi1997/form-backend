@@ -50,38 +50,72 @@ class SensitiveDataFilter(logging.Filter):
         return True
 
 
+class RequestSequenceFilter(logging.Filter):
+    """Adds a per-request sequence number for ordered lifecycle logs."""
+
+    def filter(self, record):
+        from flask import g, has_request_context
+
+        if has_request_context() and hasattr(g, "log_sequence"):
+            record.log_sequence = g.log_sequence
+        else:
+            record.log_sequence = "-"
+        return True
+
+
+CONSOLE_FORMAT = (
+    "%(asctime)s | %(levelname)s | %(name)s | req=%(request_id)s | step=%(log_sequence)s | %(message)s"
+)
+FILE_FORMAT = (
+    "%(asctime)s [%(levelname)s] [ReqID: %(request_id)s] "
+    "step=%(log_sequence)s %(name)s (%(filename)s:%(lineno)d): %(message)s"
+)
+
+
 LOGGING_CONFIG: Dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "standard": {
-            "format": "%(asctime)s [%(levelname)s] [ReqID: %(request_id)s] %(name)s: %(message)s",
+            "format": CONSOLE_FORMAT,
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
+        "access": {
+            "format": "%(message)s",
+        },
         "detailed": {
-            "format": "%(asctime)s [%(levelname)s] [ReqID: %(request_id)s] %(name)s (%(filename)s:%(lineno)d): %(message)s",
+            "format": FILE_FORMAT,
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
         "audit": {
-            "format": "%(asctime)s [AUDIT] [ReqID: %(request_id)s] %(message)s",
+            "format": "%(asctime)s | AUDIT | req=%(request_id)s | %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
         "performance": {
-            "format": "%(asctime)s [PERF] [ReqID: %(request_id)s] %(message)s",
+            "format": "%(asctime)s | PERF | req=%(request_id)s | %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
     "filters": {
         "sensitive_filter": {
             "()": SensitiveDataFilter,
+        },
+        "request_sequence_filter": {
+            "()": RequestSequenceFilter,
         }
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "standard",
-            "level": "DEBUG",
-            "filters": ["sensitive_filter"],
+            "level": "INFO",
+            "filters": ["sensitive_filter", "request_sequence_filter"],
+        },
+        "access_console": {
+            "class": "logging.StreamHandler",
+            "formatter": "access",
+            "level": "INFO",
+            "filters": ["sensitive_filter", "request_sequence_filter"],
         },
         "error_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -91,7 +125,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,  # 10MB
             "backupCount": 10,
             "encoding": "utf8",
-            "filters": ["sensitive_filter"],
+            "filters": ["sensitive_filter", "request_sequence_filter"],
         },
         "audit_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -101,7 +135,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,
             "backupCount": 10,
             "encoding": "utf8",
-            "filters": ["sensitive_filter"],
+            "filters": ["sensitive_filter", "request_sequence_filter"],
         },
         "performance_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -111,17 +145,17 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "maxBytes": 10485760,
             "backupCount": 10,
             "encoding": "utf8",
-            "filters": ["sensitive_filter"],
+            "filters": ["sensitive_filter", "request_sequence_filter"],
         },
         "access_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
-            "formatter": "standard",
+            "formatter": "access",
             "filename": os.path.join(LOG_DIR, "access.log"),
             "maxBytes": 10485760,
             "backupCount": 10,
             "encoding": "utf8",
-            "filters": ["sensitive_filter"],
+            "filters": ["sensitive_filter", "request_sequence_filter"],
         },
         "app_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -137,32 +171,32 @@ LOGGING_CONFIG: Dict[str, Any] = {
     "loggers": {
         "": {  # Root logger
             "handlers": ["console", "app_file"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": True,
         },
         "application": {
             "handlers": ["console", "app_file"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": False,
         },
         "error_logger": {
             "handlers": ["error_file", "console"],
-            "level": "DEBUG",
+            "level": "ERROR",
             "propagate": False,
         },
         "audit_logger": {
             "handlers": ["audit_file", "console"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": False,
         },
         "performance_logger": {
             "handlers": ["performance_file"],
-            "level": "DEBUG",
+            "level": "INFO",
             "propagate": False,
         },
         "access_logger": {
-            "handlers": ["access_file", "console"],
-            "level": "DEBUG",
+            "handlers": ["access_console", "access_file"],
+            "level": "INFO",
             "propagate": False,
         },
         "pymongo": {
@@ -181,6 +215,11 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "propagate": False,
         },
         "mongoengine": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "werkzeug": {
             "handlers": ["console"],
             "level": "WARNING",
             "propagate": False,

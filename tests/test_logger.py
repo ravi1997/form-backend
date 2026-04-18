@@ -1,4 +1,5 @@
 import logging
+from config.logging import LOGGING_CONFIG
 from unittest.mock import patch
 from logger.unified_logger import (
     error_logger,
@@ -19,6 +20,17 @@ def test_logger_instances():
     assert performance_logger.name == "performance_logger"
     assert access_logger.name == "access_logger"
     assert app_logger.name == "application"
+
+
+def test_logging_configuration_is_concise():
+    """Console logging should stay readable and low-noise."""
+    assert LOGGING_CONFIG["handlers"]["console"]["level"] == "INFO"
+    assert LOGGING_CONFIG["loggers"][""]["level"] == "INFO"
+    assert LOGGING_CONFIG["loggers"]["application"]["level"] == "INFO"
+    assert "req=%(request_id)s" in LOGGING_CONFIG["formatters"]["standard"]["format"]
+    assert LOGGING_CONFIG["formatters"]["audit"]["format"].startswith(
+        "%(asctime)s | AUDIT"
+    )
 
 
 def test_get_logger():

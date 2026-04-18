@@ -710,6 +710,7 @@ def update_form_section(form_id, section_id):
             payload = BaseSerializer.clean_dict(section)
         return success_response(data=payload)
     except Exception as e:
+        app_logger.error(f"Error updating section: {str(e)}", exc_info=True)
         return error_response(message=str(e), status_code=400)
 
 @form_bp.route("/<form_id>/sections/<section_id>", methods=["DELETE"])

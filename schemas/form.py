@@ -130,6 +130,14 @@ class SectionSchemaStruct(BaseEmbeddedSchema):
     description: Optional[str] = None
     help_text: Optional[str] = None
     order: Optional[int] = None
+    layout: str = "standard"
+    grid_columns: int = 2
+    is_hidden: bool = False
+    is_repeatable: bool = False
+    repeat_min: Optional[int] = None
+    repeat_max: Optional[int] = None
+    conditional_logic: Optional[Dict[str, Any]] = None
+    style: Optional[Dict[str, Any]] = None
 
     logic: Optional[SectionLogicSchema] = None
     ui: Optional[SectionUISchema] = None
