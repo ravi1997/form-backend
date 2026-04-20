@@ -12,7 +12,7 @@ def _sanitize_headers(headers):
     }
 
 
-def _safe_body_preview(body, limit=4000):
+def _safe_body_preview(body):
     if body is None:
         return None
     if isinstance(body, bytes):
@@ -20,10 +20,7 @@ def _safe_body_preview(body, limit=4000):
             body = body.decode("utf-8")
         except Exception:
             return "[binary body]"
-    body = str(body)
-    if len(body) <= limit:
-        return body
-    return body[:limit] + "...[truncated]"
+    return body
 
 
 def _pretty_body(body):
@@ -53,6 +50,7 @@ def _pretty_block(kind, method=None, path=None, status=None, headers=None, body=
         "body": _pretty_body(body),
     }
     return json.dumps(payload, indent=4, sort_keys=False)
+
 
 def setup_request_id(app):
     @app.before_request
