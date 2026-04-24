@@ -167,6 +167,7 @@ class FormVersionSchema(BaseSchema):
     version: str
     sections: List[SectionSchema] = Field(default_factory=list)
     translations: Optional[Dict[str, Any]] = None
+    access_policy: Optional[Dict[str, Any]] = None
     status: Literal["draft", "published", "archived"] = "draft"
 
 
@@ -212,6 +213,8 @@ class FormSchema(SoftDeleteBaseSchema):
     submitters: List[str] = Field(default_factory=list)
     approval_enabled: bool = False
     style: Optional[Dict[str, Any]] = None
+    workflows: Optional[Dict[str, Any]] = None
+    access_policy: Optional[Dict[str, Any]] = None
     response_templates: List[ResponseTemplateSchema] = Field(default_factory=list)
     triggers: List[TriggerSchema] = Field(default_factory=list)
 

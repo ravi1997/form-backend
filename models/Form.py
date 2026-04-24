@@ -241,7 +241,9 @@ class Section(BaseDocument, SoftDeleteMixin):
         if current_depth > MAX_SECTION_DEPTH:
             raise ValidationError(f"Section depth exceeds maximum limit of {MAX_SECTION_DEPTH}")
         for sub in section.sections:
-            Section.validate_depth(sub, current_depth + 1)
+            resolved = Section._resolve_nested_section(sub)
+            if resolved is not None:
+                Section.validate_depth(resolved, current_depth + 1)
 
     def refresh_nested_timestamps(self):
         """Recursively updates timestamps for the whole section tree."""
@@ -251,7 +253,26 @@ class Section(BaseDocument, SoftDeleteMixin):
         for q in self.questions:
             q.refresh_nested_timestamps()
         for s in self.sections:
-            s.refresh_nested_timestamps()
+            resolved = self._resolve_nested_section(s)
+            if resolved is not None:
+                resolved.refresh_nested_timestamps()
+
+    @staticmethod
+    def _resolve_nested_section(section_ref):
+        """Resolve a nested section reference into a Section document when possible."""
+        if section_ref is None:
+            return None
+        if isinstance(section_ref, Section):
+            return section_ref
+        section_id = getattr(section_ref, "id", None)
+        if section_id is None and hasattr(section_ref, "as_doc"):
+            try:
+                section_id = section_ref.as_doc().id
+            except Exception:
+                section_id = None
+        if section_id is None:
+            return None
+        return Section.objects(id=section_id, is_deleted=False).first()
 
 
 # --- Semantic Versioning & Snapshots ---
@@ -303,6 +324,8 @@ class Form(BaseDocument, SoftDeleteMixin):
     submitters = ListField(StringField())
     approval_enabled = BooleanField(default=False)
     style = DictField()
+    workflows = DictField()
+    access_policy = DictField()
     response_templates = ListField(EmbeddedDocumentField(ResponseTemplate))
     triggers = ListField(EmbeddedDocumentField(Trigger))
 
@@ -432,6 +455,7 @@ class FormVersion(BaseDocument):
     # New separate storage reference
     snapshot_ref = ReferenceField(SnapshotStore)
     translations = DictField()
+    access_policy = DictField()
     status = StringField(choices=STATUS_CHOICES, default="draft")
 
     @property
