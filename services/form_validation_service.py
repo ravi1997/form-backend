@@ -6,6 +6,12 @@ import re
 
 class FormValidationService:
     @staticmethod
+    def _append_error(
+        errors: List[Dict[str, Any]], field: str, error: str
+    ) -> None:
+        errors.append({"field": field, "error": error})
+
+    @staticmethod
     def _section_ref_to_dict(
         section_ref: Any, organization_id: Optional[str]
     ) -> Optional[Dict[str, Any]]:
@@ -323,16 +329,91 @@ class FormValidationService:
             
         if not is_visible:
             return
-            
+
         visible_fields.add(var_name)
         val = payload.get(var_name)
-        
-        # (Calculation removed here, moved to global pass in validate_submission)
+        full_field_path = f"{parent_path}{var_name}"
 
-        # 3. Validation Rules
+        if question.get("is_repeatable"):
+            FormValidationService._process_repeatable_question(
+                question=question,
+                val=val,
+                payload=payload,
+                evaluator=evaluator,
+                cleaned_data=cleaned_data,
+                errors=errors,
+                full_field_path=full_field_path,
+            )
+            return
+
+        # (Calculation removed here, moved to global pass in validate_submission)
+        cleaned_data[var_name] = FormValidationService._validate_single_question_value(
+            question=question,
+            val=val,
+            payload=payload,
+            evaluator=evaluator,
+            errors=errors,
+            full_field_path=full_field_path,
+        )
+
+    @staticmethod
+    def _process_repeatable_question(
+        question: Dict[str, Any],
+        val: Any,
+        payload: Dict[str, Any],
+        evaluator: ConditionEvaluator,
+        cleaned_data: Dict[str, Any],
+        errors: List[Dict[str, Any]],
+        full_field_path: str,
+    ) -> None:
+        var_name = question.get("variable_name")
+        if val in (None, "", {}):
+            val = []
+
+        if not isinstance(val, list):
+            FormValidationService._append_error(
+                errors, full_field_path, "Expected a list for repeatable question"
+            )
+            return
+
+        r_min = question.get("repeat_min", 0) or 0
+        r_max = question.get("repeat_max")
+        if len(val) < r_min:
+            FormValidationService._append_error(
+                errors, full_field_path, f"Minimum {r_min} entries required"
+            )
+        if r_max is not None and len(val) > r_max:
+            FormValidationService._append_error(
+                errors, full_field_path, f"Maximum {r_max} entries allowed"
+            )
+
+        cleaned_repeats = []
+        for index, entry in enumerate(val):
+            cleaned_repeats.append(
+                FormValidationService._validate_single_question_value(
+                    question=question,
+                    val=entry,
+                    payload=payload,
+                    evaluator=evaluator,
+                    errors=errors,
+                    full_field_path=f"{full_field_path}[{index}]",
+                )
+            )
+
+        cleaned_data[var_name] = cleaned_repeats
+
+    @staticmethod
+    def _validate_single_question_value(
+        question: Dict[str, Any],
+        val: Any,
+        payload: Dict[str, Any],
+        evaluator: ConditionEvaluator,
+        errors: List[Dict[str, Any]],
+        full_field_path: str,
+    ) -> Any:
+        logic = question.get("logic", {})
         v_rules = question.get("validation", {})
-        
-        # Required Check (including conditional required)
+
         is_required = v_rules.get("is_required", False)
         req_conds = v_rules.get("required_conditions", [])
         if not is_required and req_conds:
@@ -340,75 +421,98 @@ class FormValidationService:
             results = [evaluator.evaluate(c) for c in req_conds]
             is_required = all(results) if op == "AND" else any(results)
 
-        full_field_path = f"{parent_path}{var_name}"
-
         if is_required and val in (None, "", [], {}):
-            errors.append({"field": full_field_path, "error": v_rules.get("error_message") or "Field is required"})
-            return
+            FormValidationService._append_error(
+                errors,
+                full_field_path,
+                v_rules.get("error_message") or "Field is required",
+            )
+            return val
 
         if val in (None, "", [], {}):
-            cleaned_data[var_name] = val
-            return
+            return val
 
-        # 4. Type & Constraint Checks
         field_type = question.get("field_type")
-        
-        # String length
+
         if field_type in ("input", "textarea", "email"):
             if not isinstance(val, str):
-                errors.append({"field": full_field_path, "error": "Invalid data type"})
+                FormValidationService._append_error(
+                    errors, full_field_path, "Invalid data type"
+                )
             else:
                 min_l = v_rules.get("min_length")
                 max_l = v_rules.get("max_length")
                 if min_l and len(val) < min_l:
-                    errors.append({"field": full_field_path, "error": f"Minimum length is {min_l}"})
+                    FormValidationService._append_error(
+                        errors, full_field_path, f"Minimum length is {min_l}"
+                    )
                 if max_l and len(val) > max_l:
-                    errors.append({"field": full_field_path, "error": f"Maximum length is {max_l}"})
-                    
-        # Numeric Range
+                    FormValidationService._append_error(
+                        errors, full_field_path, f"Maximum length is {max_l}"
+                    )
+
         if field_type in ("number", "price", "age", "slider"):
             try:
                 f_val = float(val)
                 min_v = v_rules.get("min_value")
                 max_v = v_rules.get("max_value")
                 if min_v is not None and f_val < float(min_v):
-                    errors.append({"field": full_field_path, "error": f"Minimum value is {min_v}"})
+                    FormValidationService._append_error(
+                        errors, full_field_path, f"Minimum value is {min_v}"
+                    )
                 if max_v is not None and f_val > float(max_v):
-                    errors.append({"field": full_field_path, "error": f"Maximum value is {max_v}"})
+                    FormValidationService._append_error(
+                        errors, full_field_path, f"Maximum value is {max_v}"
+                    )
             except (ValueError, TypeError):
-                errors.append({"field": full_field_path, "error": "Invalid numeric value"})
+                FormValidationService._append_error(
+                    errors, full_field_path, "Invalid numeric value"
+                )
 
-        # Options validation (including cascading selects AND option-level visibility)
         options = question.get("options", [])
-        if options and field_type in ("select", "radio", "dropdown", "multi_select", "checkboxes"):
+        if options and field_type in (
+            "select",
+            "radio",
+            "dropdown",
+            "multi_select",
+            "checkboxes",
+        ):
             parent_var = logic.get("parent_variable_name")
             parent_val = payload.get(parent_var) if parent_var else None
-            
+
             allowed_options = []
             for opt in options:
-                # 1. Cascading check
-                if opt.get("parent_option_value") and str(opt.get("parent_option_value")) != str(parent_val):
+                if opt.get("parent_option_value") and str(
+                    opt.get("parent_option_value")
+                ) != str(parent_val):
                     continue
-                
-                # 2. Option-level visibility check
+
                 opt_vis_cond = opt.get("visibility_condition")
                 if opt_vis_cond and not evaluator.evaluate(opt_vis_cond):
                     continue
-                    
+
                 allowed_options.append(opt)
-            
+
             allowed_values = [str(opt.get("option_value")) for opt in allowed_options]
-            
+
             if field_type in ("multi_select", "checkboxes"):
                 if isinstance(val, list):
-                    for v in val:
-                        if str(v) not in allowed_values:
-                            errors.append({"field": full_field_path, "error": f"Invalid option selected: {v}"})
+                    for item in val:
+                        if str(item) not in allowed_values:
+                            FormValidationService._append_error(
+                                errors,
+                                full_field_path,
+                                f"Invalid option selected: {item}",
+                            )
             else:
                 if str(val) not in allowed_values:
-                    errors.append({"field": full_field_path, "error": "Invalid option selected or option is hidden by conditions"})
+                    FormValidationService._append_error(
+                        errors,
+                        full_field_path,
+                        "Invalid option selected or option is hidden by conditions",
+                    )
 
-        cleaned_data[var_name] = val
+        return val
 
     @staticmethod
     def _document_to_dict(doc):

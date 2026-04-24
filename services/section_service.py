@@ -3,7 +3,7 @@ from models.Form import Section, Form
 from services.base import BaseService
 from schemas.form import SectionSchema
 from utils.exceptions import NotFoundError, ValidationError
-from logger.unified_logger import app_logger
+from logger.unified_logger import app_logger, audit_logger
 
 class SectionService(BaseService):
     def __init__(self):
@@ -26,6 +26,19 @@ class SectionService(BaseService):
         # Common alias support.
         if normalized.get("field_type") == "text":
             normalized["field_type"] = "input"
+        if "isRepeatable" in normalized and "is_repeatable" not in normalized:
+            normalized["is_repeatable"] = normalized.pop("isRepeatable")
+        if (
+            "is_repeatable_question" in normalized
+            and "is_repeatable" not in normalized
+        ):
+            normalized["is_repeatable"] = normalized.pop("is_repeatable_question")
+        if "repeatMin" in normalized and "repeat_min" not in normalized:
+            normalized["repeat_min"] = normalized.pop("repeatMin")
+        if "repeatMax" in normalized and "repeat_max" not in normalized:
+            normalized["repeat_max"] = normalized.pop("repeatMax")
+        if "keepLastValue" in normalized and "keep_last_value" not in normalized:
+            normalized["keep_last_value"] = normalized.pop("keepLastValue")
 
         # Support legacy/current clients sending top-level required boolean.
         if "required" in normalized:
@@ -52,6 +65,11 @@ class SectionService(BaseService):
             normalized["is_hidden"] = normalized.pop("isHidden")
         if "isRepeatable" in normalized and "is_repeatable" not in normalized:
             normalized["is_repeatable"] = normalized.pop("isRepeatable")
+        if (
+            "is_repeatable_section" in normalized
+            and "is_repeatable" not in normalized
+        ):
+            normalized["is_repeatable"] = normalized.pop("is_repeatable_section")
         if "repeatMin" in normalized and "repeat_min" not in normalized:
             normalized["repeat_min"] = normalized.pop("repeatMin")
         if "repeatMax" in normalized and "repeat_max" not in normalized:
@@ -95,8 +113,14 @@ class SectionService(BaseService):
 
         return normalized
 
-    def create_section(self, form_id: str, section_data: Dict[str, Any], organization_id: str) -> Section:
-        """Creates a new section and appends it to the form."""
+    def create_section(
+        self,
+        form_id: str,
+        section_data: Dict[str, Any],
+        organization_id: str,
+        parent_section_id: str = None,
+    ) -> Section:
+        """Creates a new section and appends it to the form or a parent section."""
         form = Form.objects(id=form_id, organization_id=organization_id, is_deleted=False).first()
         if not form:
             raise NotFoundError("Form not found")
@@ -108,7 +132,18 @@ class SectionService(BaseService):
         section.save()
         
         # Add to form
-        form.sections.append(section)
+        if parent_section_id:
+            parent_section = Section.objects(
+                id=parent_section_id,
+                organization_id=organization_id,
+                is_deleted=False,
+            ).first()
+            if not parent_section:
+                raise NotFoundError("Parent section not found")
+            parent_section.sections.append(section)
+            parent_section.save()
+        else:
+            form.sections.append(section)
         form.save()
 
         # Keep draft version metadata in sync with the current section tree.
@@ -117,6 +152,10 @@ class SectionService(BaseService):
         if form_version and form_version.version:
             section.version = form_version.version
             section.save()
+        audit_logger.info(
+            f"AUDIT: Section created with ID {section.id} on form {form_id}"
+            + (f" under parent section {parent_section_id}" if parent_section_id else "")
+        )
         
         return section
 

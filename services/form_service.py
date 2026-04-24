@@ -28,6 +28,197 @@ class FormService(BaseService):
     def __init__(self):
         super().__init__(model=Form, schema=FormSchema)
 
+    def sync_form_canvas(self, form_id: str, organization_id: str, canvas_data: Dict[str, Any]) -> Form:
+        """Replace the form's canvas from the builder payload.
+
+        The frontend intentionally sends both:
+        - top-level `sections` for direct canvas sync
+        - `versions[0].sections` for the snapshot/version contract
+
+        This method treats them as the same canonical canvas and persists all
+        relevant metadata on the form document so the builder does not drift
+        into two incompatible representations.
+        """
+        form_doc = self.model.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
+        if not form_doc:
+            raise NotFoundError("Form not found for canvas sync")
+
+        def _coerce_text(value: Any) -> Optional[str]:
+            if value is None:
+                return None
+            if isinstance(value, str):
+                text = value.strip()
+                return text if text else None
+            if isinstance(value, dict):
+                for key in ("en", "default", "value", "text"):
+                    candidate = value.get(key)
+                    if isinstance(candidate, str) and candidate.strip():
+                        return candidate.strip()
+                for candidate in value.values():
+                    if isinstance(candidate, str) and candidate.strip():
+                        return candidate.strip()
+                return None
+            return str(value)
+
+        def _normalize_option(option_payload: Dict[str, Any]) -> Dict[str, Any]:
+            option = dict(option_payload or {})
+            option.pop("id", None)
+            option.pop("_id", None)
+            option["option_label"] = _coerce_text(
+                option.pop("option_label", option.pop("label", None))
+            ) or ""
+            option["option_value"] = _coerce_text(
+                option.pop("option_value", option.pop("value", None))
+            ) or option["option_label"]
+            if "description" in option:
+                option["description"] = _coerce_text(option["description"])
+            visibility_condition = option.get("visibility_condition")
+            if isinstance(visibility_condition, str) or visibility_condition is None:
+                option["visibility_condition"] = None
+            return option
+
+        def _normalize_question(question_payload: Dict[str, Any]) -> Dict[str, Any]:
+            question = dict(question_payload or {})
+            question.pop("id", None)
+            question.pop("_id", None)
+            question["label"] = _coerce_text(question.get("label")) or "Untitled Question"
+            if "help_text" in question:
+                question["help_text"] = _coerce_text(question.get("help_text"))
+            if "default_value" in question:
+                default_value = question.get("default_value")
+                if isinstance(default_value, dict):
+                    question["default_value"] = _coerce_text(default_value)
+                elif default_value is None:
+                    question["default_value"] = None
+                else:
+                    question["default_value"] = str(default_value)
+
+            if "options" in question and isinstance(question["options"], list):
+                question["options"] = [
+                    _normalize_option(opt) for opt in question["options"] if isinstance(opt, dict)
+                ]
+
+            if "meta_data" in question and question["meta_data"] is None:
+                question["meta_data"] = {}
+
+            # Drop frontend-only text objects from fields that are strict strings.
+            for key in (
+                "placeholder",
+                "validation_regex",
+                "custom_error_message",
+                "input_mask",
+            ):
+                if key in question and not isinstance(question[key], str):
+                    question[key] = _coerce_text(question[key])
+            return question
+
+        def _normalize_section_payload(section_payload: Dict[str, Any]) -> Dict[str, Any]:
+            payload = dict(section_payload or {})
+            nested_payloads = payload.pop("sections", []) or []
+            payload.pop("id", None)
+            payload.pop("_id", None)
+            payload["title"] = _coerce_text(payload.get("title")) or "Untitled Section"
+            if "description" in payload:
+                payload["description"] = _coerce_text(payload.get("description"))
+            if "help_text" in payload:
+                payload["help_text"] = _coerce_text(payload.get("help_text"))
+            if "questions" in payload and isinstance(payload["questions"], list):
+                payload["questions"] = [
+                    _normalize_question(q) for q in payload["questions"] if isinstance(q, dict)
+                ]
+            if "response_templates" in payload and payload["response_templates"] is None:
+                payload["response_templates"] = []
+            if "tags" in payload and payload["tags"] is None:
+                payload["tags"] = []
+            if "meta_data" in payload and payload["meta_data"] is None:
+                payload["meta_data"] = {}
+            payload["sections"] = nested_payloads
+            return payload
+
+        def _extract_sections(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+            sections = payload.get("sections", []) if isinstance(payload, dict) else []
+            if sections:
+                return sections
+            versions = payload.get("versions", []) if isinstance(payload, dict) else []
+            if not versions:
+                return []
+            first_version = versions[0] if isinstance(versions[0], dict) else {}
+            return first_version.get("sections", []) if isinstance(first_version, dict) else []
+
+        sections_data = _extract_sections(canvas_data) if isinstance(canvas_data, dict) else []
+        normalized_sections = []
+
+        def build_section(section_payload: Dict[str, Any]):
+            payload = _normalize_section_payload(section_payload)
+            nested_payloads = payload.pop("sections", []) or []
+            payload["organization_id"] = organization_id
+            section_doc = Section(**payload)
+            section_doc.organization_id = organization_id
+            section_doc.save()
+            child_refs = []
+            for child_payload in nested_payloads:
+                child_refs.append(build_section(child_payload))
+            if child_refs:
+                section_doc.sections = child_refs
+                section_doc.save()
+            return section_doc
+
+        for section_payload in sections_data:
+            normalized_sections.append(build_section(section_payload))
+
+        form_doc.sections = normalized_sections
+        if "title" in canvas_data:
+            form_doc.title = canvas_data["title"]
+        if "status" in canvas_data:
+            form_doc.status = canvas_data["status"]
+        if "ui_type" in canvas_data:
+            form_doc.ui_type = canvas_data["ui_type"]
+        if "description" in canvas_data:
+            form_doc.description = canvas_data["description"]
+        if "help_text" in canvas_data:
+            form_doc.help_text = canvas_data["help_text"]
+        if "style" in canvas_data:
+            form_doc.style = canvas_data["style"]
+        workflows = canvas_data.get("workflows")
+        if workflows is None and isinstance(canvas_data.get("metadata"), dict):
+            workflows = canvas_data["metadata"].get("workflowSettings")
+        if workflows is not None:
+            form_doc.workflows = workflows
+        if isinstance(canvas_data.get("metadata"), dict):
+            form_doc.metadata = {
+                **(getattr(form_doc, "metadata", {}) or {}),
+                **canvas_data["metadata"],
+            }
+        access_policy = canvas_data.get("access_policy", canvas_data.get("accessPolicy"))
+        if access_policy is not None:
+            form_doc.access_policy = access_policy
+        if "active_version" in canvas_data:
+            active_version_value = canvas_data["active_version"]
+            version_doc = None
+            if active_version_value:
+                active_version_str = str(active_version_value)
+                version_doc = Version.objects(
+                    form=form_doc,
+                    id=active_version_str,
+                ).first()
+                if not version_doc and isinstance(active_version_value, str):
+                    parts = active_version_value.split(".")
+                    if len(parts) == 3 and all(part.isdigit() for part in parts):
+                        version_doc = Version.objects(
+                            form=form_doc,
+                            major=int(parts[0]),
+                            minor=int(parts[1]),
+                            patch=int(parts[2]),
+                        ).first()
+            if version_doc:
+                form_doc.active_version = version_doc
+        form_doc.save()
+        self.sync_draft_version(form_id, organization_id)
+        audit_logger.info(f"AUDIT: Form canvas synced for form {form_id}")
+        return form_doc
+
     def _stamp_sections_with_version(self, form_doc: Form, version_doc: Version, form_version: FormVersion) -> None:
         """Persist version references on all direct and nested sections."""
         def stamp(section_ref):
@@ -48,7 +239,14 @@ class FormService(BaseService):
         sections_data = []
         for section_ref in form_doc.sections or []:
             sections_data.append(self._snapshot_section(section_ref))
-        return {"sections": sections_data, "translations": form_doc.translations or {}}
+        snapshot = {
+            "sections": sections_data,
+            "translations": form_doc.translations or {},
+        }
+        workflows = getattr(form_doc, "workflows", None)
+        if workflows is not None:
+            snapshot["workflows"] = workflows
+        return snapshot
 
     def sync_draft_version(self, form_id: str, organization_id: str) -> FormVersion:
         """
@@ -101,6 +299,13 @@ class FormService(BaseService):
             form_version.snapshot_ref = store
             form_version.translations = form_doc.translations or {}
             form_version.status = "draft"
+
+        if hasattr(form_version, "access_policy") and hasattr(form_doc, "access_policy"):
+            try:
+                form_version.access_policy = form_doc.access_policy
+            except Exception:
+                # Older schemas may not expose access_policy on FormVersion.
+                pass
 
         form_version.save()
         form_doc.save()
@@ -232,8 +437,10 @@ class FormService(BaseService):
             # 2. Extract an immutable snapshot, deep cloning sections as they exist right now
             snapshot_data = {
                 "sections": [self._snapshot_section(s) for s in form_doc.sections],
-                "translations": form_doc.translations or {}
+                "translations": form_doc.translations or {},
             }
+            if getattr(form_doc, "workflows", None) is not None:
+                snapshot_data["workflows"] = form_doc.workflows
             
             # --- Snapshot Hardening (Phase 4) ---
             from models.Form import SnapshotStore
