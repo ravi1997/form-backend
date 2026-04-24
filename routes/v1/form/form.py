@@ -24,7 +24,7 @@ from services.form_service import (
     ProjectService,
 )
 from routes.v1.form.helper import has_form_permission, apply_translations
-from models.Form import Form, Project
+from models.Form import Form, Project, FormVersion, Version
 from services.access_control_service import AccessControlService
 
 form_service = FormService()
@@ -101,6 +101,12 @@ def create_form():
         form = project_service.create_form_in_project(
             project_id, data, current_user.organization_id, current_user
         )
+        if data.get("sections") or data.get("versions"):
+            form = form_service.sync_form_canvas(
+                str(form.id),
+                current_user.organization_id,
+                data,
+            )
         audit_logger.info(
             f"AUDIT: Form {form.id} created in project {project_id} by user {current_user.id}"
         )
@@ -214,6 +220,41 @@ def get_form(form_id):
             app_logger.info(f"Applying translation '{lang}' for form {form_id}")
             form_dict = apply_translations(form_dict, lang)
 
+        # Ensure nested section trees are available to the frontend builder
+        # through the active version snapshot, not just as flat section refs.
+        try:
+            if form.versions:
+                latest_version = form.versions[-1]
+                resolved_snapshot = (
+                    latest_version.resolved_snapshot
+                    if hasattr(latest_version, "resolved_snapshot")
+                    else {}
+                ) or {}
+                if resolved_snapshot.get("sections"):
+                    versions = form_dict.get("versions") or []
+                    if versions:
+                        versions[-1]["sections"] = resolved_snapshot["sections"]
+                        form_dict["versions"] = versions
+                    else:
+                        form_dict["versions"] = [
+                            {
+                                "version": getattr(
+                                    latest_version.version,
+                                    "version_string",
+                                    "1.0.0",
+                                ),
+                                "sections": resolved_snapshot["sections"],
+                                "created_at": getattr(
+                                    latest_version, "created_at", None
+                                ),
+                            }
+                        ]
+        except Exception:
+            app_logger.warning(
+                f"Unable to inject resolved nested sections for form {form_id}",
+                exc_info=True,
+            )
+
         # Sanitize after translation
         sanitized_form = FormSerializer.serialize(form_dict)
 
@@ -269,7 +310,30 @@ def update_form(form_id):
         merged_data = existing_form.model_dump()
         merged_data.update(data)
         schema = FormUpdateSchema(**merged_data)
-        updated = form_service.update(str(search_id), schema, organization_id=current_user.organization_id)
+        canvas_keys = (
+            "sections",
+            "versions",
+            "active_version",
+            "workflows",
+            "metadata",
+            "access_policy",
+            "accessPolicy",
+            "style",
+            "ui_type",
+            "description",
+            "help_text",
+        )
+        has_canvas_payload = any(key in data for key in canvas_keys)
+        if has_canvas_payload:
+            updated = form_service.sync_form_canvas(
+                str(search_id),
+                current_user.organization_id,
+                merged_data,
+            )
+        else:
+            updated = form_service.update(
+                str(search_id), schema, organization_id=current_user.organization_id
+            )
         audit_logger.info(f"Form {form_id} updated by user {current_user.id}")
         return success_response(data={"form_id": str(updated.id)}, message="Form updated")
     except Exception as e:
@@ -581,7 +645,13 @@ def create_form_section(form_id):
     current_user = get_current_user()
     data = request.get_json()
     try:
-        section = section_service.create_section(form_id, data, current_user.organization_id)
+        parent_section_id = data.get("parent_section_id") if isinstance(data, dict) else None
+        section = section_service.create_section(
+            form_id,
+            data,
+            current_user.organization_id,
+            parent_section_id=parent_section_id,
+        )
         from models.Form import FormVersion, Version
 
         form_version = (
@@ -623,7 +693,13 @@ def create_project_form_section(project_id, form_id):
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
-        section = section_service.create_section(str(form.id), data, current_user.organization_id)
+        parent_section_id = data.get("parent_section_id")
+        section = section_service.create_section(
+            str(form.id),
+            data,
+            current_user.organization_id,
+            parent_section_id=parent_section_id,
+        )
         return success_response(data={"section": BaseSerializer.clean_dict(section.to_dict())}, status_code=201)
     except Exception as e:
         return error_response(message=str(e), status_code=400)
@@ -671,25 +747,6 @@ def list_form_sections(form_id):
         return error_response(message=str(e), status_code=400)
 
 
-@form_bp.route("/forms/<form_id>/sections", methods=["GET"])
-@jwt_required()
-def list_project_form_sections(project_id, form_id):
-    current_user = get_current_user()
-    try:
-        form = Form.objects.get(
-            id=form_id,
-            project=project_id,
-            organization_id=current_user.organization_id,
-            is_deleted=False,
-        )
-        serialized_sections = []
-        for section_ref in form.sections or []:
-            section_doc = section_ref if hasattr(section_ref, "to_mongo") else Section.objects.get(id=getattr(section_ref, "id", section_ref), organization_id=current_user.organization_id, is_deleted=False)
-            serialized_sections.append(BaseSerializer.clean_dict(section_doc.to_dict()))
-        return success_response(data=serialized_sections)
-    except Exception as e:
-        return error_response(message=str(e), status_code=400)
-
 @form_bp.route("/<form_id>/sections/<section_id>", methods=["PUT"])
 @jwt_required()
 def update_form_section(form_id, section_id):
@@ -733,6 +790,135 @@ def reorder_form_sections(form_id):
     try:
         section_service.update_section_order(form_id, data.get("section_ids", []), current_user.organization_id)
         return success_response(message="Sections reordered")
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Versions
+# ───────────────────────────────────────────────────────────────────────────────
+
+def _serialize_form_version(form_version):
+    version_doc = getattr(form_version, "version", None)
+    try:
+        snapshot = form_version.resolved_snapshot or {}
+    except Exception:
+        snapshot = {}
+
+    return BaseSerializer.clean_dict(
+        {
+            "id": str(form_version.id),
+            "form_id": str(getattr(form_version.form, "id", form_version.form)),
+            "version": getattr(version_doc, "version_string", None),
+            "major": getattr(version_doc, "major", None),
+            "minor": getattr(version_doc, "minor", None),
+            "patch": getattr(version_doc, "patch", None),
+            "status": form_version.status,
+            "created_at": getattr(form_version, "created_at", None),
+            "sections": snapshot.get("sections", []),
+            "translations": getattr(form_version, "translations", {}) or {},
+        }
+    )
+
+
+@form_bp.route("/<form_id>/versions", methods=["GET"])
+@jwt_required()
+def list_project_form_versions(project_id, form_id):
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        versions = [
+            _serialize_form_version(item)
+            for item in FormVersion.objects(form=form.id).order_by("-created_at")
+        ]
+        audit_logger.info(
+            f"AUDIT: Form versions listed for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=versions)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/versions/<version>", methods=["GET"])
+@jwt_required()
+def get_project_form_version(project_id, form_id, version):
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        version_doc = Version.objects(form=form.id).order_by("-major", "-minor", "-patch").first()
+        if not version_doc:
+            return error_response(message="Version not found", status_code=404)
+        if version and version != getattr(version_doc, "version_string", None):
+            matching = Version.objects(
+                form=form.id,
+                major=int(version.split(".")[0]),
+                minor=int(version.split(".")[1]),
+                patch=int(version.split(".")[2]),
+            ).first()
+            if matching:
+                version_doc = matching
+        form_version = FormVersion.objects(form=form.id, version=version_doc).first()
+        if not form_version:
+            return error_response(message="Version snapshot not found", status_code=404)
+        audit_logger.info(
+            f"AUDIT: Form version {version} viewed for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=_serialize_form_version(form_version))
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/versions", methods=["POST"])
+@jwt_required()
+def create_project_form_version(project_id, form_id):
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if data.get("sections") or data.get("versions"):
+            form_service.sync_form_canvas(str(form.id), current_user.organization_id, data)
+        form_version = form_service.sync_draft_version(str(form.id), current_user.organization_id)
+        audit_logger.info(
+            f"AUDIT: Form version created for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=_serialize_form_version(form_version), status_code=201)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/versions/<version>", methods=["PUT"])
+@jwt_required()
+def update_project_form_version(project_id, form_id, version):
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if data.get("sections") or data.get("versions"):
+            form_service.sync_form_canvas(str(form.id), current_user.organization_id, data)
+        form_version = form_service.sync_draft_version(str(form.id), current_user.organization_id)
+        audit_logger.info(
+            f"AUDIT: Form version {version} updated for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=_serialize_form_version(form_version))
     except Exception as e:
         return error_response(message=str(e), status_code=400)
 

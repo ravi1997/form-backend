@@ -8,6 +8,73 @@ from logger.unified_logger import app_logger, error_logger, audit_logger
 
 workflow_bp = Blueprint("workflow", __name__)
 
+
+def _frontend_step_to_backend(step_data):
+    """Translate the frontend workflow step shape into the backend approval step shape."""
+    step_name = step_data.get("name") or step_data.get("step_name") or "Step"
+    step_type = step_data.get("type")
+    config = step_data.get("config") or {}
+    approval_type = step_data.get("approval_type")
+    if not approval_type:
+        if step_type == "parallel":
+            approval_type = "parallel"
+        else:
+            approval_type = "any_one"
+
+    return WorkflowStep(
+        step_name=step_name,
+        order=step_data.get("order", 1),
+        approvers=step_data.get("approvers", []),
+        approver_groups=step_data.get("approver_groups", []),
+        approval_type=approval_type,
+        min_approvals_required=step_data.get(
+            "min_approvals_required",
+            config.get("min_approvals_required", 1),
+        ),
+        on_approve_script=config.get("on_approve_script") or step_data.get("on_approve_script"),
+        on_reject_script=config.get("on_reject_script") or step_data.get("on_reject_script"),
+    )
+
+
+def _serialize_workflow(workflow):
+    return {
+        "id": str(workflow.id),
+        "name": workflow.name,
+        "description": workflow.description,
+        "formId": getattr(workflow, "trigger_form_id", None),
+        "status": workflow.status,
+        "version": 1,
+        "steps": [
+            {
+                "id": str(idx + 1),
+                "name": step.step_name,
+                "description": None,
+                "type": "approval",
+                "order": step.order,
+                "config": {
+                    "approval_type": step.approval_type,
+                    "min_approvals_required": step.min_approvals_required,
+                    "on_approve_script": getattr(step, "on_approve_script", None),
+                    "on_reject_script": getattr(step, "on_reject_script", None),
+                },
+                "assigneeId": None,
+                "dueInDays": None,
+                "allowedActions": None,
+                "requiresManualAction": True,
+                "skippable": False,
+                "onCompleteHooks": None,
+            }
+            for idx, step in enumerate(workflow.steps or [])
+        ],
+        "transitions": [],
+        "createdAt": workflow.created_at.isoformat() if getattr(workflow, "created_at", None) else None,
+        "updatedAt": workflow.updated_at.isoformat() if getattr(workflow, "updated_at", None) else None,
+        "createdBy": workflow.created_by,
+        "initialStepId": None,
+        "finalStepIds": [],
+        "metadata": workflow.meta_data if hasattr(workflow, "meta_data") else {},
+    }
+
 # Verify if models are loaded
 HAS_WORKFLOW_MODEL = True
 try:
@@ -46,17 +113,20 @@ def create_workflow():
     current_user = get_current_user()
     
     try:
-        required_fields = ["name", "trigger_form_id", "steps"]
+        required_fields = ["name", "steps"]
         for field in required_fields:
             if field not in data:
                 app_logger.warning(f"create_workflow failed: missing field {field}")
                 return error_response(f"Missing required field: {field}", status_code=400)
 
         from uuid import UUID
+        trigger_form_value = data.get("trigger_form_id") or data.get("formId")
+        if not trigger_form_value:
+            return error_response("Missing required field: trigger_form_id", status_code=400)
         try:
-            trigger_form_uuid = UUID(data["trigger_form_id"])
+            trigger_form_uuid = UUID(trigger_form_value)
         except ValueError:
-            app_logger.warning(f"create_workflow failed: invalid trigger_form_id format: {data['trigger_form_id']}")
+            app_logger.warning(f"create_workflow failed: invalid trigger_form_id format: {trigger_form_value}")
             return error_response("Invalid trigger_form_id format", status_code=400)
 
         # Validate trigger form exists
@@ -65,21 +135,7 @@ def create_workflow():
             app_logger.warning(f"create_workflow failed: trigger form {trigger_form_uuid} not found for org {current_user.organization_id}")
             return error_response("Trigger form not found or access denied", status_code=404)
 
-        # Build Steps
-        steps = []
-        for s_data in data["steps"]:
-            step = WorkflowStep(
-                step_name=s_data.get("step_name"),
-                order=s_data.get("order"),
-                concurrency_type=s_data.get("concurrency_type", "serial"),
-                approvers=s_data.get("approvers", []),
-                approver_groups=s_data.get("approver_groups", []),
-                required_approvals=s_data.get("required_approvals", 1),
-                timeout_hours=s_data.get("timeout_hours", 0),
-                escalation_action=s_data.get("escalation_action", "notify_admin"),
-                actions=s_data.get("actions", [])
-            )
-            steps.append(step)
+        steps = [_frontend_step_to_backend(s_data) for s_data in data["steps"]]
 
         workflow = ApprovalWorkflow(
             name=data["name"],
@@ -96,7 +152,7 @@ def create_workflow():
         audit_logger.info(f"Workflow created. ID: {workflow.id}, Name: {workflow.name}, Org: {current_user.organization_id}, User: {current_user.id}")
         app_logger.info(f"Exiting create_workflow successfully. Workflow ID: {workflow.id}")
         return success_response(
-            data={"id": str(workflow.id)},
+            data=_serialize_workflow(workflow),
             message="Approval workflow created successfully",
             status_code=201
         )
@@ -135,16 +191,7 @@ def list_workflows():
 
         workflows = ApprovalWorkflow.objects(**filters)
         
-        result = []
-        for w in workflows:
-            result.append({
-                "id": str(w.id),
-                "name": w.name,
-                "status": w.status,
-                "trigger_form_id": w.trigger_form_id,
-                "step_count": len(w.steps),
-                "created_at": w.created_at.isoformat() if hasattr(w, 'created_at') and w.created_at else None
-            })
+        result = [_serialize_workflow(w) for w in workflows]
 
         app_logger.info(f"Exiting list_workflows successfully. Found {len(result)} workflows.")
         return success_response(data={"items": result, "total": len(result)})
@@ -199,31 +246,8 @@ def get_workflow(workflow_id):
             app_logger.warning(f"get_workflow failed: workflow {workflow_uuid} not found for org {current_user.organization_id}")
             return error_response("Workflow not found", status_code=404)
 
-        steps_data = []
-        for s in workflow.steps:
-            steps_data.append({
-                "step_name": s.step_name,
-                "order": s.order,
-                "concurrency_type": s.concurrency_type,
-                "approvers": s.approvers,
-                "approver_groups": s.approver_groups,
-                "required_approvals": s.required_approvals,
-                "timeout_hours": s.timeout_hours,
-                "escalation_action": s.escalation_action,
-                "actions": s.actions
-            })
-
         app_logger.info(f"Exiting get_workflow successfully for workflow_id: {workflow_id}")
-        return success_response(data={
-            "id": str(workflow.id),
-            "name": workflow.name,
-            "description": workflow.description,
-            "trigger_form_id": workflow.trigger_form_id,
-            "status": workflow.status,
-            "steps": steps_data,
-            "is_template": workflow.is_template,
-            "created_by": workflow.created_by
-        })
+        return success_response(data=_serialize_workflow(workflow))
     except Exception as e:
         error_logger.error(f"Get Workflow error: {str(e)}", exc_info=True)
         return error_response(str(e), status_code=500)
@@ -293,27 +317,12 @@ def update_workflow(workflow_id):
         if "status" in data:
             workflow.status = data["status"]
         if "steps" in data:
-            # Rebuild steps
-            steps = []
-            for s_data in data["steps"]:
-                step = WorkflowStep(
-                    step_name=s_data.get("step_name"),
-                    order=s_data.get("order"),
-                    concurrency_type=s_data.get("concurrency_type", "serial"),
-                    approvers=s_data.get("approvers", []),
-                    approver_groups=s_data.get("approver_groups", []),
-                    required_approvals=s_data.get("required_approvals", 1),
-                    timeout_hours=s_data.get("timeout_hours", 0),
-                    escalation_action=s_data.get("escalation_action", "notify_admin"),
-                    actions=s_data.get("actions", [])
-                )
-                steps.append(step)
-            workflow.steps = steps
+            workflow.steps = [_frontend_step_to_backend(s_data) for s_data in data["steps"]]
 
         workflow.save()
         audit_logger.info(f"Workflow updated. ID: {workflow.id}, Name: {workflow.name}, Org: {current_user.organization_id}, User: {current_user.id}")
         app_logger.info(f"Exiting update_workflow successfully for workflow_id: {workflow_id}")
-        return success_response(message="Workflow updated successfully")
+        return success_response(data=_serialize_workflow(workflow), message="Workflow updated successfully")
     except Exception as e:
         error_logger.error(f"Update Workflow error: {str(e)}", exc_info=True)
         return error_response(str(e), status_code=500)
@@ -373,3 +382,53 @@ def delete_workflow(workflow_id):
         error_logger.error(f"Delete Workflow error: {str(e)}", exc_info=True)
         return error_response(str(e), status_code=500)
 
+
+@workflow_bp.route("/forms/<form_id>/workflows", methods=["GET"])
+@jwt_required()
+def list_form_workflows(form_id):
+    current_user = get_current_user()
+    workflows = ApprovalWorkflow.objects(
+        organization_id=current_user.organization_id,
+        trigger_form_id=form_id,
+        is_deleted=False,
+    )
+    return success_response(data=[_serialize_workflow(w) for w in workflows])
+
+
+@workflow_bp.route("/forms/<form_id>/workflows", methods=["POST"])
+@jwt_required()
+def create_form_workflow(form_id):
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    data["trigger_form_id"] = form_id
+    if "steps" not in data:
+        return error_response("Missing required field: steps", status_code=400)
+    if not HAS_WORKFLOW_MODEL:
+        return _no_model()
+
+    from uuid import UUID
+    try:
+        trigger_form_uuid = UUID(form_id)
+    except ValueError:
+        return error_response("Invalid trigger_form_id format", status_code=400)
+
+    trigger_form = Form.objects(id=trigger_form_uuid, organization_id=current_user.organization_id).first()
+    if not trigger_form:
+        return error_response("Trigger form not found or access denied", status_code=404)
+
+    steps = [_frontend_step_to_backend(s_data) for s_data in data["steps"]]
+    workflow = ApprovalWorkflow(
+        name=data.get("name", "Untitled Workflow"),
+        description=data.get("description"),
+        organization_id=current_user.organization_id,
+        trigger_form_id=str(trigger_form_uuid),
+        status=data.get("status", "active"),
+        steps=steps,
+        created_by=str(current_user.id),
+        is_template=data.get("is_template", False),
+    )
+    workflow.save()
+    audit_logger.info(
+        f"Workflow created. ID: {workflow.id}, Name: {workflow.name}, Org: {current_user.organization_id}, User: {current_user.id}"
+    )
+    return success_response(data=_serialize_workflow(workflow), message="Approval workflow created successfully", status_code=201)
