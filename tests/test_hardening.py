@@ -59,6 +59,52 @@ def test_repeatable_section_validation():
         assert valid
         assert len(cleaned["members"]) == 2
 
+def test_repeatable_question_validation():
+    mock_form = MagicMock(id="form1", active_version_id="v1", organization_id="org1")
+    mock_version = MagicMock(id="v1")
+    mock_version.snapshot = {
+        "sections": [{
+            "questions": [{
+                "variable_name": "aliases",
+                "field_type": "input",
+                "is_repeatable": True,
+                "repeat_min": 2,
+                "repeat_max": 3,
+                "validation": {"is_required": True, "min_length": 2}
+            }]
+        }]
+    }
+
+    with patch("models.Form.objects") as mock_form_objs, \
+         patch("models.FormVersion.objects") as mock_version_objs:
+
+        mock_form_objs.return_value.first.return_value = mock_form
+        mock_version_objs.return_value.first.return_value = mock_version
+
+        valid, cleaned, errors, calc = FormValidationService.validate_submission(
+            form_id="form1",
+            payload={"aliases": ["JD"]},
+            organization_id="org1"
+        )
+        assert not valid
+        assert any("Minimum 2 entries required" in str(e) for e in errors)
+
+        valid, cleaned, errors, calc = FormValidationService.validate_submission(
+            form_id="form1",
+            payload={"aliases": ["J", "Jane"]},
+            organization_id="org1"
+        )
+        assert not valid
+        assert any(e["field"] == "aliases[0]" for e in errors)
+
+        valid, cleaned, errors, calc = FormValidationService.validate_submission(
+            form_id="form1",
+            payload={"aliases": ["Jane", "Janet"]},
+            organization_id="org1"
+        )
+        assert valid
+        assert cleaned["aliases"] == ["Jane", "Janet"]
+
 def test_complex_calculation_order():
     mock_form = MagicMock(id="form1", active_version_id="v1", organization_id="org1")
     mock_version = MagicMock(id="v1")
