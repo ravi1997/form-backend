@@ -1,7 +1,7 @@
 # Makefile — form-backend (RIDP platform)
 
 .PHONY: help up up-dev down restart restart-dev logs shell \
-        build bootstrap ps test lint clean
+        build bootstrap ps test lint clean backup restore list-backups
 
 # ANSI colors
 CYAN  := \033[36m
@@ -99,3 +99,15 @@ clean-es: ## Remove Elasticsearch data volume
 	@echo "$(YELLOW)⚠️  This will delete all Elasticsearch data!$(RESET)"
 	@read -p "Are you sure? [y/N]: " confirm && [ "$$confirm" = "y" ]
 	@docker compose down -v --remove-orphans
+
+# ─────────────────────────────────────────────
+# Backup & Restore
+# ─────────────────────────────────────────────
+backup: ## Create a full data backup (MongoDB, DuckDB, Uploads)
+	@./scripts/backup_restore.sh backup
+
+restore: ## Restore data from a backup file (Usage: make restore FILE=backups/file.tar.gz)
+	@./scripts/backup_restore.sh restore $(FILE)
+
+list-backups: ## List all available backups
+	@./scripts/backup_restore.sh list
