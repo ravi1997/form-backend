@@ -3,14 +3,15 @@ from datetime import datetime
 
 class BaseSerializer:
     @staticmethod
-    def clean_dict(data):
+    def clean_dict(data, preserve_fields=()):
         """Recursively removes internal mongo fields and stringifies UUIDs/Dates."""
         if isinstance(data, list):
-            return [BaseSerializer.clean_dict(i) for i in data]
+            return [BaseSerializer.clean_dict(i, preserve_fields=preserve_fields) for i in data]
         if not isinstance(data, dict):
             return data
 
         cleaned = {}
+        preserve_fields = set(preserve_fields or ())
         # HARDENED: Expanded list of internal/sensitive fields to exclude
         EXCLUDE_FIELDS = (
             "_id", "_cls", "organization_id", "__v", 
@@ -21,7 +22,7 @@ class BaseSerializer:
         )
         
         for k, v in data.items():
-            if k in EXCLUDE_FIELDS:
+            if k in EXCLUDE_FIELDS and k not in preserve_fields:
                 continue
             
             # Key mapping
@@ -30,9 +31,12 @@ class BaseSerializer:
             elif isinstance(v, datetime):
                 cleaned[k] = v.isoformat()
             elif isinstance(v, dict):
-                cleaned[k] = BaseSerializer.clean_dict(v)
+                cleaned[k] = BaseSerializer.clean_dict(v, preserve_fields=preserve_fields)
             elif isinstance(v, list):
-                cleaned[k] = [BaseSerializer.clean_dict(i) for i in v]
+                cleaned[k] = [
+                    BaseSerializer.clean_dict(i, preserve_fields=preserve_fields)
+                    for i in v
+                ]
             else:
                 cleaned[k] = v
         return cleaned
@@ -41,7 +45,7 @@ class FormSerializer(BaseSerializer):
     @staticmethod
     def serialize(form_dict, include_snapshot=False):
         """Sanitizes form dictionary for public API output."""
-        cleaned = BaseSerializer.clean_dict(form_dict)
+        cleaned = BaseSerializer.clean_dict(form_dict, preserve_fields=("meta_data",))
         
         # Ensure versions are cleaned but don't leak full snapshot unless requested
         if "versions" in cleaned:
@@ -50,7 +54,10 @@ class FormSerializer(BaseSerializer):
                     v.pop("snapshot", None)
                     v.pop("snapshot_data", None)
                 elif "snapshot" in v:
-                    v["snapshot"] = BaseSerializer.clean_dict(v["snapshot"])
+                    v["snapshot"] = BaseSerializer.clean_dict(
+                        v["snapshot"],
+                        preserve_fields=("meta_data",),
+                    )
         
         # Clean top-level snapshots if any leaked through
         cleaned.pop("snapshot", None)

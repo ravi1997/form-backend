@@ -223,8 +223,8 @@ def get_form(form_id):
         # Ensure nested section trees are available to the frontend builder
         # through the active version snapshot, not just as flat section refs.
         try:
-            if form.versions:
-                latest_version = form.versions[-1]
+            latest_version = form.versions.order_by("-created_at").first()
+            if latest_version:
                 resolved_snapshot = (
                     latest_version.resolved_snapshot
                     if hasattr(latest_version, "resolved_snapshot")
@@ -671,7 +671,7 @@ def create_form_section(form_id):
         )
         return success_response(
             data={
-                "section": BaseSerializer.clean_dict(section_payload),
+                "section": BaseSerializer.clean_dict(section_payload, preserve_fields=("meta_data",)),
                 "version": version_string,
                 "form_version_id": str(form_version.id) if form_version else None,
             },
@@ -700,7 +700,7 @@ def create_project_form_section(project_id, form_id):
             current_user.organization_id,
             parent_section_id=parent_section_id,
         )
-        return success_response(data={"section": BaseSerializer.clean_dict(section.to_dict())}, status_code=201)
+        return success_response(data={"section": BaseSerializer.clean_dict(section.to_dict(), preserve_fields=("meta_data",))}, status_code=201)
     except Exception as e:
         return error_response(message=str(e), status_code=400)
 
@@ -738,7 +738,8 @@ def list_form_sections(form_id):
                     BaseSerializer.clean_dict(
                         section_doc.to_dict()
                         if hasattr(section_doc, "to_dict")
-                        else section_doc.to_mongo().to_dict()
+                        else section_doc.to_mongo().to_dict(),
+                        preserve_fields=("meta_data",)
                     )
                 )
 
@@ -758,13 +759,13 @@ def update_form_section(form_id, section_id):
         Form.objects.get(id=form_id, organization_id=current_user.organization_id)
         section = section_service.update(section_id, data, organization_id=current_user.organization_id)
         if hasattr(section, "to_dict"):
-            payload = BaseSerializer.clean_dict(section.to_dict())
+            payload = BaseSerializer.clean_dict(section.to_dict(), preserve_fields=("meta_data",))
         elif hasattr(section, "to_mongo"):
-            payload = BaseSerializer.clean_dict(section.to_mongo().to_dict())
+            payload = BaseSerializer.clean_dict(section.to_mongo().to_dict(), preserve_fields=("meta_data",))
         elif hasattr(section, "model_dump"):
-            payload = BaseSerializer.clean_dict(section.model_dump())
+            payload = BaseSerializer.clean_dict(section.model_dump(), preserve_fields=("meta_data",))
         else:
-            payload = BaseSerializer.clean_dict(section)
+            payload = BaseSerializer.clean_dict(section, preserve_fields=("meta_data",))
         return success_response(data=payload)
     except Exception as e:
         app_logger.error(f"Error updating section: {str(e)}", exc_info=True)
@@ -816,7 +817,8 @@ def _serialize_form_version(form_version):
             "created_at": getattr(form_version, "created_at", None),
             "sections": snapshot.get("sections", []),
             "translations": getattr(form_version, "translations", {}) or {},
-        }
+        },
+        preserve_fields=("meta_data",)
     )
 
 
