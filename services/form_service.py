@@ -100,6 +100,11 @@ class FormService(BaseService):
                     _normalize_option(opt) for opt in question["options"] if isinstance(opt, dict)
                 ]
 
+            for key in ("metadata", "metaData"):
+                if key in question:
+                    val = question.pop(key)
+                    if val is not None and "meta_data" not in question:
+                        question["meta_data"] = val
             if "meta_data" in question and question["meta_data"] is None:
                 question["meta_data"] = {}
 
@@ -132,6 +137,11 @@ class FormService(BaseService):
                 payload["response_templates"] = []
             if "tags" in payload and payload["tags"] is None:
                 payload["tags"] = []
+            for key in ("metadata", "metaData"):
+                if key in payload:
+                    val = payload.pop(key)
+                    if val is not None and "meta_data" not in payload:
+                        payload["meta_data"] = val
             if "meta_data" in payload and payload["meta_data"] is None:
                 payload["meta_data"] = {}
             payload["sections"] = nested_payloads

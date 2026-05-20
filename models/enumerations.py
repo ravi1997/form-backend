@@ -51,6 +51,13 @@ UI_TYPE_CHOICES = (
     "masonry",  # Masonry layout, commonly used for galleries, image-heavy content
     # Fixed-layout: A layout where the width or height of elements is fixed, typically used for banners
     "fixed",  # Fixed layout, where elements do not resize or adjust based on the screen size
+    # Additional alternate frontend names
+    "standard",
+    "grid",
+    "accordion",
+    "wizard",
+    "threeColumns",
+    "fullWidth",
 )
 
 FIELD_TYPE_CHOICES = (
