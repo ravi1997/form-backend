@@ -118,7 +118,7 @@ class SectionService(BaseService):
         form_id: str,
         section_data: Dict[str, Any],
         organization_id: str,
-        parent_section_id: str = None,
+        parent_section_id: Optional[str] = None,
     ) -> Section:
         """Creates a new section and appends it to the form or a parent section."""
         form = Form.objects(id=form_id, organization_id=organization_id, is_deleted=False).first()

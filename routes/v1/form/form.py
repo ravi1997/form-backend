@@ -8,6 +8,7 @@ Delegates all business logic to FormService.
 import traceback
 import re
 from datetime import datetime, timezone
+from typing import Any
 from flask import current_app, request, jsonify, g
 from flask_jwt_extended import jwt_required
 from mongoengine import DoesNotExist
@@ -643,9 +644,14 @@ def import_form():
 def create_form_section(form_id):
     """Add a new section to a form."""
     current_user = get_current_user()
-    data = request.get_json()
+    data: Any = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return error_response(message="Request body must be a JSON object", status_code=400)
     try:
-        parent_section_id = data.get("parent_section_id") if isinstance(data, dict) else None
+        parent_section_id_raw = data.get("parent_section_id")
+        parent_section_id = (
+            str(parent_section_id_raw) if parent_section_id_raw is not None else None
+        )
         section = section_service.create_section(
             form_id,
             data,

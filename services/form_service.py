@@ -337,7 +337,12 @@ class FormService(BaseService):
             error_logger.error(f"Error in FormService.create: {str(e)}", exc_info=True)
             raise
 
-    def update(self, form_id: str, update_schema: FormUpdateSchema, organization_id: str = None) -> FormSchema:
+    def update(
+        self,
+        form_id: str,
+        update_schema: FormUpdateSchema,
+        organization_id: Optional[str] = None,
+    ) -> FormSchema:
         app_logger.info(f"Entering FormService.update for Form ID {form_id}")
         try:
             form = super().update(form_id, update_schema, organization_id=organization_id)
@@ -402,7 +407,11 @@ class FormService(BaseService):
 
     @log_performance
     def publish_form(
-        self, form_id: str, organization_id: str = None, major_bump: bool = False, minor_bump: bool = True
+        self,
+        form_id: str,
+        organization_id: Optional[str] = None,
+        major_bump: bool = False,
+        minor_bump: bool = True,
     ) -> Dict[str, Any]:
         """
         Calculates Semantic Versioning and locks in an immutable snapshot
@@ -509,7 +518,10 @@ class FormService(BaseService):
             error_logger.error(
                 f"Failed to publish form {form_id}: {str(e)}", exc_info=True
             )
-            raise StateTransitionError("Publish sequence failed", details=str(e))
+            raise StateTransitionError(
+                "Publish sequence failed",
+                details={"error": str(e)},
+            )
 
 
 
@@ -560,7 +572,11 @@ class ProjectService(BaseService):
         project.save()
         return form
 
-    def list_forms_in_project(self, project_id: str, organization_id: str = None) -> List[FormSchema]:
+    def list_forms_in_project(
+        self,
+        project_id: str,
+        organization_id: Optional[str] = None,
+    ) -> List[FormSchema]:
         """Deep queries safely resolved linked active forms in a project tree."""
         app_logger.info(f"Entering list_forms_in_project for Project ID {project_id}")
         try:

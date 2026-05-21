@@ -136,7 +136,12 @@ class BaseService:
             error_logger.error(f"Error creating {self.model.__name__}: {str(e)}", exc_info=True)
             raise
 
-    def update(self, doc_id: str, update_schema: TUpdateSchema, organization_id: str = None) -> TSchema:
+    def update(
+        self,
+        doc_id: str,
+        update_schema: TUpdateSchema,
+        organization_id: Optional[str] = None,
+    ) -> TSchema:
         app_logger.info(f"Entering update for {self.model.__name__} {doc_id} (org: {organization_id})")
         try:
             filters = {'id': doc_id}
