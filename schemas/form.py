@@ -119,7 +119,9 @@ class SectionLogicSchema(LogicComponentSchema):
 
 
 class SectionUISchema(UIComponentSchema):
-    layout_type: str = "flex" # Allow all from UI_TYPE_CHOICES
+    # Legacy compatibility only. `SectionSchemaStruct.layout` is the
+    # canonical internal section layout field.
+    layout_type: Optional[str] = None
 
 
 SectionSchemaStruct = ForwardRef("SectionSchemaStruct")
@@ -130,7 +132,10 @@ class SectionSchemaStruct(BaseEmbeddedSchema):
     description: Optional[str] = None
     help_text: Optional[str] = None
     order: Optional[int] = None
-    layout: str = "standard"
+    layout: str = Field(
+        default="standard",
+        description="Canonical section-internal layout for questions and nested sub-sections.",
+    )
     grid_columns: int = 2
     is_hidden: bool = False
     is_repeatable: bool = False
@@ -217,6 +222,10 @@ class FormSchema(SoftDeleteBaseSchema):
     access_policy: Optional[Dict[str, Any]] = None
     response_templates: List[ResponseTemplateSchema] = Field(default_factory=list)
     triggers: List[TriggerSchema] = Field(default_factory=list)
+    sections: List[SectionSchema] = Field(
+        default_factory=list,
+        description="Optional canvas-sync section tree. Form-wide layout remains `ui_type`.",
+    )
 
 
 class ProjectSchema(SoftDeleteBaseSchema):
