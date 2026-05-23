@@ -13,3 +13,4 @@ from .Dashboard import *
 from .TranslationJob import *
 from .AuditLog import *
 from .Workflow import *
+from .Theme import *

@@ -25,11 +25,66 @@ from services.form_service import (
     ProjectService,
 )
 from routes.v1.form.helper import has_form_permission, apply_translations
+from models.AuditLog import AuditLog
 from models.Form import Form, Project, FormVersion, Version
+from models.enumerations import (
+    ACCESS_LEVEL_CHOICES,
+    COMPARISON_TYPE_CHOICES,
+    CONDITION_OPERATOR_CHOICES,
+    CONDITION_SOURCE_TYPE_CHOICES,
+    FIELD_API_CALL_CHOICES,
+    FIELD_TYPE_CHOICES,
+    LOGICAL_OPERATOR_CHOICES,
+    PERMISSION_CHOICES,
+    ROLE_CHOICES,
+    TRIGGER_ACTION_CHOICES,
+    TRIGGER_EVENT_CHOICES,
+    UI_TYPE_CHOICES,
+)
 from services.access_control_service import AccessControlService
 
 form_service = FormService()
 project_service = ProjectService()
+
+
+@form_bp.route("/builder-metadata", methods=["GET"])
+@swag_from({"tags": ["Form"], "responses": {"200": {"description": "Builder metadata"}}})
+@jwt_required()
+def get_builder_metadata():
+    """Return enum/config metadata needed by schema-driven Flutter builders."""
+    return success_response(
+        data={
+            "field_types": list(FIELD_TYPE_CHOICES),
+            "ui_types": list(UI_TYPE_CHOICES),
+            "condition": {
+                "logical_operators": list(LOGICAL_OPERATOR_CHOICES),
+                "source_types": list(CONDITION_SOURCE_TYPE_CHOICES),
+                "operators": list(CONDITION_OPERATOR_CHOICES),
+                "comparison_types": list(COMPARISON_TYPE_CHOICES),
+            },
+            "triggers": {
+                "events": list(TRIGGER_EVENT_CHOICES),
+                "actions": list(TRIGGER_ACTION_CHOICES),
+                "field_api_calls": list(FIELD_API_CALL_CHOICES),
+            },
+            "access": {
+                "levels": list(ACCESS_LEVEL_CHOICES),
+                "permissions": list(PERMISSION_CHOICES),
+                "roles": list(ROLE_CHOICES),
+            },
+            "validation": {
+                "text": ["min_length", "max_length", "min_word_count", "max_word_count", "regex"],
+                "number": ["min_value", "max_value"],
+                "date": ["date_min", "date_max", "disable_past_dates", "disable_future_dates", "disable_weekends"],
+                "file": ["allowed_file_types", "max_files", "max_file_size"],
+                "selection": ["min_selection", "max_selection"],
+            },
+            "languages": [
+                {"code": "en", "name": "English"},
+                {"code": "hi", "name": "Hindi"},
+            ],
+        }
+    )
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -846,14 +901,235 @@ def _serialize_form_version(form_version):
     )
 
 
-@form_bp.route("/<form_id>/versions", methods=["GET"])
+def _find_form_version(form, version):
+    try:
+        form_version = FormVersion.objects(form=form.id, id=version).first()
+    except Exception:
+        form_version = None
+    if form_version:
+        return form_version
+
+    version_doc = None
+    parts = str(version).split(".")
+    if len(parts) == 3 and all(part.isdigit() for part in parts):
+        version_doc = Version.objects(
+            form=form.id,
+            major=int(parts[0]),
+            minor=int(parts[1]),
+            patch=int(parts[2]),
+        ).first()
+    if not version_doc:
+        try:
+            version_doc = Version.objects(form=form.id, id=version).first()
+        except Exception:
+            version_doc = None
+    if not version_doc:
+        return None
+    return FormVersion.objects(form=form.id, version=version_doc).first()
+
+
+def _serialize_audit_log(item):
+    return BaseSerializer.clean_dict(
+        {
+            "id": str(item.id),
+            "organization_id": item.organization_id,
+            "actor_id": item.actor_id,
+            "action": item.action,
+            "resource_type": item.resource_type,
+            "resource_id": item.resource_id,
+            "previous_state": item.previous_state,
+            "new_state": item.new_state,
+            "timestamp": item.timestamp,
+            "ip_address": item.ip_address,
+            "metadata": item.metadata,
+        },
+        preserve_fields=("metadata",),
+    )
+
+
+@form_bp.route("/<form_id>/draft", methods=["PUT"])
 @jwt_required()
-def list_project_form_versions(project_id, form_id):
+def save_form_draft(form_id):
+    """Save a full builder canvas draft and refresh its draft snapshot."""
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=getattr(g, "project_id", None),
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if not has_form_permission(current_user, form, "edit"):
+            return error_response(message="Unauthorized", status_code=403)
+        form_service.sync_form_canvas(str(form.id), current_user.organization_id, data)
+        form_version = form_service.sync_draft_version(str(form.id), current_user.organization_id)
+        audit_logger.info(f"Form draft {form_id} saved by user {current_user.id}")
+        return success_response(
+            data={"form_id": form_id, "version": _serialize_form_version(form_version)},
+            message="Draft saved",
+        )
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Failed to save draft for form {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/schema", methods=["GET"])
+@jwt_required()
+def export_form_schema(form_id):
+    """Export the current form schema for import, backup, or migration."""
     current_user = get_current_user()
     try:
         form = Form.objects.get(
             id=form_id,
-            project=project_id,
+            project=getattr(g, "project_id", None),
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if not has_form_permission(current_user, form, "view"):
+            return error_response(message="Unauthorized", status_code=403)
+        latest = FormVersion.objects(form=form.id).order_by("-created_at").first()
+        snapshot = latest.resolved_snapshot if latest else {"sections": []}
+        form_dict = FormSerializer.serialize(form.to_dict())
+        form_dict["sections"] = snapshot.get("sections", [])
+        form_dict["translations"] = snapshot.get("translations", form.translations or {})
+        audit_logger.info(f"Form schema {form_id} exported by user {current_user.id}")
+        return success_response(data=form_dict)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Failed to export schema for form {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/import/schema", methods=["POST"])
+@jwt_required()
+def import_form_schema():
+    """Import a form from a schema payload inside the current project."""
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        project_id = getattr(g, "project_id", None)
+        if not project_id:
+            return error_response(message="Project context missing from route", status_code=400)
+        project = Project.objects.get(
+            id=project_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        data["project"] = str(project.id)
+        data["organization_id"] = current_user.organization_id
+        data["created_by"] = str(current_user.id)
+        data["editors"] = list({str(current_user.id), *data.get("editors", [])})
+        schema = FormCreateSchema(**data)
+        form_schema = form_service.create(schema)
+        if data.get("sections"):
+            form_service.sync_form_canvas(str(form_schema.id), current_user.organization_id, data)
+        audit_logger.info(f"Form schema imported as {form_schema.id} by user {current_user.id}")
+        return success_response(
+            data={"form_id": form_schema.id},
+            message="Form schema imported",
+            status_code=201,
+        )
+    except DoesNotExist:
+        return error_response(message="Project not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Failed to import form schema: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/audit", methods=["GET"])
+@jwt_required()
+def list_form_audit(form_id):
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=getattr(g, "project_id", None),
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if not has_form_permission(current_user, form, "view_audit"):
+            return error_response(message="Unauthorized", status_code=403)
+
+        page = max(int(request.args.get("page", 1)), 1)
+        page_size = min(max(int(request.args.get("page_size", 25)), 1), 100)
+        query = {
+            "organization_id": current_user.organization_id,
+            "resource_id": form_id,
+            "is_deleted": False,
+        }
+        if request.args.get("action"):
+            query["action"] = request.args["action"]
+        if request.args.get("actor_id"):
+            query["actor_id"] = request.args["actor_id"]
+
+        total = AuditLog.objects(**query).count()
+        items = (
+            AuditLog.objects(**query)
+            .order_by("-timestamp")
+            .skip((page - 1) * page_size)
+            .limit(page_size)
+        )
+        return success_response(
+            data={
+                "items": [_serialize_audit_log(item) for item in items],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size,
+            }
+        )
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Failed to list audit for form {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/theme", methods=["POST"])
+@jwt_required()
+def apply_form_theme(form_id):
+    current_user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=getattr(g, "project_id", None),
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if not has_form_permission(current_user, form, "edit_design"):
+            return error_response(message="Unauthorized", status_code=403)
+        style = form.style or {}
+        if "theme_id" in data:
+            style["theme_id"] = data["theme_id"]
+        if "tokens" in data:
+            style["tokens"] = data["tokens"]
+        if "branding" in data:
+            style["branding"] = data["branding"]
+        form.style = style
+        form.save()
+        form_service.sync_draft_version(str(form.id), current_user.organization_id)
+        audit_logger.info(f"Theme applied to form {form_id} by user {current_user.id}")
+        return success_response(data={"form_id": form_id, "style": style}, message="Theme applied")
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Failed to apply theme to form {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/versions", methods=["GET"])
+@jwt_required()
+def list_project_form_versions(form_id):
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=getattr(g, "project_id", None),
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
@@ -871,12 +1147,12 @@ def list_project_form_versions(project_id, form_id):
 
 @form_bp.route("/<form_id>/versions/<version>", methods=["GET"])
 @jwt_required()
-def get_project_form_version(project_id, form_id, version):
+def get_project_form_version(form_id, version):
     current_user = get_current_user()
     try:
         form = Form.objects.get(
             id=form_id,
-            project=project_id,
+            project=getattr(g, "project_id", None),
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
@@ -903,15 +1179,56 @@ def get_project_form_version(project_id, form_id, version):
         return error_response(message=str(e), status_code=400)
 
 
+@form_bp.route("/<form_id>/versions/<version>/restore", methods=["POST"])
+@jwt_required()
+def restore_project_form_version(form_id, version):
+    current_user = get_current_user()
+    try:
+        form = Form.objects.get(
+            id=form_id,
+            project=getattr(g, "project_id", None),
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+        if not has_form_permission(current_user, form, "edit"):
+            return error_response(message="Unauthorized", status_code=403)
+        form_version = _find_form_version(form, version)
+        if not form_version:
+            return error_response(message="Version not found", status_code=404)
+
+        snapshot = form_version.resolved_snapshot or {}
+        canvas = FormSerializer.serialize(form.to_dict())
+        canvas["sections"] = snapshot.get("sections", [])
+        if snapshot.get("translations") is not None:
+            canvas["translations"] = snapshot["translations"]
+        form_service.sync_form_canvas(str(form.id), current_user.organization_id, canvas)
+        restored = form_service.sync_draft_version(str(form.id), current_user.organization_id)
+        audit_logger.info(
+            f"Form {form_id} restored to version {version} by user {current_user.id}"
+        )
+        return success_response(
+            data=_serialize_form_version(restored),
+            message="Form version restored",
+        )
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(
+            f"Failed to restore version {version} for form {form_id}: {e}",
+            exc_info=True,
+        )
+        return error_response(message=str(e), status_code=400)
+
+
 @form_bp.route("/<form_id>/versions", methods=["POST"])
 @jwt_required()
-def create_project_form_version(project_id, form_id):
+def create_project_form_version(form_id):
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     try:
         form = Form.objects.get(
             id=form_id,
-            project=project_id,
+            project=getattr(g, "project_id", None),
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
@@ -928,13 +1245,13 @@ def create_project_form_version(project_id, form_id):
 
 @form_bp.route("/<form_id>/versions/<version>", methods=["PUT"])
 @jwt_required()
-def update_project_form_version(project_id, form_id, version):
+def update_project_form_version(form_id, version):
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     try:
         form = Form.objects.get(
             id=form_id,
-            project=project_id,
+            project=getattr(g, "project_id", None),
             organization_id=current_user.organization_id,
             is_deleted=False,
         )

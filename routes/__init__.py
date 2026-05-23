@@ -20,6 +20,9 @@ from routes.v1.admin.env_config_route import env_config_bp
 from routes.v1.form.nlp_search import nlp_search_bp
 from routes.v1.form.anomaly import anomaly_bp
 from routes.v1.admin.system_route import system_bp
+from routes.v1.task_route import task_bp
+from routes.v1.theme_route import theme_bp
+from routes.v1.builder_metadata_route import builder_metadata_bp
 from routes.health import health_bp
 
 
@@ -69,5 +72,8 @@ def register_blueprints(app):
     )
     app.register_blueprint(env_config_bp, url_prefix=f"{base_prefix}/api/v1/admin/env-config")
     app.register_blueprint(system_bp, url_prefix=f"{base_prefix}/api/v1/system")
+    app.register_blueprint(task_bp, url_prefix=f"{base_prefix}/api/v1/tasks")
+    app.register_blueprint(theme_bp, url_prefix=f"{base_prefix}/api/v1/themes")
+    app.register_blueprint(builder_metadata_bp, url_prefix=f"{base_prefix}/api/v1/forms")
     
     app.logger.info(f"All blueprints registered successfully with normalized {base_prefix}/api/v1/ prefix.")
