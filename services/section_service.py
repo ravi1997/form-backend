@@ -76,6 +76,11 @@ class SectionService(BaseService):
             normalized["repeat_max"] = normalized.pop("repeatMax")
         if "conditionalLogic" in normalized and "conditional_logic" not in normalized:
             normalized["conditional_logic"] = normalized.pop("conditionalLogic")
+        if "grid_columns" in normalized and normalized["grid_columns"] is not None:
+            try:
+                normalized["grid_columns"] = int(normalized["grid_columns"])
+            except (TypeError, ValueError):
+                normalized["grid_columns"] = 2
         if "metadata" in normalized and "meta_data" not in normalized:
             normalized["meta_data"] = normalized.pop("metadata")
 
@@ -85,6 +90,19 @@ class SectionService(BaseService):
             normalized["response_templates"] = normalized.pop("responseTemplates")
         if "metaData" in normalized and "meta_data" not in normalized:
             normalized["meta_data"] = normalized.pop("metaData")
+
+        ui = normalized.get("ui")
+        if isinstance(ui, dict):
+            legacy_layout = ui.get("layout_type") or ui.get("layoutType")
+            if not normalized.get("layout") and legacy_layout:
+                normalized["layout"] = legacy_layout
+        elif ui is None:
+            ui = {}
+
+        if normalized.get("layout"):
+            ui = dict(ui or {})
+            ui["layout_type"] = normalized["layout"]
+            normalized["ui"] = ui
 
         # Keep a compatible embedded logic object in sync when repeat controls
         # are sent from the frontend.
@@ -112,6 +130,11 @@ class SectionService(BaseService):
             ]
 
         return normalized
+
+    @classmethod
+    def normalize_section_tree(cls, section_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a section payload recursively for all form canvas entrypoints."""
+        return cls._normalize_section_payload(section_data)
 
     def create_section(
         self,
