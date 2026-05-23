@@ -9,6 +9,7 @@ from utils.response_helper import FormSerializer
 from models import Form, Project, Version, FormVersion, Section
 from schemas.form import FormSchema, ProjectSchema
 from schemas.base import InboundPayloadSchema
+from services.section_service import SectionService
 
 logger = get_logger(__name__)
 
@@ -120,7 +121,7 @@ class FormService(BaseService):
             return question
 
         def _normalize_section_payload(section_payload: Dict[str, Any]) -> Dict[str, Any]:
-            payload = dict(section_payload or {})
+            payload = SectionService.normalize_section_tree(dict(section_payload or {}))
             nested_payloads = payload.pop("sections", []) or []
             payload.pop("id", None)
             payload.pop("_id", None)
@@ -327,8 +328,11 @@ class FormService(BaseService):
     def create(self, create_schema: FormCreateSchema) -> FormSchema:
         app_logger.info(f"Entering FormService.create with title: {create_schema.title}")
         try:
-            form = super().create(create_schema)
-            self.sync_draft_version(str(form.id), form.organization_id)
+            data = create_schema.model_dump(exclude_unset=True, exclude={"sections"})
+            form_doc = self.model(**data)
+            form_doc.save()
+            self.sync_draft_version(str(form_doc.id), form_doc.organization_id)
+            form = self._to_schema(form_doc)
             event_bus.publish("form.indexed", form.model_dump())
             audit_logger.info(f"AUDIT: Form created with ID {form.id} and title {form.title}")
             app_logger.info(f"Successfully completed FormService.create for ID {form.id}")
