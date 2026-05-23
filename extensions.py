@@ -2,7 +2,7 @@ from flask_jwt_extended import JWTManager, get_jwt
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-# from flask_talisman import Talisman
+from flask_talisman import Talisman
 from flasgger import Swagger
 from flask import request
 import os
@@ -41,7 +41,7 @@ limiter = Limiter(
     default_limits=["2000 per hour", "100 per minute"],
     storage_uri=limiter_storage
 )
-# talisman = Talisman()
+talisman = Talisman()
 
 # --- Swagger Global Configuration ---
 template = {

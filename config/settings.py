@@ -83,15 +83,19 @@ class Settings(BaseSettings):
     REQUIRE_EXPORT_CONSENT: bool = Field(default=True)
 
     # Security headers
-    # HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds
-    # HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=True)
-    # HSTS_PRELOAD: bool = Field(default=True)
+    HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds
+    HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=True)
+    HSTS_PRELOAD: bool = Field(default=True)
 
     # Content Security Policy (even for REST APIs)
-    # CSP_POLICY: Optional[str] = Field(
-    #     default="default-src 'self'; script-src 'none'; object-src 'none';",
-    #     description="Content-Security-Policy header value",
-    # )
+    CSP_POLICY: dict = Field(
+        default_factory=lambda: {
+            "default-src": ["'self'"],
+            "script-src": ["'self'"],
+            "object-src": ["'none'"],
+        },
+        description="Content-Security-Policy header configuration",
+    )
 
     # ── Sentry ───────────────────────────────────────────────────────────────
     SENTRY_DSN: Optional[str] = None

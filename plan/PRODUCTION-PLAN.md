@@ -36,7 +36,7 @@ The RIDP Form Platform is a multi-tenant form-building and data-collection backe
 | Gap ID | Description | Impact | Status |
 |--------|-------------|--------|--------|
 | G-01 | No CI/CD pipeline | High - Blocks quality assurance | ❌ Not implemented |
-| G-02 | Security headers disabled | Critical - Production vulnerability | ❌ Commented out |
+| G-02 | Security headers enabled | Critical - Production vulnerability | ✅ Implemented (Talisman) |
 | G-03 | 23 documentation files missing | Medium - Knowledge transfer risk | ❌ Not created |
 | G-04 | No async task polling | High - Poor UX for long operations | ❌ Stub only |
 | G-05 | No control panel | Critical - Admin capability missing | ❌ Not implemented |
