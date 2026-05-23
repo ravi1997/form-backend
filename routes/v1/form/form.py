@@ -587,6 +587,7 @@ def import_form():
             slug=slug,
             description=data.get("description"),
             help_text=data.get("help_text"),
+            ui_type=data.get("ui_type", data.get("uiType", "flex")),
             organization_id=current_user.organization_id,
             created_by=str(current_user.id),
             status="draft",
@@ -603,18 +604,30 @@ def import_form():
         def import_sections(secs):
             imported = []
             for s_data in secs:
+                normalized = section_service.normalize_section_tree(s_data)
                 s = Section(
-                    title=s_data.get("title"),
-                    description=s_data.get("description"),
-                    help_text=s_data.get("help_text"),
-                    order=s_data.get("order", 0),
-                    logic=s_data.get("logic", {}),
-                    ui=s_data.get("ui", {}),
-                    questions=s_data.get("questions", []),
+                    title=normalized.get("title"),
+                    description=normalized.get("description"),
+                    help_text=normalized.get("help_text"),
+                    order=normalized.get("order", 0),
+                    layout=normalized.get("layout", "standard"),
+                    grid_columns=normalized.get("grid_columns", 2),
+                    is_hidden=normalized.get("is_hidden", False),
+                    is_repeatable=normalized.get("is_repeatable", False),
+                    repeat_min=normalized.get("repeat_min"),
+                    repeat_max=normalized.get("repeat_max"),
+                    conditional_logic=normalized.get("conditional_logic", {}),
+                    style=normalized.get("style", {}),
+                    logic=normalized.get("logic", {}),
+                    ui=normalized.get("ui", {}),
+                    questions=normalized.get("questions", []),
+                    response_templates=normalized.get("response_templates", []),
+                    tags=normalized.get("tags", []),
+                    meta_data=normalized.get("meta_data", {}),
                     organization_id=current_user.organization_id
                 )
-                if s_data.get("sections"):
-                    s.sections = import_sections(s_data["sections"])
+                if normalized.get("sections"):
+                    s.sections = import_sections(normalized["sections"])
                 s.save()
                 imported.append(s)
             return imported
@@ -763,7 +776,12 @@ def update_form_section(form_id, section_id):
     try:
         # Verify form exists and belongs to org
         Form.objects.get(id=form_id, organization_id=current_user.organization_id)
-        section = section_service.update(section_id, data, organization_id=current_user.organization_id)
+        normalized_data = section_service.normalize_section_tree(data)
+        section = section_service.update(
+            section_id,
+            normalized_data,
+            organization_id=current_user.organization_id,
+        )
         if hasattr(section, "to_dict"):
             payload = BaseSerializer.clean_dict(section.to_dict(), preserve_fields=("meta_data",))
         elif hasattr(section, "to_mongo"):
