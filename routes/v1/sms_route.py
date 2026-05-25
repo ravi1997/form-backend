@@ -13,7 +13,7 @@ from utils.security import require_roles
 from extensions import limiter
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
-sms_bp = Blueprint("sms", __name__, url_prefix="/api/v1/sms")
+sms_bp = Blueprint("sms", __name__)
 
 
 @sms_bp.route("/single", methods=["POST"])

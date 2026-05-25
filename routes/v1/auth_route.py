@@ -357,3 +357,23 @@ def revoke_all():
             f"Global revocation failed for user id={user_id}: {e}", exc_info=True
         )
         return error_response(message="Failed to revoke all sessions", status_code=500)
+
+
+# ---- OTP ROUTE ALIASES (frontend compat: /auth/otp/request, /auth/otp/verify) ----
+
+
+@auth_bp.route("/otp/request", methods=["POST"])
+@limiter.limit("3 per minute")
+def otp_request_alias():
+    """Alias for /auth/request-otp — frontend-compatible path."""
+    return request_otp()
+
+
+@auth_bp.route("/otp/verify", methods=["POST"])
+@auth_bp.route("/otp/login", methods=["POST"])
+@limiter.limit("5 per minute")
+def otp_verify_alias():
+    """Alias for OTP login — accepts {mobile, otp} and issues JWT tokens.
+    Frontend-compatible paths: /auth/otp/verify and /auth/otp/login.
+    """
+    return login()

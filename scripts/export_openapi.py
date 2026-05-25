@@ -1,27 +1,77 @@
-import json
-from app import create_app
-import os
+"""
+scripts/export_openapi.py — Export OpenAPI spec from the Flask app.
 
-def export_swagger_spec(output_file="openapi_spec.json"):
-    """
-    Spins up the Flask active application context to resolve all @swag_from definitions 
-    and dumps a standalone OpenAPI/Swagger JSON artifact.
-    This artifact is strictly intended for generating Client SDKs 
-    (e.g., via `openapi-generator-cli generate -i openapi_spec.json -g typescript-axios`).
-    """
-    app = create_app(testing=True)
+Boots the app, calls the flasgger spec endpoint, writes JSON + YAML.
+
+Usage:
+    python scripts/export_openapi.py
+    make openapi
+"""
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
+
+
+def run():
+    from app import create_app
+
+    app = create_app()
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     with app.test_client() as client:
-        # Request the automatically rendered flasgger spec
-        response = client.get('/apispec_1.json')
-        if response.status_code == 200:
-            os.makedirs("docs", exist_ok=True)
-            with open(f"docs/{output_file}", "w") as f:
-                json.dump(response.json, f, indent=2)
-            print(f"✅ Extracted API Contract to docs/{output_file}")
-            print("To generate a TypeScript SDK:")
-            print(f"npx @openapitools/openapi-generator-cli generate -i docs/{output_file} -g typescript-axios -o sdk/ts")
-        else:
-            print(f"❌ Failed to extract API Spec. Status {response.status_code}")
+        response = client.get("/form/apispec_1.json")
+        if response.status_code != 200:
+            print(f"❌ Failed to get spec: HTTP {response.status_code}")
+            sys.exit(1)
+
+        spec = response.get_json()
+
+    # Write JSON
+    json_path = os.path.join(OUTPUT_DIR, "openapi.json")
+    with open(json_path, "w") as f:
+        json.dump(spec, f, indent=2)
+    print(f"✅ OpenAPI JSON written to: {json_path}")
+
+    # Write YAML
+    try:
+        import yaml
+        yaml_path = os.path.join(OUTPUT_DIR, "openapi.yaml")
+        with open(yaml_path, "w") as f:
+            yaml.dump(spec, f, default_flow_style=False, allow_unicode=True)
+        print(f"✅ OpenAPI YAML written to: {yaml_path}")
+    except ImportError:
+        print("⚠  PyYAML not installed — skipping YAML export (pip install pyyaml)")
+
+    # Print endpoint summary
+    paths = spec.get("paths", {})
+    print(f"\n📋 Total endpoints: {sum(len(v) for v in paths.values())}")
+    print(f"   Paths: {len(paths)}")
+    print(f"   Tags: {len(spec.get('tags', []))}")
+
+    # Contract check
+    missing = []
+    for path in [
+        "/form/api/v1/auth/login",
+        "/form/api/v1/auth/request-otp",
+        "/form/api/v1/auth/otp/request",
+        "/form/api/v1/forms/",
+        "/form/api/v1/user/profile",
+    ]:
+        if path not in paths:
+            missing.append(path)
+
+    if missing:
+        print(f"\n⚠  Missing from spec ({len(missing)}):")
+        for m in missing:
+            print(f"   {m}")
+    else:
+        print("\n✅ Core contract endpoints present in spec.")
+
 
 if __name__ == "__main__":
-    export_swagger_spec()
+    run()

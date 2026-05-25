@@ -43,7 +43,12 @@ class Settings(BaseSettings):
     FIELD_ENCRYPTION_KEY: Optional[str] = None
 
     ALLOWED_ORIGINS: list[str] = Field(
-        default_factory=lambda: ["*"]
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://localhost:8051",
+            "http://localhost:8989",
+            "http://localhost:9600",
+        ]
     )
 
     # Request size limits (prevents DoS attacks)

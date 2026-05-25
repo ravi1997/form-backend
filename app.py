@@ -52,15 +52,19 @@ def create_app():
     cors.init_app(
         app,
         origins=settings.ALLOWED_ORIGINS,
-        supports_credentials=False,
-        send_wildcard=True,
+        supports_credentials=True,
+        send_wildcard=False,
         allow_headers=[
             "Content-Type",
             "Authorization",
             "X-CSRF-TOKEN-ACCESS",
             "X-CSRF-TOKEN-REFRESH",
             "X-Organization-ID",
+            "X-Request-ID",
+            "X-Idempotency-Key",
         ],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Limit"],
     )
     jwt.init_app(app)
 
@@ -73,7 +77,7 @@ def create_app():
     talisman.init_app(
         app,
         content_security_policy=settings.CSP_POLICY,  # Content-Security-Policy
-        force_https=False,  # Temporarily disabled for local validation
+        force_https=not settings.DEBUG,  # Enforced in production; off in dev
         strict_transport_security=True,
         strict_transport_security_preload=settings.HSTS_PRELOAD,
         strict_transport_security_max_age=settings.HSTS_MAX_AGE,
@@ -142,6 +146,10 @@ def create_app():
     from middleware.tenant_db import setup_tenant_db
 
     setup_tenant_db(app)
+
+    from middleware.idempotency import init_idempotency_middleware
+
+    init_idempotency_middleware(app)
 
     # ── MongoDB ─────────────────────────────────────────────────────────────
     import sys

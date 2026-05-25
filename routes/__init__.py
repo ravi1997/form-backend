@@ -20,6 +20,7 @@ from routes.v1.admin.env_config_route import env_config_bp
 from routes.v1.form.nlp_search import nlp_search_bp
 from routes.v1.form.anomaly import anomaly_bp
 from routes.v1.admin.system_route import system_bp
+from routes.v1.admin.task_route import admin_task_bp
 from routes.v1.task_route import task_bp
 from routes.v1.theme_route import theme_bp
 from routes.v1.builder_metadata_route import builder_metadata_bp
@@ -35,6 +36,8 @@ def register_blueprints(app):
 
     # Core Form Management
     app.register_blueprint(form_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
+    # Also mount at flat /forms/ path — used by frontend directly (without project scope)
+    app.register_blueprint(form_bp, url_prefix=f"{base_prefix}/api/v1/forms", name="form_bp_flat")
     app.register_blueprint(project_bp, url_prefix=f"{base_prefix}/api/v1/projects")
     app.register_blueprint(translation_bp, url_prefix=f"{base_prefix}/api/v1/forms/translations")
     app.register_blueprint(library_bp, url_prefix=f"{base_prefix}/api/v1/custom-fields")
@@ -72,6 +75,9 @@ def register_blueprints(app):
     )
     app.register_blueprint(env_config_bp, url_prefix=f"{base_prefix}/api/v1/admin/env-config")
     app.register_blueprint(system_bp, url_prefix=f"{base_prefix}/api/v1/system")
+    app.register_blueprint(
+        admin_task_bp, url_prefix=f"{base_prefix}/api/v1/admin/tasks"
+    )
     app.register_blueprint(task_bp, url_prefix=f"{base_prefix}/api/v1/tasks")
     app.register_blueprint(theme_bp, url_prefix=f"{base_prefix}/api/v1/themes")
     app.register_blueprint(builder_metadata_bp, url_prefix=f"{base_prefix}/api/v1/forms")

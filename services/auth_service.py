@@ -125,6 +125,8 @@ class AuthService(BaseService):
             app_logger.info("Successfully completed validate_token")
             return TokenPayload.model_validate(payload)
         except Exception as e:
+            if e.__class__.__name__ == "ExpiredSignatureError":
+                raise UnauthorizedError("Token has expired")
             if not isinstance(e, UnauthorizedError):
                 error_logger.error(f"Error in validate_token: {str(e)}", exc_info=True)
             raise
@@ -227,11 +229,16 @@ class AuthService(BaseService):
         """
         Checks if a token was issued before the user's last global revocation event.
         """
-        user = User.objects(id=user_id).only("last_token_revocation_at").first()
+        try:
+            user = User.objects(id=user_id).only("last_token_revocation_at").first()
+        except Exception as exc:
+            if exc.__class__.__name__ == "ConnectionFailure":
+                app_logger.warning("Skipping global token revocation check: database unavailable")
+                return False
+            raise
         if not user or not user.last_token_revocation_at:
             return False
         
         from datetime import datetime, timezone
         token_iat = datetime.fromtimestamp(iat_timestamp, tz=timezone.utc)
         return token_iat < user.last_token_revocation_at
-

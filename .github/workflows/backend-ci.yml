@@ -1,0 +1,132 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint tools
+        run: pip install black isort flake8 flake8-bugbear
+
+      - name: Black format check
+        run: black --check --diff .
+
+      - name: isort import order
+        run: isort --check-only --diff .
+
+      - name: Flake8 lint
+        run: |
+          flake8 . \
+            --max-line-length=120 \
+            --extend-ignore=E203,W503,E501 \
+            --exclude=.git,__pycache__,.venv,migrations,scripts/migrations
+
+  security:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt --strict
+        continue-on-error: true   # non-blocking until baseline is clean
+
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports: [27017:27017]
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping:1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: testing
+      MONGODB_URI: mongodb://localhost:27017/ridp_test
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
+      JWT_SECRET_KEY: ci-test-secret-key-do-not-use-in-prod
+      ALLOWED_ORIGINS: "http://localhost:9600"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-cov
+
+      - name: Run tests
+        run: |
+          pytest tests/ \
+            --cov=services \
+            --cov=routes \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=50 \
+            -v --tb=short -x
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: coverage.xml
+
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t ridp-backend:ci-${{ github.sha }} .
+
+      - name: Check image size
+        run: |
+          SIZE=$(docker image inspect ridp-backend:ci-${{ github.sha }} \
+            --format='{{.Size}}' | awk '{print int($1/1024/1024)}')
+          echo "Image size: ${SIZE}MB"
+          [ "$SIZE" -lt 1500 ] || (echo "Image too large: ${SIZE}MB > 1500MB" && exit 1)

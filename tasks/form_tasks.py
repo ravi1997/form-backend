@@ -59,8 +59,26 @@ def async_clone_form(
         final_slug = new_slug or f"{original.slug}-copy-{uuid.uuid4().hex[:6]}"
         final_title = new_title or f"Copy of {original.title}"
 
-        # Deep clone all sections
-        new_sections = [_deep_clone_section(s) for s in original.sections]
+        # Deep clone all sections with progress tracking
+        from services.task_observability_service import task_observability_service
+        total_sections = len(original.sections)
+        new_sections = []
+        for i, s in enumerate(original.sections):
+            new_sections.append(_deep_clone_section(s))
+            # Emit progress via Celery
+            self.update_state(
+                state="PROCESSING",
+                meta={"current": i + 1, "total": total_sections}
+            )
+            # Emit progress via Redis Observability Service
+            try:
+                task_observability_service.update_task_progress(
+                    task_id=self.request.id,
+                    current=i + 1,
+                    total=total_sections
+                )
+            except Exception:
+                pass
 
         new_form = Form(
             title=final_title,
@@ -162,8 +180,11 @@ def async_bulk_export(self, job_id, organization_id):
         zip_buffer = io.BytesIO()
         exported_count = 0
 
+        from services.task_observability_service import task_observability_service
+        total_forms = len(job.form_ids)
+
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for fid in job.form_ids:
+            for idx, fid in enumerate(job.form_ids):
                 try:
                     # Enforce tenant isolation
                     form = Form.objects.get(id=fid, organization_id=organization_id)
@@ -183,6 +204,20 @@ def async_bulk_export(self, job_id, organization_id):
                     filename = f"{safe_title}_{fid[:8]}.csv"
                     zip_file.writestr(filename, csv_content)
                     exported_count += 1
+
+                    # Emit progress
+                    self.update_state(
+                        state="PROCESSING",
+                        meta={"current": idx + 1, "total": total_forms}
+                    )
+                    try:
+                        task_observability_service.update_task_progress(
+                            task_id=self.request.id,
+                            current=idx + 1,
+                            total=total_forms
+                        )
+                    except Exception:
+                        pass
                 except DoesNotExist:
                     continue
                 except Exception as e:
@@ -368,6 +403,21 @@ def async_process_translation_job(self, job_id):
 
             job.progress = int(((i + 1) / total_langs) * 100)
             job.save()
+
+            # Emit progress via Celery and Redis Observability Service
+            self.update_state(
+                state="PROCESSING",
+                meta={"current": i + 1, "total": total_langs}
+            )
+            try:
+                from services.task_observability_service import task_observability_service
+                task_observability_service.update_task_progress(
+                    task_id=self.request.id,
+                    current=i + 1,
+                    total=total_langs
+                )
+            except Exception:
+                pass
 
         if job.status != "cancelled":
             job.status = "completed"

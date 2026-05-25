@@ -81,12 +81,21 @@ def replay_events(topic: str, hours: int, organization_id: str = None):
         count = event_replay_service.replay_stream(topic, hours, organization_id)
         logger.info(f"Successfully replayed {count} events from {topic}.")
 
-def migrate_schema(direction="up"):
+def migrate_schema(direction="up", dry_run=False, target_version=None):
     """Runs database schema migrations."""
     logger.info(f"Running schema migrations ({direction})...")
-    # In a full impl, this would load versions from scripts/schema_migrations/versions/
-    # and track state in a 'schema_versions' collection in MongoDB.
-    logger.info("Successfully migrated to latest version.")
+    from app import create_app
+    from mongoengine.connection import get_db
+    from scripts.schema_migrations.runner import MigrationRunner
+
+    app = create_app()
+    with app.app_context():
+        runner = MigrationRunner(get_db())
+        if direction == "down":
+            versions = runner.migrate_down(target_version=target_version, dry_run=dry_run)
+        else:
+            versions = runner.migrate_up(dry_run=dry_run)
+    logger.info("Schema migration result: %s", versions)
 
 def main():
     parser = argparse.ArgumentParser(description="Form Backend Operational Controls")
@@ -113,6 +122,8 @@ def main():
     # Command: migrate_schema
     migrate_parser = subparsers.add_parser("migrate_schema", help="Run database schema migrations")
     migrate_parser.add_argument("--down", action="store_true", help="Revert migrations")
+    migrate_parser.add_argument("--target-version", help="Target version for down migrations")
+    migrate_parser.add_argument("--dry-run", action="store_true", help="List migrations without executing")
 
     args = parser.parse_args()
 
@@ -125,7 +136,11 @@ def main():
     elif args.command == "event_replay":
         replay_events(args.topic, args.hours, args.org)
     elif args.command == "migrate_schema":
-        migrate_schema("down" if args.down else "up")
+        migrate_schema(
+            "down" if args.down else "up",
+            dry_run=args.dry_run,
+            target_version=args.target_version,
+        )
     else:
         parser.print_help()
 

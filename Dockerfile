@@ -34,4 +34,4 @@ RUN mkdir -p /app/logs
 EXPOSE 6000
 
 # Default command: Runs the production server
-CMD ["gunicorn", "--bind", "0.0.0.0:6000", "--timeout", "120", "app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:6000", "--workers", "3", "--threads", "4", "--timeout", "120", "--graceful-timeout", "30", "app:create_app()"]

@@ -258,8 +258,21 @@ def get_workflow(workflow_id):
 def list_pending_approvals():
     """List workflows with pending approvals for current user."""
     app_logger.info("Entering list_pending_approvals")
-    app_logger.info("Exiting list_pending_approvals (placeholder)")
-    return success_response(data={"items": [], "total": 0})
+    current_user = get_current_user()
+    try:
+        from services.workflow_service import WorkflowInstanceService
+        service = WorkflowInstanceService()
+        pending = service.list_pending_approvals(
+            user_id=str(current_user.id),
+            organization_id=current_user.organization_id
+        )
+        # Serialize the schema objects to dictionaries
+        pending_dicts = [p.model_dump() for p in pending]
+        app_logger.info(f"Exiting list_pending_approvals successfully. Found {len(pending_dicts)} pending approvals.")
+        return success_response(data={"items": pending_dicts, "total": len(pending_dicts)})
+    except Exception as e:
+        error_logger.error(f"List Pending Approvals error: {str(e)}", exc_info=True)
+        return error_response(str(e), status_code=500)
 
 
 @workflow_bp.route("/<workflow_id>", methods=["PUT"])

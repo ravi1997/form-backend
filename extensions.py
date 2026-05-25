@@ -37,11 +37,27 @@ REDIS_PORT = os.getenv("REDIS_PORT", "6379")
 limiter_storage = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 
 limiter = Limiter(
-    key_func=tenant_aware_key_func, 
+    key_func=tenant_aware_key_func,
     default_limits=["2000 per hour", "100 per minute"],
     storage_uri=limiter_storage
 )
 talisman = Talisman()
+
+# ── Shared Redis client (cache DB) ────────────────────────────────────────────
+# Used by idempotency middleware, rate limiter, and other modules that need a
+# simple get/set/setex interface without going through the full RedisService.
+try:
+    import redis as _redis
+    redis_client = _redis.Redis(
+        host=REDIS_HOST,
+        port=int(REDIS_PORT),
+        db=0,
+        decode_responses=True,
+        socket_connect_timeout=2,
+        socket_timeout=2,
+    )
+except Exception:
+    redis_client = None  # type: ignore[assignment]
 
 # --- Swagger Global Configuration ---
 template = {

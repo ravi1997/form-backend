@@ -16,6 +16,7 @@ from mongoengine import DoesNotExist
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from utils.response_helper import success_response, error_response, BaseSerializer, FormSerializer
 from utils.security_helpers import get_current_user, require_permission, require_org_match
+from utils.idempotency import require_idempotency
 from models import Section
 from tasks.form_tasks import async_clone_form, async_publish_form
 from services.form_service import (
@@ -464,6 +465,7 @@ def delete_form(form_id):
 })
 @jwt_required()
 @require_permission("form", "edit")
+@require_idempotency()
 def publish_form(form_id):
     """Publish a form asynchronously."""
     app_logger.info(f"Entering publish_form for ID {form_id}")
@@ -514,6 +516,7 @@ def publish_form(form_id):
 })
 @jwt_required()
 @require_permission("form", "view")
+@require_idempotency()
 def clone_form(form_id):
     """Clone a form asynchronously."""
     app_logger.info(f"Entering clone_form for ID {form_id}")

@@ -1,0 +1,39 @@
+version: 1
+roles:
+  superadmin:
+    inherits: [admin, manager, user]
+    permissions: ["*:*"]
+  admin:
+    inherits: [manager, user]
+    permissions:
+      - "user:manage"
+      - "system:manage"
+      - "dashboard:manage"
+      - "webhook:manage"
+  manager:
+    inherits: [user]
+    permissions:
+      - "project:create"
+      - "project:view"
+      - "project:edit"
+      - "form:create"
+      - "form:view"
+      - "form:edit"
+      - "form:publish"
+      - "response:view"
+      - "response:export"
+  user:
+    inherits: []
+    permissions:
+      - "project:view"
+      - "form:view"
+      - "response:create"
+protected_routes:
+  "POST /form/api/v1/projects/<project_id>/forms/<form_id>/publish":
+    permission: "form:publish"
+  "POST /form/api/v1/projects/<project_id>/forms/<form_id>/clone":
+    permission: "form:view"
+  "GET /form/api/v1/projects/<project_id>/forms/<form_id>/responses":
+    permission: "response:view"
+  "GET /form/api/v1/projects/<project_id>/forms/<form_id>/export/<format>":
+    permission: "response:export"

@@ -1,7 +1,8 @@
 # Makefile — form-backend (RIDP platform)
 
 .PHONY: help up up-dev down restart restart-dev logs shell \
-        build bootstrap ps test lint clean backup restore list-backups
+        build bootstrap ps test lint openapi generate-dart-client clean backup restore list-backups \
+        migrate migrate-local pre-commit-install contract-test
 
 # ANSI colors
 CYAN  := \033[36m
@@ -88,6 +89,12 @@ lint: ## Run flake8, black (check), and mypy
 	@docker build -t forms-linter -f Dockerfile.linter .
 	@docker run --rm forms-linter
 
+openapi: ## Export and validate Swagger/OpenAPI contract
+	@python scripts/export_openapi.py
+
+generate-dart-client: ## Generate Flutter Dart API client from the exported contract
+	@./scripts/generate_frontend_dart_client.sh
+
 # ─────────────────────────────────────────────
 # Cleanup
 # ─────────────────────────────────────────────
@@ -111,3 +118,28 @@ restore: ## Restore data from a backup file (Usage: make restore FILE=backups/fi
 
 list-backups: ## List all available backups
 	@./scripts/backup_restore.sh list
+
+# ─────────────────────────────────────────────
+# Database Migrations
+# ─────────────────────────────────────────────
+migrate: ## Run all database migrations (inside container)
+	@echo "$(CYAN)Running database migrations...$(RESET)"
+	@docker compose exec backend python scripts/migrations/001_add_compound_indexes.py
+	@echo "$(GREEN)✅ Migrations complete.$(RESET)"
+
+migrate-local: ## Run migrations against local MongoDB (requires MONGODB_URI env)
+	@echo "$(CYAN)Running database migrations (local)...$(RESET)"
+	@python scripts/migrations/001_add_compound_indexes.py
+	@echo "$(GREEN)✅ Migrations complete.$(RESET)"
+
+# ─────────────────────────────────────────────
+# Developer Tooling
+# ─────────────────────────────────────────────
+pre-commit-install: ## Install pre-commit hooks locally
+	@pip install pre-commit && pre-commit install
+	@echo "$(GREEN)✅ Pre-commit hooks installed.$(RESET)"
+
+contract-test: ## Validate backend routes match frontend expectations
+	@echo "$(CYAN)Running contract tests...$(RESET)"
+	@docker compose run --rm backend python scripts/contract_test.py
+	@echo "$(GREEN)✅ Contract validation complete.$(RESET)"

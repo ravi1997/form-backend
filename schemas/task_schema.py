@@ -22,6 +22,11 @@ class TaskStatusSchema(BaseModel):
     )
 
 
+class TaskStatusOutSchema(TaskStatusSchema):
+    """Explicitly named schema for task status output alignment."""
+    pass
+
+
 class TaskCreateSchema(BaseModel):
     """Schema for task creation request."""
 

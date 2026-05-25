@@ -6,7 +6,7 @@ from utils.response_helper import success_response, error_response
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
 dashboard_settings_bp = Blueprint(
-    "dashboard_settings", __name__, url_prefix="/api/v1/dashboard"
+    "dashboard_settings", __name__
 )
 dashboard_service = DashboardService()
 

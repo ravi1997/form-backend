@@ -233,3 +233,40 @@ class WorkflowInstanceService(BaseService):
                     f"Failed to update resource status for {resource_id}: {e}",
                     exc_info=True,
                 )
+
+    def list_pending_approvals(self, user_id: str, organization_id: str) -> list:
+        """
+        Retrieves all workflow instances that are currently awaiting approval
+        from the specified user in the given organization.
+        """
+        app_logger.info(f"Listing pending workflow approvals for user {user_id} in org {organization_id}")
+        
+        # Fetch active workflow instances for this organization
+        active_instances = self.model.objects(
+            organization_id=organization_id,
+            is_deleted=False,
+            status__in=["pending", "in_progress", "partially_approved"]
+        )
+        
+        pending_list = []
+        for instance in active_instances:
+            workflow_def = instance.workflow_definition
+            if not workflow_def or getattr(workflow_def, "is_deleted", False):
+                continue
+                
+            current_step = next(
+                (s for s in workflow_def.steps if s.order == instance.current_step_order),
+                None,
+            )
+            if not current_step:
+                continue
+                
+            # Check if user is one of the approvers
+            if user_id in current_step.approvers:
+                # Check if they have not approved yet
+                step_key = str(instance.current_step_order)
+                approved_users = instance.step_approvals.get(step_key, []) if instance.step_approvals else []
+                if user_id not in approved_users:
+                    pending_list.append(self._to_schema(instance))
+                    
+        return pending_list

@@ -1,8 +1,26 @@
 import pytest
+from flask import Flask
 from testcontainers.mongodb import MongoDbContainer
 from testcontainers.redis import RedisContainer
 import mongoengine
 from utils.redis_client import redis_client
+
+
+@pytest.fixture(scope="function")
+def app():
+    app = Flask("test")
+    app.config["JWT_SECRET_KEY"] = "test-secret"
+    app.config["JWT_ALGORITHM"] = "HS256"
+    from extensions import jwt
+
+    jwt.init_app(app)
+    return app
+
+
+@pytest.fixture(autouse=True)
+def app_context(app):
+    with app.app_context():
+        yield
 
 @pytest.fixture(scope="session")
 def mongo_container():
