@@ -30,8 +30,15 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
             # Multi-tenant compound indexes
             ("organization_id", "form", "-submitted_at"),
             ("organization_id", "project", "-submitted_at"),
-            ("organization_id", "form", "is_deleted", "-submitted_at"), # Optimized for list views
+            ("organization_id", "form", "is_deleted", "-submitted_at"),
             ("form", "status", "is_deleted"),
+            # Idempotency: prevent duplicate submissions on retry
+            {
+                "fields": ["organization_id", "idempotency_key"],
+                "unique": True,
+                "sparse": True,
+                "name": "org_idempotency_unique",
+            },
         ],
         "index_background": True,
     }
@@ -47,7 +54,11 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
     # Payload - The source for dynamic views
     # Keys should match question variable_names
     data = DictField(required=True)
-    encrypted_data = DictField(default=dict) # Stores encrypted sensitive fields
+    encrypted_data = DictField(default=dict)  # Stores encrypted sensitive fields
+
+    # Idempotency key — client-supplied UUID to prevent duplicate submissions on retry
+    # Enforced unique per (organization_id, idempotency_key) via sparse index
+    idempotency_key = StringField(sparse=True)
 
     # Metadata
     submitted_by = StringField(required=True)

@@ -434,7 +434,16 @@ class SnapshotStore(BaseDocument):
     meta = {
         "collection": "form_snapshots",
         "index_background": True,
+        "indexes": [
+            # TTL: auto-delete snapshots older than 90 days
+            {"fields": ["created_at"], "expireAfterSeconds": 7776000, "name": "ttl_90d"},
+            # Compound index for tenant-scoped version lookups
+            {"fields": ["organization_id", "form_id", "-created_at"], "name": "org_form_created"},
+        ],
     }
+    # Tenant isolation — required for all tenant-owned data
+    organization_id = StringField(required=True, default="")
+    form_id = StringField(help_text="Denormalized form id for compound index queries")
     # Stores either raw dict or compressed binary
     data = DictField(help_text="Raw JSON snapshot if not compressed")
     compressed_data = BinaryField(help_text="Compressed snapshot data")
