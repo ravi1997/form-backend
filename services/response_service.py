@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
 from services.base import BaseService, PaginatedResult, TSchema, TUpdateSchema
-from utils.exceptions import NotFoundError, ValidationError
+from utils.exceptions import NotFoundError, ValidationError, ConflictError
 from models import Form, FormResponse, DynamicViewDefinition
 from schemas.response import FormResponseSchema, DynamicViewDefinitionSchema
 from schemas.base import InboundPayloadSchema
@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 class FormResponseCreateSchema(FormResponseSchema, InboundPayloadSchema):
-    pass
+    idempotency_key: Optional[str] = None
 
 
 class FormResponseUpdateSchema(FormResponseSchema, InboundPayloadSchema):
@@ -139,19 +139,40 @@ class FormResponseService(BaseService):
         """Securely ingest a form submission executing payload validation first, wrapping with Idempotency."""
         app_logger.info(f"Entering create_submission for Form ID {data.form}")
         try:
+            idempotency_key = data.idempotency_key or data.data.get("idempotency_key")
+            if idempotency_key:
+                data.idempotency_key = idempotency_key
+                if "idempotency_key" in data.data:
+                    data.data = dict(data.data)
+                    data.data.pop("idempotency_key", None)
+
+                existing = FormResponse.objects(
+                    form=data.form,
+                    organization_id=data.organization_id,
+                    idempotency_key=idempotency_key,
+                    is_deleted=False,
+                ).first()
+                if existing:
+                    existing_hash = (existing.meta_data or {}).get(
+                        "idempotency_request_hash"
+                    )
+                    incoming_hash = (data.meta_data or {}).get(
+                        "idempotency_request_hash"
+                    )
+                    if existing_hash and incoming_hash and existing_hash != incoming_hash:
+                        raise ConflictError(
+                            "Idempotency-Key was reused with a different request body"
+                        )
+                    app_logger.info(
+                        f"Idempotent submission trapped: form {data.form} key {idempotency_key}"
+                    )
+                    return self._to_schema(existing)
+
             # --- Size Guard ---
             import json
             payload_size = len(json.dumps(data.data))
             if payload_size > 5 * 1024 * 1024: # 5MB limit
                 raise ValidationError(f"Payload too large: {payload_size} bytes (max 5MB)")
-
-            # --- Idempotency Check ---
-            idempotency_key = data.data.get("idempotency_key")
-            if idempotency_key:
-                existing = FormResponse.objects(form=data.form, data__idempotency_key=idempotency_key).first()
-                if existing:
-                    app_logger.info(f"Idempotent submission trapped: form {data.form} key {idempotency_key}")
-                    return self._to_schema(existing)
             
             # 1. Unified Validation (includes conditions, calculations, type checks)
             is_valid, cleaned_data, errors, calculated_values = self.validate_payload(
@@ -165,7 +186,7 @@ class FormResponseService(BaseService):
             # preserve original payload instead of writing an empty dict.
             data.data = cleaned_data if cleaned_data else (data.data or {})
             if calculated_values:
-                if "meta_data" not in data.__dict__:
+                if not data.meta_data:
                     data.meta_data = {}
                 data.meta_data["calculated_values"] = calculated_values
 
@@ -196,7 +217,27 @@ class FormResponseService(BaseService):
                         data.form_version = str(fv.id)
 
             # Create the response document
-            response = self.create(data)
+            try:
+                response = self.create(data)
+            except ConflictError:
+                if idempotency_key:
+                    existing = FormResponse.objects(
+                        form=data.form,
+                        organization_id=data.organization_id,
+                        idempotency_key=idempotency_key,
+                        is_deleted=False,
+                    ).first()
+                    if existing:
+                        existing_hash = (existing.meta_data or {}).get(
+                            "idempotency_request_hash"
+                        )
+                        incoming_hash = (data.meta_data or {}).get(
+                            "idempotency_request_hash"
+                        )
+                        if existing_hash and incoming_hash and existing_hash != incoming_hash:
+                            raise
+                        return self._to_schema(existing)
+                raise
 
             # Trigger background tasks
             try:

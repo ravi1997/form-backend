@@ -11,6 +11,7 @@ from utils.exceptions import (
     NotFoundError,
     ValidationError,
     ForbiddenError,
+    ConflictError,
     ServiceError,
 )
 from utils.response_helper import success_response, error_response
@@ -35,10 +36,48 @@ from uuid import UUID
 )
 def submit_public_response(form_id):
     app_logger.info(f"Entering submit_public_response for form {form_id}")
-    data = request.get_json()
     try:
+        data = request.get_json(silent=True) or {}
+        idempotency_key = request.headers.get("Idempotency-Key", "").strip()
+        if not idempotency_key:
+            return error_response(
+                message="Idempotency-Key header is required",
+                status_code=400,
+                code="IDEMPOTENCY_KEY_REQUIRED",
+            )
+
         # Public lookup - must be careful but it is allowed for is_public forms
         form = Form.objects.get(id=form_id, is_deleted=False)
+
+        request_hash = json.dumps(
+            {"data": data.get("data", {})}, sort_keys=True, default=str
+        )
+
+        existing_response = FormResponse.objects(
+            form=form.id,
+            organization_id=form.organization_id,
+            idempotency_key=idempotency_key,
+            is_deleted=False,
+        ).first()
+        if existing_response:
+            existing_hash = (existing_response.meta_data or {}).get(
+                "idempotency_request_hash"
+            )
+            if existing_hash and existing_hash != request_hash:
+                return error_response(
+                    message="Idempotency-Key was reused with a different request body",
+                    status_code=409,
+                    code="IDEMPOTENCY_KEY_REUSED",
+                )
+
+            audit_logger.info(
+                f"Replaying anonymous response {existing_response.id} for form {form_id}"
+            )
+            return success_response(
+                data={"response_id": str(existing_response.id)},
+                message="Response submitted anonymously",
+                status_code=200,
+            )
 
         # Check if form is published
         if form.status != "published":
@@ -71,15 +110,6 @@ def submit_public_response(form_id):
             )
             return error_response(message="Form is not public", status_code=403)
 
-        # Track submitter's organization ID for ownership tracking
-        # Even for anonymous public submissions, we record their original org if available
-        submitter_org_id = request.headers.get("X-Submitter-Org-ID")
-        if submitter_org_id:
-            submission_data["submitter_org_id"] = submitter_org_id
-            app_logger.info(
-                f"Recording submitter org ID {submitter_org_id} for form {form_id}"
-            )
-
         from services.response_service import (
             FormResponseService,
             FormResponseCreateSchema,
@@ -94,6 +124,8 @@ def submit_public_response(form_id):
             "submitted_by": "anonymous",
             "ip_address": request.remote_addr,
             "user_agent": request.user_agent.string,
+            "idempotency_key": idempotency_key,
+            "meta_data": {"idempotency_request_hash": request_hash},
         }
 
         # Track submitter's organization ID for ownership tracking
@@ -121,6 +153,11 @@ def submit_public_response(form_id):
     except DoesNotExist:
         app_logger.warning(f"Form {form_id} not found for public submission")
         return error_response(message="Form not found", status_code=404)
+    except ConflictError as e:
+        error_logger.warning(
+            f"Conflict in submit_public_response for form {form_id}: {e}"
+        )
+        return error_response(message=str(e), status_code=409, code="CONFLICT")
     except Exception as e:
         error_logger.error(f"Error in submit_public_response for form {form_id}: {e}")
         return error_response(message=str(e), status_code=400)
