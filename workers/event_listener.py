@@ -15,10 +15,19 @@ def handle_form_submitted(payload: dict):
     """
     form_id = payload.get("form_id")
     response_id = payload.get("response_id")
+    organization_id = payload.get("organization_id")
     
     app_logger.info(f"Entering handle_form_submitted: response_id={response_id}")
     
     try:
+        # Evict Analysis Board caches targeting this form
+        if form_id and organization_id:
+            try:
+                from services.analysis_board_service import AnalysisBoardService
+                AnalysisBoardService.evict_caches_for_form(form_id, organization_id)
+            except Exception as evict_err:
+                error_logger.error(f"Failed to evict analysis board caches during form.submitted handling: {evict_err}")
+
         form = Form.objects(id=form_id, is_deleted=False).first()
         if form and form.triggers:
             triggers_data = [t.to_mongo().to_dict() for t in form.triggers if t.is_active]
