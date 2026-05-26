@@ -10,6 +10,8 @@ from utils.mongodb_query_helper import NoSQLInjector
 from utils.sensitive_data_redaction import safe_log_info, safe_log_error
 from utils.response_helper import success_response, error_response, FormSerializer
 from services.form_service import FormService
+from services.filter_builder_service import FilterBuilderService
+from utils.exceptions import ValidationError as ServiceValidationError
 
 advanced_responses_bp = Blueprint("advanced_responses", __name__)
 form_service = FormService()
@@ -501,3 +503,186 @@ def update_access_policy(form_id):
     except Exception as e:
         error_logger.error(f"Error updating access policy: {str(e)}")
         return jsonify({"error": str(e)}), 400
+
+
+@advanced_responses_bp.route("/<form_id>/responses/filter", methods=["POST"])
+@swag_from(
+    {
+        "tags": ["Advanced_Responses"],
+        "summary": "Filter form responses using structured visual filters",
+        "parameters": [
+            {
+                "name": "form_id",
+                "in": "path",
+                "type": "string",
+                "required": True,
+                "description": "ID of the form whose responses to filter",
+            },
+            {
+                "name": "body",
+                "in": "body",
+                "required": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "filters": {
+                            "type": "array",
+                            "description": "Array of filter rule objects",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "field": {"type": "string"},
+                                    "operator": {"type": "string"},
+                                    "value": {},
+                                    "field_type": {
+                                        "type": "string",
+                                        "enum": ["string", "number", "date", "boolean"],
+                                    },
+                                    "is_meta": {"type": "boolean"},
+                                },
+                                "required": ["field", "operator", "field_type"],
+                            },
+                        },
+                        "page": {"type": "integer", "default": 1},
+                        "page_size": {"type": "integer", "default": 50},
+                    },
+                },
+            },
+        ],
+        "responses": {
+            "200": {"description": "Filtered, paginated response list"},
+            "400": {"description": "Invalid filter specification"},
+            "401": {"description": "Unauthenticated"},
+            "403": {"description": "Forbidden"},
+            "404": {"description": "Form not found"},
+        },
+    }
+)
+@jwt_required()
+def filter_responses(form_id):
+    """
+    POST /advanced_responses/<form_id>/responses/filter
+
+    Accept a JSON body with a ``filters`` array and return paginated
+    FormResponse documents matching all supplied criteria.
+
+    The filter engine guarantees:
+    - Every query is scoped to the caller's organisation and the specified form.
+    - No MongoDB operator injection is possible via filter input.
+    - Unsupported operators or invalid types raise a 400 error.
+    """
+    app_logger.info(f"Entering filter_responses for form_id: {form_id}")
+
+    current_user = get_current_user()
+    if not current_user:
+        return error_response(message="User not found", status_code=401)
+
+    body = request.get_json(silent=True) or {}
+    raw_filters = body.get("filters", [])
+    page = int(body.get("page", 1))
+    page_size = int(body.get("page_size", 50))
+
+    # Clamp page_size to a safe maximum
+    page_size = max(1, min(page_size, 200))
+    page = max(1, page)
+
+    try:
+        # ── Resolve form and check permission ────────────────────────────
+        from models import Form
+        from mongoengine import DoesNotExist as _DoesNotExist
+        from uuid import UUID
+
+        try:
+            form_uuid = UUID(str(form_id))
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
+        try:
+            form = Form.objects.get(
+                id=form_uuid,
+                organization_id=current_user.organization_id,
+                is_deleted=False,
+            )
+        except _DoesNotExist:
+            return error_response(message="Form not found", status_code=404)
+
+        if not has_form_permission(current_user, form, "view_responses"):
+            error_logger.warning(
+                f"User {current_user.id} lacks view_responses on form {form_id}"
+            )
+            return error_response(
+                message="You do not have permission to view responses for this form",
+                status_code=403,
+            )
+
+        # ── Build safe MongoDB query ──────────────────────────────────────
+        mongo_query = FilterBuilderService.build_mongo_query(
+            filters=raw_filters,
+            organization_id=current_user.organization_id,
+            form_id=str(form.id),
+        )
+
+        # ── Execute query ─────────────────────────────────────────────────
+        from models.Response import FormResponse
+
+        qs = FormResponse.objects(__raw__=mongo_query)
+        total = qs.count()
+        items = (
+            qs.order_by("-submitted_at")
+            .skip((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        payload = [r.to_mongo().to_dict() for r in items]
+        # Stringify ObjectId / UUID values for JSON serialisation
+        import json
+        from bson import json_util
+
+        payload_clean = json.loads(json_util.dumps(payload))
+
+        result = {
+            "items": payload_clean,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": max(1, (total + page_size - 1) // page_size),
+            "has_next": (page * page_size) < total,
+            "has_prev": page > 1,
+            "filter_count": len(raw_filters),
+        }
+
+        audit_logger.info(
+            f"User {current_user.id} applied {len(raw_filters)} filter(s) to form {form_id}; "
+            f"matched {total} response(s).",
+            extra={
+                "user_id": str(current_user.id),
+                "form_id": form_id,
+                "organization_id": current_user.organization_id,
+                "action": "filter_responses",
+                "filter_count": len(raw_filters),
+                "total_matched": total,
+            },
+        )
+
+        app_logger.info(
+            f"Exiting filter_responses for form_id: {form_id}, "
+            f"matched {total} of total responses"
+        )
+        return success_response(data=result)
+
+    except ServiceValidationError as exc:
+        error_logger.error(
+            f"Validation error in filter_responses for form {form_id}: {exc}",
+            exc_info=True,
+        )
+        return error_response(
+            message=str(exc),
+            details=exc.details if hasattr(exc, "details") else {},
+            status_code=400,
+        )
+    except Exception as exc:
+        error_logger.error(
+            f"Unexpected error in filter_responses for form {form_id}: {exc}",
+            exc_info=True,
+        )
+        return error_response(message=str(exc), status_code=500)
