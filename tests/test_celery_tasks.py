@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import patch
 from tasks.notification_tasks import (
     process_notification_triggers,
+    process_single_trigger,
     long_running_computation,
 )
 
@@ -15,9 +16,9 @@ def test_long_running_computation():
     assert "result" in result
 
 
-@patch("services.notification_service.NotificationService.execute_triggers")
-def test_process_notification_triggers_task(mock_execute):
-    """Test the trigger processing task calls NotificationService."""
+@patch("tasks.notification_tasks.process_single_trigger.delay")
+def test_process_notification_triggers_task(mock_delay):
+    """Test the trigger processing task dispatches process_single_trigger."""
     triggers_data = [
         {"name": "test_webhook", "action_type": "webhook", "is_active": True}
     ]
@@ -25,25 +26,35 @@ def test_process_notification_triggers_task(mock_execute):
 
     process_notification_triggers(triggers_data, context_data)
 
-    mock_execute.assert_called_once_with(triggers_data, context_data)
+    mock_delay.assert_called_once_with(triggers_data[0], context_data)
 
 
-@patch("tasks.notification_tasks.process_notification_triggers.retry")
-@patch("services.notification_service.NotificationService.execute_triggers")
-def test_process_notification_triggers_retry(mock_execute, mock_retry):
-    """Test task retry logic on service failure."""
-    # Mocking a retry exception which is what Celery expects
-    from celery.exceptions import Retry
+@patch("services.notification_service.NotificationService._call_webhook")
+def test_process_single_trigger_webhook(mock_call_webhook):
+    """Test process_single_trigger successfully processes webhook type."""
+    trigger_data = {
+        "name": "test_webhook",
+        "action_type": "webhook",
+        "action_config": {"url": "http://example.com"},
+    }
+    context_data = {"event": "submission"}
 
-    mock_retry.side_effect = Retry("Retrying...")
+    process_single_trigger(trigger_data, context_data)
 
-    mock_execute.side_effect = Exception("Temporary failure")
+    mock_call_webhook.assert_called_once_with(trigger_data["action_config"], context_data)
 
-    triggers_data = [{"name": "test"}]
+
+@patch("services.notification_service.NotificationService._call_webhook")
+def test_process_single_trigger_failure(mock_call_webhook):
+    """Test process_single_trigger raises exception on failure to trigger Celery autoretry."""
+    mock_call_webhook.side_effect = Exception("HTTP Error")
+    trigger_data = {
+        "name": "test_webhook",
+        "action_type": "webhook",
+        "action_config": {"url": "http://example.com"},
+    }
     context_data = {}
 
-    with pytest.raises(Retry):
-        # Celery injects 'self' automatically when called, and we've mocked the task's .retry method
-        process_notification_triggers(triggers_data, context_data)
-
-    assert mock_retry.called
+    with pytest.raises(Exception) as exc:
+        process_single_trigger(trigger_data, context_data)
+    assert "HTTP Error" in str(exc.value)

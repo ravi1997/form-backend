@@ -88,7 +88,7 @@ class PermissionValidator:
             
         return required_permission in user_perms
 
-    def match_route_permission(self, method: str, path: str) -> str:
+    def match_route_permission(self, method: str, path: str) -> str | None:
         """
         Matches a request method and path against the protected routes list.
         Returns the required permission string, or None if the route is not protected.
@@ -98,12 +98,14 @@ class PermissionValidator:
         clean_path = path.split("?")[0]
         request_signature = f"{method.upper()} {clean_path}"
 
-        for route_pattern, permission in self.protected_routes.items():
+        for route_pattern, val in self.protected_routes.items():
             # Convert Flask-style pattern "GET /api/v1/foo/<id>" to regex pattern
             # replace <parameter> with ([^/]+)
             regex_pattern = "^" + re.sub(r"<[^>]+>", r"[^/]+", route_pattern) + "$"
             if re.match(regex_pattern, request_signature):
-                return permission
+                if isinstance(val, dict):
+                    return val.get("permission")
+                return val
 
         return None
 

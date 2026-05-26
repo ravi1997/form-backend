@@ -41,11 +41,12 @@ def mock_is_token_revoked(monkeypatch):
     monkeypatch.setattr(AuthService, "is_token_revoked", lambda self, jti: False)
 
 
-def test_generate_tokens(auth_service, mock_user):
-    tokens = auth_service.generate_tokens(mock_user)
-    assert isinstance(tokens, TokenResponse)
-    assert tokens.access_token is not None
-    assert tokens.refresh_token is not None
+def test_generate_tokens(app, auth_service, mock_user):
+    with app.app_context():
+        tokens = auth_service.generate_tokens(mock_user)
+        assert isinstance(tokens, TokenResponse)
+        assert tokens.access_token is not None
+        assert tokens.refresh_token is not None
 
 
 def test_validate_token_success(auth_service, mock_user):

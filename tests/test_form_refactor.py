@@ -3,6 +3,8 @@ from unittest.mock import MagicMock, patch
 from services.form_validation_service import FormValidationService
 from models.Form import Form, FormVersion
 
+pytestmark = pytest.mark.usefixtures("db_connection")
+
 def test_unified_validation_simple():
     # Mock Form and FormVersion
     mock_form = MagicMock()
@@ -12,7 +14,7 @@ def test_unified_validation_simple():
     
     mock_version = MagicMock()
     mock_version.id = "v1"
-    mock_version.snapshot = {
+    mock_version.resolved_snapshot = mock_version.snapshot = {
         "sections": [{
             "title": "General",
             "questions": [{
@@ -24,11 +26,12 @@ def test_unified_validation_simple():
         }]
     }
     
-    with patch("models.Form.objects") as mock_form_objs, \
-         patch("models.FormVersion.objects") as mock_version_objs:
+    with patch("models.Form.Form.objects") as mock_form_objs, \
+         patch("models.Form.FormVersion.objects") as mock_version_objs:
         
         mock_form_objs.return_value.first.return_value = mock_form
         mock_version_objs.return_value.first.return_value = mock_version
+        mock_version_objs.return_value.order_by.return_value.first.return_value = mock_version
         
         # Validate - Missing required field
         valid, cleaned, errors, calc = FormValidationService.validate_submission(
@@ -51,7 +54,7 @@ def test_unified_validation_simple():
 def test_calculated_fields():
     mock_form = MagicMock(id="form1", active_version_id="v1", organization_id="org1")
     mock_version = MagicMock(id="v1")
-    mock_version.snapshot = {
+    mock_version.resolved_snapshot = mock_version.snapshot = {
         "sections": [{
             "questions": [
                 {"variable_name": "price", "field_type": "number"},
@@ -61,11 +64,12 @@ def test_calculated_fields():
         }]
     }
     
-    with patch("models.Form.objects") as mock_form_objs, \
-         patch("models.FormVersion.objects") as mock_version_objs:
+    with patch("models.Form.Form.objects") as mock_form_objs, \
+         patch("models.Form.FormVersion.objects") as mock_version_objs:
         
         mock_form_objs.return_value.first.return_value = mock_form
         mock_version_objs.return_value.first.return_value = mock_version
+        mock_version_objs.return_value.order_by.return_value.first.return_value = mock_version
         
         valid, cleaned, errors, calc = FormValidationService.validate_submission(
             form_id="form1",
@@ -80,7 +84,7 @@ def test_calculated_fields():
 def test_cascading_selects():
     mock_form = MagicMock(id="form1", active_version_id="v1", organization_id="org1")
     mock_version = MagicMock(id="v1")
-    mock_version.snapshot = {
+    mock_version.resolved_snapshot = mock_version.snapshot = {
         "sections": [{
             "questions": [
                 {
@@ -104,11 +108,12 @@ def test_cascading_selects():
         }]
     }
     
-    with patch("models.Form.objects") as mock_form_objs, \
-         patch("models.FormVersion.objects") as mock_version_objs:
+    with patch("models.Form.Form.objects") as mock_form_objs, \
+         patch("models.Form.FormVersion.objects") as mock_version_objs:
         
         mock_form_objs.return_value.first.return_value = mock_form
         mock_version_objs.return_value.first.return_value = mock_version
+        mock_version_objs.return_value.order_by.return_value.first.return_value = mock_version
         
         # Invalid: Mumbai for USA
         valid, cleaned, errors, calc = FormValidationService.validate_submission(

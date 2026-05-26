@@ -131,10 +131,9 @@ def test_replay_on_cached_key(app):
         method="POST",
         headers={"X-Idempotency-Key": "client-retry-key-001"},
     ):
-        with patch("middleware.idempotency.redis_client", fake_redis):
+        with patch("extensions.redis_client", fake_redis):
             from flask import g
             g.organization_id = "org-test-123"
-            from middleware.idempotency import check_idempotency
             # Simulate before_request
             with app.test_request_context(
                 "/form/api/v1/forms/test-form-id/responses",
@@ -158,7 +157,7 @@ def test_no_crash_on_redis_failure(app):
         method="POST",
         headers={"X-Idempotency-Key": "test-key"},
     ):
-        with patch("middleware.idempotency.redis_client", None):
+        with patch("extensions.redis_client", None):
             # Should not raise even with redis_client=None
             result = _get_idempotency_key()
             assert result == "test-key"

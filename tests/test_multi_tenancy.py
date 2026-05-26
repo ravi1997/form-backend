@@ -13,7 +13,7 @@ def test_dashboard_service_enforces_org_id(dashboard_service):
     Ensures that DashboardService filters by organization_id.
     """
     mock_query = MagicMock()
-    mock_query.first.return_value = Dashboard(title="My Dash", organization_id="org-A", slug="my-dash")
+    mock_query.first.return_value = Dashboard(title="My Dash", organization_id="org-A", slug="my-dash", created_by="user-123")
     
     # Patching the class attribute 'objects' directly on the Dashboard class
     with patch.object(Dashboard, 'objects') as mock_objects:

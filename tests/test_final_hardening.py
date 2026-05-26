@@ -5,6 +5,9 @@ from models.Form import Form, FormVersion, SnapshotStore
 from flask import Flask
 from routes.v1.form.export import stream_form_csv
 
+pytestmark = pytest.mark.usefixtures("db_connection")
+
+
 def test_aggregate_repeat_calculations():
     # Setup a form with a repeat section and a sum calculation
     mock_form = MagicMock(id="form1", active_version_id="v1", organization_id="org1")
@@ -12,7 +15,7 @@ def test_aggregate_repeat_calculations():
     
     # members is repeatable, has 'age' field
     # total_age = sum(members.age)
-    mock_version.snapshot = {
+    mock_version.resolved_snapshot = mock_version.snapshot = {
         "sections": [{
             "variable_name": "members",
             "logic": {"is_repeatable": True},
@@ -29,11 +32,12 @@ def test_aggregate_repeat_calculations():
     # Mock property
     type(mock_version).resolved_snapshot = mock_version.snapshot
 
-    with patch("models.Form.objects") as mock_form_objs, \
-         patch("models.FormVersion.objects") as mock_version_objs:
+    with patch("models.Form.Form.objects") as mock_form_objs, \
+         patch("models.Form.FormVersion.objects") as mock_version_objs:
         
         mock_form_objs.return_value.first.return_value = mock_form
         mock_version_objs.return_value.first.return_value = mock_version
+        mock_version_objs.return_value.order_by.return_value.first.return_value = mock_version
         
         payload = {
             "members": [{"age": 10}, {"age": 20}, {"age": 5}]
@@ -64,7 +68,7 @@ def test_missing_dependency_graceful_handling():
     # total = a + b, but b is missing from payload and not a calculated field
     mock_form = MagicMock(id="form1", active_version_id="v1", organization_id="org1")
     mock_version = MagicMock(id="v1")
-    mock_version.snapshot = {
+    mock_version.resolved_snapshot = mock_version.snapshot = {
         "sections": [{
             "questions": [
                 {"variable_name": "a", "field_type": "number"},
@@ -74,11 +78,12 @@ def test_missing_dependency_graceful_handling():
     }
     type(mock_version).resolved_snapshot = mock_version.snapshot
 
-    with patch("models.Form.objects") as mock_form_objs, \
-         patch("models.FormVersion.objects") as mock_version_objs:
+    with patch("models.Form.Form.objects") as mock_form_objs, \
+         patch("models.Form.FormVersion.objects") as mock_version_objs:
         
         mock_form_objs.return_value.first.return_value = mock_form
         mock_version_objs.return_value.first.return_value = mock_version
+        mock_version_objs.return_value.order_by.return_value.first.return_value = mock_version
         
         # 'b' is missing
         valid, cleaned, errors, calc = FormValidationService.validate_submission(

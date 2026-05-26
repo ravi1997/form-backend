@@ -151,6 +151,10 @@ def create_app():
 
     init_idempotency_middleware(app)
 
+    from middleware.rbac_matrix import setup_rbac_matrix
+
+    setup_rbac_matrix(app)
+
     # ── MongoDB ─────────────────────────────────────────────────────────────
     import sys
 

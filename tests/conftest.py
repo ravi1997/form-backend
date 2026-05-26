@@ -35,9 +35,16 @@ def redis_container():
 @pytest.fixture(scope="function")
 def db_connection(mongo_container):
     """Establishes an ephemeral connection to the isolated Mongo instance for testing."""
+    try:
+        mongoengine.disconnect()
+    except Exception:
+        pass
     mongoengine.connect("test_db", host=mongo_container)
     yield
-    mongoengine.disconnect()
+    try:
+        mongoengine.disconnect()
+    except Exception:
+        pass
 
 @pytest.fixture(scope="function")
 def redis_mock(redis_container):
