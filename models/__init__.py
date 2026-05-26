@@ -15,3 +15,5 @@ from .AuditLog import *
 from .Workflow import *
 from .Theme import *
 from .Idempotency import *
+from .AnalysisBoard import *
+

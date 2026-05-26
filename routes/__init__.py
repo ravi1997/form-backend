@@ -8,6 +8,7 @@ from routes.v1.form.library import library_bp
 from routes.v1.form.permissions import permissions_bp
 from routes.v1.dashboard_route import dashboard_bp
 from routes.v1.dashboard_settings_route import dashboard_settings_bp
+from routes.v1.analysis_board_route import analysis_board_bp
 from routes.v1.workflow_route import workflow_bp
 from routes.v1.webhooks import webhooks_bp
 from routes.v1.form.translation import translation_bp
@@ -57,6 +58,7 @@ def register_blueprints(app):
     app.register_blueprint(dashboard_settings_bp, url_prefix=f"{base_prefix}/api/v1/dashboard-settings")
     app.register_blueprint(analytics_bp, url_prefix=f"{base_prefix}/api/v1/analytics")
     app.register_blueprint(anomaly_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
+    app.register_blueprint(analysis_board_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/analysis-boards")
 
     # Workflows & Integrations
     app.register_blueprint(workflow_bp, url_prefix=f"{base_prefix}/api/v1/workflows")

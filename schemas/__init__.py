@@ -34,6 +34,12 @@ from .access_control import (
 from .workflow_instance import ApprovalLogSchema, WorkflowInstanceSchema
 from .template import FormBlueprintSchema, ProjectBlueprintSchema
 from .system_settings import SystemSettingsSchema
+from .analysis_board import (
+    AnalysisNodeSchema,
+    AnalysisBoardSchema,
+    AnalysisBoardCreateSchema,
+    AnalysisBoardUpdateSchema,
+)
 
 __all__ = [
     "BaseSchema",
@@ -71,4 +77,9 @@ __all__ = [
     "FormBlueprintSchema",
     "ProjectBlueprintSchema",
     "SystemSettingsSchema",
+    "AnalysisNodeSchema",
+    "AnalysisBoardSchema",
+    "AnalysisBoardCreateSchema",
+    "AnalysisBoardUpdateSchema",
 ]
+
