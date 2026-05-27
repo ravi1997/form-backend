@@ -24,7 +24,7 @@ def run():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     with app.test_client() as client:
-        response = client.get("/form/apispec_1.json")
+        response = client.get("/mahasangraha/apispec_1.json")
         if response.status_code != 200:
             print(f"❌ Failed to get spec: HTTP {response.status_code}")
             sys.exit(1)
@@ -32,7 +32,7 @@ def run():
         spec = response.get_json()
 
     # Write JSON
-    json_path = os.path.join(OUTPUT_DIR, "openapi.json")
+    json_path = os.path.join(OUTPUT_DIR, "openapi_spec.json")
     with open(json_path, "w") as f:
         json.dump(spec, f, indent=2)
     print(f"✅ OpenAPI JSON written to: {json_path}")
