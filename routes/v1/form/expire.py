@@ -72,33 +72,4 @@ def set_form_expiration(form_id):
         return jsonify({"error": str(e)}), 400
 
 
-@form_bp.route("/expired", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Form"
-    ],
-    "responses": {
-        "200": {
-            "description": "Admin only: List all forms that have passed their expiration date."
-        }
-    }
-})
-@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
-def list_expired_forms():
-    """Admin only: List all forms that have passed their expiration date."""
-    app_logger.info("Entering list_expired_forms")
-    try:
-        now = datetime.now(timezone.utc)
-        expired_forms = Form.objects(expires_at__lt=now)
-        result = []
-        for f in expired_forms:
-            d = f.to_mongo().to_dict()
-            d["id"] = str(d.pop("_id"))
-            result.append(d)
-        
-        app_logger.info(f"Successfully listed {len(result)} expired forms")
-        return jsonify(result), 200
-    except Exception as e:
-        error_logger.error(f"Error in list_expired_forms: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
 

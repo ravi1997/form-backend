@@ -16,25 +16,6 @@ from logger.unified_logger import app_logger, error_logger, audit_logger
 from utils.response_helper import success_response, error_response
 
 
-@form_bp.route("/slug-available", methods=["GET"])
-@swag_from(
-    {
-        "tags": ["Form"],
-        "responses": {"200": {"description": "Check if a form slug is already taken."}},
-    }
-)
-@jwt_required()
-def check_slug():
-    """Check if a form slug is already taken."""
-    slug = request.args.get("slug")
-    app_logger.info(f"Checking slug availability for: {slug}")
-    if not slug:
-        return error_response(message="slug parameter is required", status_code=400)
-
-    # Slugs are globally unique in this system, but we check within org context for clarity
-    exists = Form.objects(slug=slug).first() is not None
-    app_logger.info(f"Slug availability for {slug}: {not exists}")
-    return success_response(data={"available": not exists})
 
 
 @form_bp.route("/<form_id>/share", methods=["POST"])

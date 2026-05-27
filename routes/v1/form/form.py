@@ -48,45 +48,6 @@ form_service = FormService()
 project_service = ProjectService()
 
 
-@form_bp.route("/builder-metadata", methods=["GET"])
-@swag_from({"tags": ["Form"], "responses": {"200": {"description": "Builder metadata"}}})
-@jwt_required()
-def get_builder_metadata():
-    """Return enum/config metadata needed by schema-driven Flutter builders."""
-    return success_response(
-        data={
-            "field_types": list(FIELD_TYPE_CHOICES),
-            "ui_types": list(UI_TYPE_CHOICES),
-            "condition": {
-                "logical_operators": list(LOGICAL_OPERATOR_CHOICES),
-                "source_types": list(CONDITION_SOURCE_TYPE_CHOICES),
-                "operators": list(CONDITION_OPERATOR_CHOICES),
-                "comparison_types": list(COMPARISON_TYPE_CHOICES),
-            },
-            "triggers": {
-                "events": list(TRIGGER_EVENT_CHOICES),
-                "actions": list(TRIGGER_ACTION_CHOICES),
-                "field_api_calls": list(FIELD_API_CALL_CHOICES),
-            },
-            "access": {
-                "levels": list(ACCESS_LEVEL_CHOICES),
-                "permissions": list(PERMISSION_CHOICES),
-                "roles": list(ROLE_CHOICES),
-            },
-            "validation": {
-                "text": ["min_length", "max_length", "min_word_count", "max_word_count", "regex"],
-                "number": ["min_value", "max_value"],
-                "date": ["date_min", "date_max", "disable_past_dates", "disable_future_dates", "disable_weekends"],
-                "file": ["allowed_file_types", "max_files", "max_file_size"],
-                "selection": ["min_selection", "max_selection"],
-            },
-            "languages": [
-                {"code": "en", "name": "English"},
-                {"code": "hi", "name": "Hindi"},
-            ],
-        }
-    )
-
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Form CRUD
@@ -542,102 +503,10 @@ def clone_form(form_id):
     )
 
 
-# ───────────────────────────────────────────────────────────────────────────────
-# Templates
-# ───────────────────────────────────────────────────────────────────────────────
-
-
-@form_bp.route("/templates", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Form"
-    ],
-    "responses": {
-        "200": {
-            "description": "List templates accessible to the current user."
-        }
-    }
-})
-@jwt_required()
-def list_form_templates():
-    """List templates accessible to the current user."""
-    app_logger.info("Entering list_form_templates")
-    current_user = get_current_user()
-    query = {
-        "is_template": True,
-        "$or": [
-            {"created_by": str(current_user.id)},
-            {"editors": str(current_user.id)},
-        ],
-    }
-    forms = Form.objects(__raw__=query)
-    result = []
-    for f in forms:
-        item = f.to_mongo().to_dict()
-        item["id"] = str(item.pop("_id"))
-        result.append(item)
-    app_logger.info(f"Listed {len(result)} templates for user {current_user.id}")
-    return success_response(data=result)
-
-
-@form_bp.route("/templates/<template_id>", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Form"
-    ],
-    "responses": {
-        "200": {
-            "description": "Retrieve a single template."
-        }
-    },
-    "parameters": [
-        {
-            "name": "template_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
-@jwt_required()
-def get_form_template_endpoint(template_id):
-    """Retrieve a single template."""
-    app_logger.info(f"Entering get_form_template_endpoint for ID {template_id}")
-    try:
-        current_user = get_current_user()
-        form = Form.objects.get(id=template_id, organization_id=current_user.organization_id, is_template=True)
-        if not has_form_permission(current_user, form, "view"):
-            app_logger.warning(f"User {current_user.id} unauthorized to view template {template_id}")
-            return error_response(message="Unauthorized", status_code=403)
-        item = form.to_mongo().to_dict()
-        item["id"] = str(item.pop("_id"))
-        return success_response(data=item)
-    except DoesNotExist:
-        app_logger.warning(f"Template {template_id} not found")
-        return error_response(message="Template not found", status_code=404)
-
 
 from services.section_service import SectionService
 section_service = SectionService()
 
-@form_bp.route("/import", methods=["POST"])
-@swag_from({
-    "tags": ["Form"],
-    "responses": {"201": {"description": "Form imported successfully"}}
-})
-@jwt_required()
-def import_form():
-    """Import a full form structure from JSON."""
-    app_logger.info("Entering import_form")
-    current_user = get_current_user()
-    data = request.get_json()
-    
-    try:
-        # Basic validation of import payload
-        title = data.get("title")
-        slug = data.get("slug")
-        if not title or not slug:
-            return error_response(message="Title and slug are required for import", status_code=400)
             
         # Create form doc
         form = Form(
@@ -1007,40 +876,6 @@ def export_form_schema(form_id):
         return error_response(message=str(e), status_code=400)
 
 
-@form_bp.route("/import/schema", methods=["POST"])
-@jwt_required()
-def import_form_schema():
-    """Import a form from a schema payload inside the current project."""
-    current_user = get_current_user()
-    data = request.get_json(silent=True) or {}
-    try:
-        project_id = getattr(g, "project_id", None)
-        if not project_id:
-            return error_response(message="Project context missing from route", status_code=400)
-        project = Project.objects.get(
-            id=project_id,
-            organization_id=current_user.organization_id,
-            is_deleted=False,
-        )
-        data["project"] = str(project.id)
-        data["organization_id"] = current_user.organization_id
-        data["created_by"] = str(current_user.id)
-        data["editors"] = list({str(current_user.id), *data.get("editors", [])})
-        schema = FormCreateSchema(**data)
-        form_schema = form_service.create(schema)
-        if data.get("sections"):
-            form_service.sync_form_canvas(str(form_schema.id), current_user.organization_id, data)
-        audit_logger.info(f"Form schema imported as {form_schema.id} by user {current_user.id}")
-        return success_response(
-            data={"form_id": form_schema.id},
-            message="Form schema imported",
-            status_code=201,
-        )
-    except DoesNotExist:
-        return error_response(message="Project not found", status_code=404)
-    except Exception as e:
-        error_logger.error(f"Failed to import form schema: {e}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
 
 
 @form_bp.route("/<form_id>/audit", methods=["GET"])

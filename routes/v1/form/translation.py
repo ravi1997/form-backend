@@ -1,4 +1,3 @@
-from . import form_bp
 from flasgger import swag_from
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
