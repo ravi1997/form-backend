@@ -4,8 +4,7 @@ Provides endpoints for sending SMS, OTPs, and Notifications via AIIMS SMS API.
 Protected by JWT and Rate Limiting to prevent resource abuse.
 """
 
-import logging
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 from flasgger import swag_from
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from services.external_sms_service import get_sms_service
@@ -34,36 +33,27 @@ def send_single_sms():
     """Forward a single SMS request to the external provider."""
     current_user = get_jwt_identity()
     app_logger.info(f"User {current_user} requesting single SMS delivery")
-    try:
-        data = request.get_json(silent=True) or {}
-        mobile = data.get("mobile")
-        message = data.get("message")
+    
+    data = request.get_json(silent=True) or {}
+    mobile = data.get("mobile")
+    message = data.get("message")
 
-        if not mobile or not message:
-            app_logger.warning(f"Single SMS request failed: Missing mobile or message (User: {current_user})")
-            return jsonify({"error": "mobile and message are required"}), 400
+    if not mobile or not message:
+        app_logger.warning(f"Single SMS request failed: Missing mobile or message (User: {current_user})")
+        return error_response(message="mobile and message are required", status_code=400)
 
-        sms_service = get_sms_service()
-        result = sms_service.send_sms(str(mobile).strip(), message)
+    sms_service = get_sms_service()
+    result = sms_service.send_sms(str(mobile).strip(), message)
 
-        if result.success:
-            audit_logger.info(f"SMS sent successfully to {mobile} by user {current_user}")
-            return jsonify({
-                "success": True, 
-                "message_id": result.message_id, 
-                "status_code": result.status_code
-            }), 200
-            
-        error_logger.error(f"SMS delivery failed for {mobile}: {result.error_message} (User: {current_user})")
-        return jsonify({
-            "success": False, 
-            "error": result.error_message, 
-            "status_code": result.status_code or 500
-        }), result.status_code or 500
-
-    except Exception as e:
-        error_logger.exception(f"Unexpected error in single SMS delivery: {str(e)} (User: {current_user})")
-        return error_response(message="Failed to send SMS", status_code=500)
+    if result.success:
+        audit_logger.info(f"SMS sent successfully to {mobile} by user {current_user}")
+        return success_response(data={
+            "message_id": result.message_id, 
+            "status_code": result.status_code
+        })
+        
+    error_logger.error(f"SMS delivery failed for {mobile}: {result.error_message} (User: {current_user})")
+    return error_response(message=result.error_message or "Failed to deliver SMS", status_code=result.status_code or 500)
 
 
 @sms_bp.route("/otp", methods=["POST"])
@@ -83,28 +73,24 @@ def send_otp():
     """Manually send an OTP. Restrict to admins to prevent spam."""
     current_user = get_jwt_identity()
     app_logger.info(f"User {current_user} requesting manual OTP delivery")
-    try:
-        data = request.get_json(silent=True) or {}
-        mobile = data.get("mobile")
-        otp = data.get("otp")
+    
+    data = request.get_json(silent=True) or {}
+    mobile = data.get("mobile")
+    otp = data.get("otp")
 
-        if not mobile or not otp:
-            app_logger.warning(f"OTP request failed: Missing mobile or OTP (User: {current_user})")
-            return jsonify({"error": "mobile and otp are required"}), 400
+    if not mobile or not otp:
+        app_logger.warning(f"OTP request failed: Missing mobile or OTP (User: {current_user})")
+        return error_response(message="mobile and otp are required", status_code=400)
 
-        sms_service = get_sms_service()
-        result = sms_service.send_otp(str(mobile).strip(), otp)
+    sms_service = get_sms_service()
+    result = sms_service.send_otp(str(mobile).strip(), otp)
 
-        if result.success:
-            audit_logger.info(f"OTP sent successfully to {mobile} by user {current_user}")
-            return jsonify({"success": True, "message_id": result.message_id}), 200
-        
-        error_logger.error(f"OTP delivery failed for {mobile}: {result.error_message} (User: {current_user})")
-        return jsonify({"success": False, "error": result.error_message}), 400
-
-    except Exception as e:
-        error_logger.exception(f"Unexpected error in OTP delivery: {str(e)} (User: {current_user})")
-        return error_response(message="Failed to send OTP", status_code=500)
+    if result.success:
+        audit_logger.info(f"OTP sent successfully to {mobile} by user {current_user}")
+        return success_response(data={"message_id": result.message_id})
+    
+    error_logger.error(f"OTP delivery failed for {mobile}: {result.error_message} (User: {current_user})")
+    return error_response(message=result.error_message or "Failed to deliver OTP", status_code=400)
 
 
 @sms_bp.route("/notify", methods=["POST"])
@@ -123,29 +109,25 @@ def send_notification():
     """Send triggered notifications."""
     current_user = get_jwt_identity()
     app_logger.info(f"User {current_user} requesting notification delivery")
-    try:
-        data = request.get_json(silent=True) or {}
-        mobile = data.get("mobile")
-        title = data.get("title", "")
-        body = data.get("body", "")
+    
+    data = request.get_json(silent=True) or {}
+    mobile = data.get("mobile")
+    title = data.get("title", "")
+    body = data.get("body", "")
 
-        if not mobile or not body:
-            app_logger.warning(f"Notification request failed: Missing mobile or body (User: {current_user})")
-            return jsonify({"error": "mobile and body are required"}), 400
+    if not mobile or not body:
+        app_logger.warning(f"Notification request failed: Missing mobile or body (User: {current_user})")
+        return error_response(message="mobile and body are required", status_code=400)
 
-        sms_service = get_sms_service()
-        result = sms_service.send_notification(str(mobile).strip(), title, body)
+    sms_service = get_sms_service()
+    result = sms_service.send_notification(str(mobile).strip(), title, body)
 
-        if result.success:
-            audit_logger.info(f"Notification sent successfully to {mobile} by user {current_user}")
-            return jsonify({"success": True, "message_id": result.message_id}), 200
-        
-        error_logger.error(f"Notification delivery failed for {mobile}: {result.error_message} (User: {current_user})")
-        return jsonify({"success": False, "error": result.error_message}), 400
-
-    except Exception as e:
-        error_logger.exception(f"Unexpected error in notification delivery: {str(e)} (User: {current_user})")
-        return error_response(message="Failed to send notification", status_code=500)
+    if result.success:
+        audit_logger.info(f"Notification sent successfully to {mobile} by user {current_user}")
+        return success_response(data={"message_id": result.message_id})
+    
+    error_logger.error(f"Notification delivery failed for {mobile}: {result.error_message} (User: {current_user})")
+    return error_response(message=result.error_message or "Failed to deliver notification", status_code=400)
 
 
 @sms_bp.route("/health", methods=["GET"])
@@ -163,14 +145,10 @@ def send_notification():
 def health_check():
     """Verify SMS provider connectivity."""
     app_logger.info("SMS service health check requested")
-    try:
-        sms_service = get_sms_service()
-        if sms_service.api_url and sms_service.api_token:
-            app_logger.info("SMS service health check: healthy")
-            return success_response(data={"status": "healthy", "service": "external_sms"})
-        
-        app_logger.warning("SMS service health check: unhealthy (API not configured)")
-        return error_response(message="SMS service not configured", status_code=503)
-    except Exception as e:
-        error_logger.error(f"SMS service health check failed: {str(e)}", exc_info=True)
-        return error_response(message="SMS service unhealthy", status_code=503)
+    sms_service = get_sms_service()
+    if sms_service.api_url and sms_service.api_token:
+        app_logger.info("SMS service health check: healthy")
+        return success_response(data={"status": "healthy", "service": "external_sms"})
+    
+    app_logger.warning("SMS service health check: unhealthy (API not configured)")
+    return error_response(message="SMS service not configured", status_code=503)
