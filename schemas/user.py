@@ -12,7 +12,7 @@ class UserSchema(SoftDeleteBaseSchema):
     department: Optional[str] = None
     organization_id: Optional[str] = None
 
-    user_type: Literal["employee", "general"]
+    user_type: Literal["employee", "general"] = "general"
 
     is_active: bool = True
     is_admin: bool = False

@@ -9,6 +9,7 @@ from config.settings import settings
 from config.logging import setup_logging
 from mongoengine import connect
 import logging
+import re
 
 
 def create_app():
@@ -49,9 +50,19 @@ def create_app():
     from extensions import cors, jwt, limiter, swagger, talisman
 
     # Configure CORS so the frontend can call the API from a different origin.
+    cors_origins = list(settings.ALLOWED_ORIGINS)
+    if settings.DEBUG:
+        # Accept any localhost dev port used by Flutter, Vite, or other local web
+        # clients while still keeping production allowlists explicit.
+        cors_origins.extend(
+            [
+                re.compile(r"^http://localhost:\d+$"),
+                re.compile(r"^http://127\.0\.0\.1:\d+$"),
+            ]
+        )
     cors.init_app(
         app,
-        origins=settings.ALLOWED_ORIGINS,
+        origins=cors_origins,
         supports_credentials=True,
         send_wildcard=False,
         allow_headers=[

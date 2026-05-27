@@ -39,3 +39,16 @@ def test_security_headers(client):
     # In non-DEBUG mode, HSTS should be present if force_https=True (or defaulted)
     # However, our app.py has force_https=False temporarily.
     # Let's check what we have.
+
+
+def test_cors_allows_flutter_dev_origin(client):
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": "http://localhost:51337",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:51337"
+    assert response.headers["Access-Control-Allow-Credentials"] == "true"

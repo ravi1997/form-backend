@@ -60,7 +60,7 @@ class User(BaseDocument, SoftDeleteMixin):
     department = StringField(trim=True)
     organization_id = StringField(trim=True)  # Multi-tenant support
 
-    user_type = StringField(required=True, choices=USER_TYPE_CHOICES)
+    user_type = StringField(required=True, choices=USER_TYPE_CHOICES, default="general")
     password_hash = StringField(max_length=255)
     password_expiration = DateTimeField()
 

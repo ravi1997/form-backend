@@ -4,6 +4,7 @@ from services.auth_service import AuthService
 from utils.exceptions import UnauthorizedError
 from models.User import User
 from schemas.auth import TokenResponse
+from schemas.user import UserCreateSchema
 
 
 @pytest.fixture
@@ -81,3 +82,13 @@ def test_authenticate_user_failure(auth_service, monkeypatch):
     monkeypatch.setattr(User, "authenticate", lambda i, p: None)
     with pytest.raises(UnauthorizedError):
         auth_service.authenticate_user("wrong", "password")
+
+
+def test_user_create_schema_defaults_user_type_to_general():
+    schema = UserCreateSchema(
+        username="newuser",
+        email="newuser@example.com",
+        password="Password123!",
+    )
+
+    assert schema.user_type == "general"
