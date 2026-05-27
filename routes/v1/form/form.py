@@ -507,6 +507,24 @@ def clone_form(form_id):
 from services.section_service import SectionService
 section_service = SectionService()
 
+@form_bp.route("/import", methods=["POST"])
+@swag_from({
+    "tags": ["Form"],
+    "responses": {"201": {"description": "Form imported successfully"}}
+})
+@jwt_required()
+def import_form():
+    """Import a full form structure from JSON."""
+    app_logger.info("Entering import_form")
+    current_user = get_current_user()
+    data = request.get_json() or {}
+    
+    try:
+        # Basic validation of import payload
+        title = data.get("title")
+        slug = data.get("slug")
+        if not title or not slug:
+            return error_response(message="Title and slug are required for import", status_code=400)
             
         # Create form doc
         form = Form(
