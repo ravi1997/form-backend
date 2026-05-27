@@ -97,6 +97,16 @@ class BaseDocument(Document, TimestampMixin):
 
     def save(self, *args, **kwargs):
         self.update_timestamp()
+        
+        # Enforce tenancy isolation during write operations
+        if has_request_context() and current_user:
+            user_roles = getattr(current_user, "roles", []) or []
+            if "superadmin" not in user_roles:
+                user_org = getattr(current_user, "organization_id", None)
+                if user_org:
+                    # Fail-safe protection: enforce user's organization on save
+                    self.organization_id = user_org
+                    
         return super().save(*args, **kwargs)
 
     def to_dict(self):
