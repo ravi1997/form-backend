@@ -159,8 +159,8 @@ def submit_public_response(form_id):
         )
         return error_response(message=str(e), status_code=409, code="CONFLICT")
     except Exception as e:
-        error_logger.error(f"Error in submit_public_response for form {form_id}: {e}")
-        return error_response(message=str(e), status_code=400)
+        error_logger.error(f"Error in submit_public_response for form {form_id}: {e}", exc_info=True)
+        return error_response(message="Failed to submit response", status_code=400)
 
 
 @form_bp.route("/<string:form_id>/history", methods=["GET"])
@@ -185,12 +185,22 @@ def form_submission_history(form_id):
             app_logger.warning(
                 f"Missing parameters in form_submission_history for form {form_id}"
             )
-            return (
-                jsonify(
-                    {"error": "Missing 'question_id' or 'primary_value' parameter"}
-                ),
-                400,
+            return error_response(
+                message="Missing 'question_id' or 'primary_value' parameter",
+                status_code=400,
             )
+
+        # CRITICAL SECURITY PATCH: Verify form exists and belongs to user's org
+        form = Form.objects(
+            id=form_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        ).first()
+        if not form:
+            app_logger.warning(
+                f"History check failed: Form {form_id} not found in org {current_user.organization_id}"
+            )
+            return error_response(message="Form not found", status_code=404)
 
         app_logger.info(
             f"User {current_user.username} is requesting submission history for form {form_id}, question {question_id} with value '{primary_value}'"
@@ -250,7 +260,7 @@ def check_next_action(form_id):
         current_user = get_current_user()
         if not current_user:
             app_logger.warning("Unauthorized access in check_next_action")
-            return jsonify({"error": "Unauthorized"}), 401
+            return error_response(message="Unauthorized", status_code=401)
 
         # Verify form exists
         form = Form.objects(
@@ -262,7 +272,7 @@ def check_next_action(form_id):
             app_logger.warning(
                 f"Check Next Action failed: Form {form_id} not found in org {current_user.organization_id}"
             )
-            return jsonify({"error": "Form not found"}), 404
+            return error_response(message="Form not found", status_code=404)
 
         # Get response_id from query params if provided
         response_id = request.args.get("response_id")
@@ -279,7 +289,7 @@ def check_next_action(form_id):
                 app_logger.warning(
                     f"Check Next Action failed: Response {response_id} not found"
                 )
-                return jsonify({"error": "Response not found"}), 404
+                return error_response(message="Response not found", status_code=404)
 
             submitted_data = response.data
         else:
@@ -304,15 +314,12 @@ def check_next_action(form_id):
             app_logger.info(
                 f"Returned {len(workflow_list)} available workflows for form {form_id}"
             )
-            return (
-                jsonify(
-                    {
-                        "form_id": str(form.id),
-                        "workflows": workflow_list,
-                        "count": len(workflow_list),
-                    }
-                ),
-                200,
+            return success_response(
+                data={
+                    "form_id": str(form.id),
+                    "workflows": workflow_list,
+                    "count": len(workflow_list),
+                }
             )
 
         # Evaluate workflows for the specific response
@@ -347,4 +354,4 @@ def check_next_action(form_id):
         error_logger.error(
             f"Error checking next action for {form_id}: {str(e)}", exc_info=True
         )
-        return error_response(message=str(e), status_code=400)
+        return error_response(message="Failed to evaluate next actions", status_code=400)
