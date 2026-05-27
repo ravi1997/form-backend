@@ -4,12 +4,13 @@ from utils.permission_validator import permission_validator
 from utils.response_helper import error_response
 from logger.unified_logger import app_logger, audit_logger
 
+
 def setup_rbac_matrix(app):
     """
-    Middleware that enforces dynamic role-based access control (RBAC) 
+    Middleware that enforces dynamic role-based access control (RBAC)
     using the permissions matrix defined in config/permissions.yaml.
     """
-    
+
     @app.before_request
     def check_rbac_matrix():
         # Skip OPTIONS preflight requests
@@ -26,16 +27,19 @@ def setup_rbac_matrix(app):
             # Endpoint is not explicitly protected in permissions.yaml
             return
 
-        app_logger.info(f"RBAC: Route '{method} {path}' requires permission '{required_permission}'. Checking...")
+        app_logger.info(
+            f"RBAC: Route '{method} {path}' requires permission '{required_permission}'. Checking..."
+        )
 
         # 2. Enforce authentication
         try:
             verify_jwt_in_request()
         except Exception as e:
-            app_logger.warning(f"RBAC: Missing or invalid JWT for protected route '{method} {path}': {e}")
+            app_logger.warning(
+                f"RBAC: Missing or invalid JWT for protected route '{method} {path}': {e}"
+            )
             return error_response(
-                message="Authentication required for this resource",
-                status_code=401
+                message="Authentication required for this resource", status_code=401
             )
 
         # 3. Retrieve user roles from JWT
@@ -50,10 +54,11 @@ def setup_rbac_matrix(app):
             app_logger.warning(warn_msg)
             audit_logger.warning(f"AUDIT: Unauthorized access attempt: {warn_msg}")
             return error_response(
-                message="Insufficient permissions for this resource",
-                status_code=403
+                message="Insufficient permissions for this resource", status_code=403
             )
 
-        app_logger.info(f"RBAC Approved: User '{user_id}' granted access to '{method} {path}' via permission '{required_permission}'")
+        app_logger.info(
+            f"RBAC Approved: User '{user_id}' granted access to '{method} {path}' via permission '{required_permission}'"
+        )
 
     return app

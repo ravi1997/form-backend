@@ -36,4 +36,3 @@ def get_task_status(task_id):
     except Exception as exc:
         error_logger.error(f"Failed to fetch task {task_id}: {exc}", exc_info=True)
         return error_response(message="Failed to fetch task status", status_code=500)
-

@@ -52,7 +52,9 @@ def get_form_permissions(project_id, form_id):
             200,
         )
     except DoesNotExist:
-        app_logger.warning(f"Form not found: project_id={project_id}, form_id={form_id}")
+        app_logger.warning(
+            f"Form not found: project_id={project_id}, form_id={form_id}"
+        )
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
         error_logger.error(
@@ -128,7 +130,9 @@ def update_form_permissions(project_id, form_id):
         )
         return jsonify({"message": "Permissions updated"}), 200
     except DoesNotExist:
-        app_logger.warning(f"Form not found: project_id={project_id}, form_id={form_id}")
+        app_logger.warning(
+            f"Form not found: project_id={project_id}, form_id={form_id}"
+        )
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
         error_logger.error(

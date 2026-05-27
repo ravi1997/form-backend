@@ -3,6 +3,7 @@ utils/pii_sanitizer.py
 PII (Personally Identifiable Information) Redaction for AI prompts.
 Ensures sensitive data doesn't leak to external inference providers.
 """
+
 import re
 
 PII_PATTERNS = {
@@ -10,19 +11,21 @@ PII_PATTERNS = {
     "phone": r"(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}",
     "ssn": r"\d{3}-\d{2}-\d{4}",
     "credit_card": r"\b(?:\d[ -]*?){13,16}\b",
-    "ipv4": r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
+    "ipv4": r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
 }
+
 
 def sanitize_text(text: str, mask: str = "[REDACTED]") -> str:
     """Redacts PII patterns from the given text."""
     if not text:
         return text
-    
+
     sanitized = text
     for name, pattern in PII_PATTERNS.items():
         sanitized = re.sub(pattern, f"{mask}_{name.upper()}", sanitized)
-    
+
     return sanitized
+
 
 def sanitize_dict(data: dict) -> dict:
     """Recursively redacts PII from dictionary values."""
@@ -33,7 +36,9 @@ def sanitize_dict(data: dict) -> dict:
         elif isinstance(v, dict):
             sanitized[k] = sanitize_dict(v)
         elif isinstance(v, list):
-            sanitized[k] = [sanitize_text(item) if isinstance(item, str) else item for item in v]
+            sanitized[k] = [
+                sanitize_text(item) if isinstance(item, str) else item for item in v
+            ]
         else:
             sanitized[k] = v
     return sanitized

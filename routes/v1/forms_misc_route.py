@@ -47,9 +47,21 @@ def _builder_metadata_payload():
             "roles": list(ROLE_CHOICES),
         },
         "validation": {
-            "text": ["min_length", "max_length", "min_word_count", "max_word_count", "regex"],
+            "text": [
+                "min_length",
+                "max_length",
+                "min_word_count",
+                "max_word_count",
+                "regex",
+            ],
             "number": ["min_value", "max_value"],
-            "date": ["date_min", "date_max", "disable_past_dates", "disable_future_dates", "disable_weekends"],
+            "date": [
+                "date_min",
+                "date_max",
+                "disable_past_dates",
+                "disable_future_dates",
+                "disable_weekends",
+            ],
             "file": ["allowed_file_types", "max_files", "max_file_size"],
             "selection": ["min_selection", "max_selection"],
         },
@@ -61,7 +73,9 @@ def _builder_metadata_payload():
 
 
 @forms_misc_bp.route("/builder-metadata", methods=["GET"])
-@swag_from({"tags": ["Form"], "responses": {"200": {"description": "Builder metadata"}}})
+@swag_from(
+    {"tags": ["Form"], "responses": {"200": {"description": "Builder metadata"}}}
+)
 @jwt_required()
 def get_builder_metadata():
     return success_response(data=_builder_metadata_payload())
@@ -111,7 +125,10 @@ def list_expired_forms():
 def list_templates():
     try:
         templates = Form.objects(is_template=True, is_deleted=False)
-        data = [{"id": str(t.id), "title": t.title, "description": t.description} for t in templates]
+        data = [
+            {"id": str(t.id), "title": t.title, "description": t.description}
+            for t in templates
+        ]
         return success_response(data=data)
     except Exception as e:
         error_logger.error(f"Error listing templates: {e}")
@@ -123,7 +140,9 @@ def list_templates():
 def get_template(template_id):
     try:
         t = Form.objects.get(id=template_id, is_template=True, is_deleted=False)
-        return success_response(data={"id": str(t.id), "title": t.title, "schema": t.form_fields})
+        return success_response(
+            data={"id": str(t.id), "title": t.title, "schema": t.form_fields}
+        )
     except DoesNotExist:
         return error_response(message="Template not found", status_code=404)
     except Exception as e:
@@ -140,7 +159,7 @@ def import_form():
         fields = data.get("fields", [])
         if not title:
             return error_response(message="Missing form title", status_code=400)
-        
+
         form = Form(
             title=title,
             organization_id=current_user.organization_id,
@@ -148,7 +167,11 @@ def import_form():
             created_by=str(current_user.id),
         )
         form.save()
-        return success_response(data={"form_id": str(form.id)}, message="Form imported successfully", status_code=201)
+        return success_response(
+            data={"form_id": str(form.id)},
+            message="Form imported successfully",
+            status_code=201,
+        )
     except Exception as e:
         return error_response(message=str(e), status_code=400)
 
@@ -166,7 +189,12 @@ def import_schema():
 
 
 @forms_misc_bp.route("/export/bulk", methods=["POST"])
-@swag_from({"tags": ["Form"], "responses": {"202": {"description": "Bulk export job accepted"}}})
+@swag_from(
+    {
+        "tags": ["Form"],
+        "responses": {"202": {"description": "Bulk export job accepted"}},
+    }
+)
 @jwt_required()
 def export_bulk_responses():
     try:
@@ -188,7 +216,9 @@ def export_bulk_responses():
         job.save()
         async_bulk_export.delay(str(job.id), current_user.organization_id)
 
-        audit_logger.info(f"Async bulk export job {job.id} initiated by user {current_user.id}")
+        audit_logger.info(
+            f"Async bulk export job {job.id} initiated by user {current_user.id}"
+        )
         return success_response(
             data={"job_id": str(job.id), "status": job.status},
             message="Bulk export job accepted",
@@ -234,12 +264,18 @@ def download_bulk_export(job_id):
             id=job_id, organization_id=current_user.organization_id
         )
         if job.status != "completed" or not job.file_path:
-            return error_response(message="Job not completed or file missing", status_code=400)
+            return error_response(
+                message="Job not completed or file missing", status_code=400
+            )
 
         if not os.path.exists(job.file_path):
             return error_response(message="File not found on server", status_code=404)
 
-        return send_file(job.file_path, as_attachment=True, download_name=os.path.basename(job.file_path))
+        return send_file(
+            job.file_path,
+            as_attachment=True,
+            download_name=os.path.basename(job.file_path),
+        )
     except DoesNotExist:
         return error_response(message="Job not found", status_code=404)
     except Exception as e:

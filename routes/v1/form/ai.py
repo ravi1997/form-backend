@@ -2,6 +2,7 @@ from . import form_bp
 from flasgger import swag_from
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
+from mongoengine.errors import DoesNotExist
 from models import Form, FormResponse
 from routes.v1.form.helper import get_current_user, has_form_permission
 from services.ai_service import AIService
@@ -18,16 +19,7 @@ ai_bp = Blueprint("ai", __name__)
 
 
 @ai_bp.route("/health", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Ai"], "responses": {"200": {"description": "Success"}}})
 def ai_health_check():
     app_logger.info("AI Health Check requested")
     """
@@ -149,30 +141,16 @@ def simple_sentiment_analyzer(text: str) -> Tuple[str, int]:
 
 
 @ai_bp.route("/<form_id>/responses/<response_id>/analyze", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        },
-        {
-            "name": "response_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True},
+            {"name": "response_id", "in": "path", "type": "string", "required": True},
+        ],
+    }
+)
 @jwt_required()
 def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Analyzing response {response_id} for form {form_id} using AI")
@@ -181,14 +159,18 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized AI analysis attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        response = FormResponse.objects.get(id=response_id, form=form.id, organization_id=current_user.organization_id)
+        response = FormResponse.objects.get(
+            id=response_id, form=form.id, organization_id=current_user.organization_id
+        )
 
         # 1. Sentiment Analysis
         all_text: List[str] = []
@@ -246,7 +228,9 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
         return jsonify({"message": "AI analysis complete", "results": ai_results}), 200
 
     except DoesNotExist:
-        error_logger.warning(f"Form or Response not found: form={form_id}, resp={response_id}")
+        error_logger.warning(
+            f"Form or Response not found: form={form_id}, resp={response_id}"
+        )
         return jsonify({"error": "Form or Response not found"}), 404
     except Exception as e:
         error_logger.error(f"Error in analyze_response_ai: {str(e)}")
@@ -254,30 +238,16 @@ def analyze_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/responses/<response_id>/moderate", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        },
-        {
-            "name": "response_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True},
+            {"name": "response_id", "in": "path", "type": "string", "required": True},
+        ],
+    }
+)
 @jwt_required()
 def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Moderating response {response_id} for form {form_id} using AI")
@@ -290,14 +260,18 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized moderation attempt by user {current_user.id} for form {form_id}"
             )
             return jsonify({"error": "Unauthorized"}), 403
 
-        response = FormResponse.objects.get(id=response_id, form=form.id, organization_id=current_user.organization_id)
+        response = FormResponse.objects.get(
+            id=response_id, form=form.id, organization_id=current_user.organization_id
+        )
 
         # 1. Extract all text
         all_text: List[str] = []
@@ -398,7 +372,9 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
         )
 
     except DoesNotExist:
-        error_logger.warning(f"Form or Response not found: form={form_id}, resp={response_id}")
+        error_logger.warning(
+            f"Form or Response not found: form={form_id}, resp={response_id}"
+        )
         return jsonify({"error": "Form or Response not found"}), 404
     except Exception as e:
         error_logger.error(f"Error in moderate_response_ai: {str(e)}")
@@ -406,16 +382,7 @@ def moderate_response_ai(form_id: str, response_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/generate", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Ai"], "responses": {"200": {"description": "Success"}}})
 @jwt_required()
 def generate_form_ai() -> Tuple[Any, int]:
     app_logger.info("Generating form using AI")
@@ -446,16 +413,7 @@ def generate_form_ai() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/suggestions", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Ai"], "responses": {"200": {"description": "Success"}}})
 @jwt_required()
 def get_field_suggestions() -> Tuple[Any, int]:
     """
@@ -513,24 +471,15 @@ def get_field_suggestions() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/validate-design", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def validate_form_design(form_id: str) -> Tuple[Any, int]:
     """
@@ -554,16 +503,7 @@ def validate_form_design(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/templates", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Ai"], "responses": {"200": {"description": "Success"}}})
 @jwt_required()
 def list_ai_templates() -> Tuple[Any, int]:
     """
@@ -582,24 +522,15 @@ def list_ai_templates() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/templates/<template_id>", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "template_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "template_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_ai_template(template_id: str) -> Tuple[Any, int]:
     """
@@ -671,24 +602,15 @@ def get_ai_template(template_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/sentiment", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Fetching sentiment trends for form {form_id}")
@@ -697,7 +619,9 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized sentiment trend fetch attempt by user {current_user.id} for form {form_id}"
@@ -738,29 +662,22 @@ def get_form_sentiment_trends(form_id: str) -> Tuple[Any, int]:
         )
 
     except Exception as e:
-        error_logger.error(f"Error fetching sentiment trends for form {form_id}: {str(e)}")
+        error_logger.error(
+            f"Error fetching sentiment trends for form {form_id}: {str(e)}"
+        )
         return jsonify({"error": str(e)}), 400
 
 
 @ai_bp.route("/<form_id>/search", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def ai_powered_search(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"AI-Powered Search for form {form_id}")
@@ -801,7 +718,9 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
             app_logger.info(f"Cache invalidated for query: {query}")
 
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized AI search attempt by user {current_user.id} for form {form_id}"
@@ -1039,24 +958,15 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/anomalies", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Detecting form anomalies for form {form_id}")
@@ -1068,7 +978,9 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized anomaly detection attempt by user {current_user.id} for form {form_id}"
@@ -1187,24 +1099,15 @@ def detect_form_anomalies(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/anomaly-detect", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Detecting predictive anomalies for form {form_id}")
@@ -1232,7 +1135,9 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized predictive anomaly detection attempt by user {current_user.id} for form {form_id}"
@@ -1243,7 +1148,9 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
         responses_list = list(responses)
 
         if len(responses_list) < 3:
-            app_logger.info(f"Not enough data for predictive anomaly detection in form {form_id}")
+            app_logger.info(
+                f"Not enough data for predictive anomaly detection in form {form_id}"
+            )
             return (
                 jsonify(
                     {
@@ -1532,32 +1439,27 @@ def detect_predictive_anomalies(form_id: str) -> Tuple[Any, int]:
         )
 
     except Form.DoesNotExist:
-        error_logger.warning(f"Form {form_id} not found for predictive anomaly detection")
+        error_logger.warning(
+            f"Form {form_id} not found for predictive anomaly detection"
+        )
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
-        error_logger.error(f"Predictive Anomaly Detection Error for form {form_id}: {str(e)}")
+        error_logger.error(
+            f"Predictive Anomaly Detection Error for form {form_id}: {str(e)}"
+        )
         return jsonify({"error": str(e)}), 400
 
 
 @ai_bp.route("/<form_id>/security-scan", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Scanning form security for form {form_id}")
@@ -1567,7 +1469,9 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
     """
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "edit"):
             error_logger.warning(
                 f"Unauthorized security scan attempt by user {current_user.id} for form {form_id}"
@@ -1604,7 +1508,11 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
         sensitive_fields_found = []
 
         latest_version = form.versions[-1] if form.versions else None
-        sections = latest_version.resolved_snapshot.get("sections", []) if latest_version and hasattr(latest_version, "resolved_snapshot") else []
+        sections = (
+            latest_version.resolved_snapshot.get("sections", [])
+            if latest_version and hasattr(latest_version, "resolved_snapshot")
+            else []
+        )
 
         for section in sections:
             for question in section.get("questions", []):
@@ -1626,7 +1534,9 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
                 # Spam risk check
                 if question.get("field_type") in ["input", "textarea"]:
                     # Check if any validation exists (required or regex rules)
-                    has_validation = bool(question.get("validation", {}).get("is_required")) or bool(question.get("validation_rules"))
+                    has_validation = bool(
+                        question.get("validation", {}).get("is_required")
+                    ) or bool(question.get("validation_rules"))
                     if not has_validation:
                         text_fields_without_validation += 1
 
@@ -1670,7 +1580,9 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
             "scanned_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        audit_logger.info(f"Security scan complete for form {form_id}. Score: {score}, Status: {status}")
+        audit_logger.info(
+            f"Security scan complete for form {form_id}. Score: {score}, Status: {status}"
+        )
         return jsonify(report), 200
 
     except Exception as e:
@@ -1679,16 +1591,7 @@ def scan_form_security_ai(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/cross-analysis", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Ai"], "responses": {"200": {"description": "Success"}}})
 @jwt_required()
 def compare_forms_ai() -> Tuple[Any, int]:
     """
@@ -1718,7 +1621,9 @@ def compare_forms_ai() -> Tuple[Any, int]:
 
         for fid in form_ids:
             try:
-                form = Form.objects.get(id=fid, organization_id=current_user.organization_id)
+                form = Form.objects.get(
+                    id=fid, organization_id=current_user.organization_id
+                )
                 # Check permission for each form
                 if not has_form_permission(current_user, form, "view"):
                     # For security, we can either fail hard or skip.
@@ -1790,24 +1695,15 @@ def compare_forms_ai() -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/summarize", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
     """
@@ -1838,7 +1734,9 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
             app_logger.info(f"Summarization cache invalidated for form {form_id}")
 
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized summarization attempt by user {current_user.id} for form {form_id}"
@@ -2073,24 +1971,15 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/export", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Generating AI-powered export report for form {form_id}")
@@ -2128,7 +2017,9 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
 
         # Authentication and authorization
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized export report attempt by user {current_user.id} for form {form_id}"
@@ -2403,7 +2294,9 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
         else:
             # For PDF, Excel, CSV - return JSON with data for frontend to convert
             # The frontend will handle the actual file generation
-            audit_logger.info(f"AI-powered export report generated for form {form_id} in {export_format} format")
+            audit_logger.info(
+                f"AI-powered export report generated for form {form_id} in {export_format} format"
+            )
             return (
                 jsonify(
                     {
@@ -2416,7 +2309,9 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
             )
 
     except Form.DoesNotExist:
-        error_logger.warning(f"Form {form_id} not found during export report generation")
+        error_logger.warning(
+            f"Form {form_id} not found during export report generation"
+        )
         return jsonify({"error": "Form not found"}), 404
     except Exception as e:
         error_logger.error(f"Export Report Error for form {form_id}: {str(e)}")
@@ -2428,24 +2323,15 @@ def export_form_ai_report(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/cache/invalidate", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
     """
@@ -2476,7 +2362,9 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
         query = data.get("query")
 
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "edit"):
             error_logger.warning(
                 f"Unauthorized cache invalidation attempt by user {current_user.id} for form {form_id}"
@@ -2539,24 +2427,15 @@ def invalidate_form_cache(form_id: str) -> Tuple[Any, int]:
 
 
 @ai_bp.route("/<form_id>/cache", methods=["DELETE"])
-@swag_from({
-    "tags": [
-        "Ai"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def clear_form_cache(form_id: str) -> Tuple[Any, int]:
     """
@@ -2578,7 +2457,9 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
     app_logger.info(f"Clearing all cache for form {form_id}")
     try:
         current_user = get_current_user()
-        form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
         if not has_form_permission(current_user, form, "edit"):
             error_logger.warning(
                 f"Unauthorized cache clear attempt by user {current_user.id} for form {form_id}"

@@ -51,7 +51,9 @@ def test_success_response_uses_canonical_envelope(app):
         from flask import g
 
         g.request_id = "req-123"
-        response, status = success_response(data={"id": "1"}, message="Created", status_code=201)
+        response, status = success_response(
+            data={"id": "1"}, message="Created", status_code=201
+        )
 
     assert status == 201
     assert response.get_json() == {

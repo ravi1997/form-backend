@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 logger = get_logger(__name__)
 
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
 def async_generate_form_summary(self, form_id: str, organization_id: str):
     """
@@ -16,21 +17,21 @@ def async_generate_form_summary(self, form_id: str, organization_id: str):
     try:
         # Fetch responses (multi-tenant isolated)
         responses = FormResponse.objects(
-            form=form_id, 
-            organization_id=organization_id, 
-            is_deleted=False
+            form=form_id, organization_id=organization_id, is_deleted=False
         ).only("data", "submitted_at")
-        
+
         if not responses:
-            app_logger.info(f"No responses found for Form ID {form_id}, skipping summary generation")
+            app_logger.info(
+                f"No responses found for Form ID {form_id}, skipping summary generation"
+            )
             return {"status": "skipped", "reason": "no_responses"}
-            
+
         # Convert to list of dicts for the service
         response_data = [r.to_mongo().to_dict() for r in responses]
-        
+
         # Map-Reduce Summarization
         summary = summarization_service.generate_executive_summary(response_data)
-        
+
         # Save Snapshot for persistent viewing
         snapshot = SummarySnapshot(
             form_id=form_id,
@@ -39,17 +40,24 @@ def async_generate_form_summary(self, form_id: str, organization_id: str):
             period_end=responses.order_by("-submitted_at").first().submitted_at,
             response_count=len(responses),
             summary_data={"executive_summary": summary},
-            strategy_used="map_reduce_v1"
+            strategy_used="map_reduce_v1",
         )
         snapshot.save()
-        
-        audit_logger.info(f"AUDIT: AI Task: Summary snapshot {snapshot.id} created for form {form_id}")
-        app_logger.info(f"Successfully completed async_generate_form_summary for Form ID {form_id}")
+
+        audit_logger.info(
+            f"AUDIT: AI Task: Summary snapshot {snapshot.id} created for form {form_id}"
+        )
+        app_logger.info(
+            f"Successfully completed async_generate_form_summary for Form ID {form_id}"
+        )
         return {"status": "success", "snapshot_id": str(snapshot.id)}
-        
+
     except Exception as e:
-        error_logger.error(f"AI Task failed for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"AI Task failed for form {form_id}: {str(e)}", exc_info=True
+        )
         raise self.retry(exc=e)
+
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def async_index_response_vector(self, response_id, organization_id):
@@ -61,9 +69,13 @@ def async_index_response_vector(self, response_id, organization_id):
     from models.Response import FormResponse
     import json
 
-    app_logger.info(f"Entering async_index_response_vector for Response ID {response_id}")
+    app_logger.info(
+        f"Entering async_index_response_vector for Response ID {response_id}"
+    )
     try:
-        response = FormResponse.objects(id=response_id, organization_id=organization_id, is_deleted=False).first()
+        response = FormResponse.objects(
+            id=response_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not response:
             error_logger.error(f"Response {response_id} not found for vectorization")
             return {"status": "error", "message": "Response not found"}
@@ -71,39 +83,46 @@ def async_index_response_vector(self, response_id, organization_id):
         # Combine all text fields for vectorization
         # (Exclude sensitive fields to prevent PII in vector store)
         text_content = json.dumps(response.data)
-        
+
         metadata = {
             "form_id": str(getattr(response.form, "id", response.form)),
             "submitted_at": response.submitted_at.isoformat(),
-            "status": response.status
+            "status": response.status,
         }
-        
+
         success = vector_provider.embed_and_store(
             tenant_id=organization_id,
             document_id=response_id,
             text=text_content,
-            metadata=metadata
+            metadata=metadata,
         )
-        
+
         if success:
             audit_logger.info(f"AUDIT: Response {response_id} indexed in vector DB")
-            app_logger.info(f"Successfully completed async_index_response_vector for Response ID {response_id}")
+            app_logger.info(
+                f"Successfully completed async_index_response_vector for Response ID {response_id}"
+            )
             return {"status": "success"}
         else:
             error_logger.error(f"Failed to index response {response_id} in vector DB")
             return {"status": "error"}
-            
+
     except Exception as e:
-        error_logger.error(f"AI Task index_response_vector failed for {response_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"AI Task index_response_vector failed for {response_id}: {str(e)}",
+            exc_info=True,
+        )
         raise self.retry(exc=e)
+
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def async_export_to_olap(self, event_payload):
     """
-    Consumes submission events and exports them to a high-performance 
+    Consumes submission events and exports them to a high-performance
     columnar store (DuckDB/ClickHouse) for real-time analytics.
     """
     from services.analytics_stream_service import analytics_stream_service
+
     app_logger.info("Entering async_export_to_olap")
     try:
         analytics_stream_service.process_submission_event(event_payload)

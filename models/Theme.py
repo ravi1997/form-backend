@@ -1,6 +1,7 @@
 """
 Reusable organization themes for form branding.
 """
+
 from mongoengine import StringField, DictField, BooleanField, ListField
 
 from .base import BaseDocument, SoftDeleteMixin

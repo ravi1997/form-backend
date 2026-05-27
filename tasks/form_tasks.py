@@ -61,21 +61,19 @@ def async_clone_form(
 
         # Deep clone all sections with progress tracking
         from services.task_observability_service import task_observability_service
+
         total_sections = len(original.sections)
         new_sections = []
         for i, s in enumerate(original.sections):
             new_sections.append(_deep_clone_section(s))
             # Emit progress via Celery
             self.update_state(
-                state="PROCESSING",
-                meta={"current": i + 1, "total": total_sections}
+                state="PROCESSING", meta={"current": i + 1, "total": total_sections}
             )
             # Emit progress via Redis Observability Service
             try:
                 task_observability_service.update_task_progress(
-                    task_id=self.request.id,
-                    current=i + 1,
-                    total=total_sections
+                    task_id=self.request.id, current=i + 1, total=total_sections
                 )
             except Exception:
                 pass
@@ -135,8 +133,14 @@ def async_publish_form(
             f"Form {form_id} published successfully via background task. Org: {organization_id}"
         )
         app_logger.info(f"Exiting async_publish_form: successfully published {form_id}")
-        form_id_result = result.get("id") if isinstance(result, dict) else getattr(result, "id", None)
-        version_metadata = result.get("version_metadata") if isinstance(result, dict) else None
+        form_id_result = (
+            result.get("id")
+            if isinstance(result, dict)
+            else getattr(result, "id", None)
+        )
+        version_metadata = (
+            result.get("version_metadata") if isinstance(result, dict) else None
+        )
         return {
             "status": "success",
             "form_id": str(form_id_result) if form_id_result else str(form_id),
@@ -181,6 +185,7 @@ def async_bulk_export(self, job_id, organization_id):
         exported_count = 0
 
         from services.task_observability_service import task_observability_service
+
         total_forms = len(job.form_ids)
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -208,13 +213,11 @@ def async_bulk_export(self, job_id, organization_id):
                     # Emit progress
                     self.update_state(
                         state="PROCESSING",
-                        meta={"current": idx + 1, "total": total_forms}
+                        meta={"current": idx + 1, "total": total_forms},
                     )
                     try:
                         task_observability_service.update_task_progress(
-                            task_id=self.request.id,
-                            current=idx + 1,
-                            total=total_forms
+                            task_id=self.request.id, current=idx + 1, total=total_forms
                         )
                     except Exception:
                         pass
@@ -406,15 +409,15 @@ def async_process_translation_job(self, job_id):
 
             # Emit progress via Celery and Redis Observability Service
             self.update_state(
-                state="PROCESSING",
-                meta={"current": i + 1, "total": total_langs}
+                state="PROCESSING", meta={"current": i + 1, "total": total_langs}
             )
             try:
-                from services.task_observability_service import task_observability_service
+                from services.task_observability_service import (
+                    task_observability_service,
+                )
+
                 task_observability_service.update_task_progress(
-                    task_id=self.request.id,
-                    current=i + 1,
-                    total=total_langs
+                    task_id=self.request.id, current=i + 1, total=total_langs
                 )
             except Exception:
                 pass

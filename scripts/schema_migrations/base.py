@@ -3,12 +3,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class BaseSchemaMigration(ABC):
     """
     Abstract interface for database schema evolution.
     Supports forward (up) and backward (down) migrations.
     """
-    
+
     @property
     @abstractmethod
     def version(self) -> str:

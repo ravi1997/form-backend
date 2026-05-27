@@ -17,7 +17,6 @@ from unittest.mock import patch
 from services.filter_builder_service import FilterBuilderService
 from utils.exceptions import ValidationError
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -49,14 +48,28 @@ class TestTenantIsolation:
 
     def test_string_filter_preserves_tenant_keys(self):
         q = build(
-            [{"field": "q-uuid-1", "operator": "equals", "value": "Male", "field_type": "string"}]
+            [
+                {
+                    "field": "q-uuid-1",
+                    "operator": "equals",
+                    "value": "Male",
+                    "field_type": "string",
+                }
+            ]
         )
         assert q["organization_id"] == ORG_ID
         assert q["form"] == FORM_ID
 
     def test_number_filter_preserves_tenant_keys(self):
         q = build(
-            [{"field": "q-uuid-2", "operator": "gt", "value": 25, "field_type": "number"}]
+            [
+                {
+                    "field": "q-uuid-2",
+                    "operator": "gt",
+                    "value": 25,
+                    "field_type": "number",
+                }
+            ]
         )
         assert q["organization_id"] == ORG_ID
         assert q["form"] == FORM_ID
@@ -84,20 +97,43 @@ class TestTenantIsolation:
 
 class TestStringOperators:
     def test_equals(self):
-        q = build([{"field": "q1", "operator": "equals", "value": "Male", "field_type": "string"}])
+        q = build(
+            [
+                {
+                    "field": "q1",
+                    "operator": "equals",
+                    "value": "Male",
+                    "field_type": "string",
+                }
+            ]
+        )
         cond = q["$and"][0]
         assert cond == {"data.q1": {"$eq": "Male"}}
 
     def test_not_equals(self):
         q = build(
-            [{"field": "q1", "operator": "not_equals", "value": "Female", "field_type": "string"}]
+            [
+                {
+                    "field": "q1",
+                    "operator": "not_equals",
+                    "value": "Female",
+                    "field_type": "string",
+                }
+            ]
         )
         cond = q["$and"][0]
         assert cond == {"data.q1": {"$ne": "Female"}}
 
     def test_contains(self):
         q = build(
-            [{"field": "city", "operator": "contains", "value": "Delhi", "field_type": "string"}]
+            [
+                {
+                    "field": "city",
+                    "operator": "contains",
+                    "value": "Delhi",
+                    "field_type": "string",
+                }
+            ]
         )
         cond = q["$and"][0]
         assert "data.city" in cond
@@ -106,14 +142,28 @@ class TestStringOperators:
 
     def test_starts_with(self):
         q = build(
-            [{"field": "city", "operator": "starts_with", "value": "New", "field_type": "string"}]
+            [
+                {
+                    "field": "city",
+                    "operator": "starts_with",
+                    "value": "New",
+                    "field_type": "string",
+                }
+            ]
         )
         cond = q["$and"][0]
         assert cond["data.city"]["$regex"].startswith("^")
 
     def test_ends_with(self):
         q = build(
-            [{"field": "city", "operator": "ends_with", "value": "York", "field_type": "string"}]
+            [
+                {
+                    "field": "city",
+                    "operator": "ends_with",
+                    "value": "York",
+                    "field_type": "string",
+                }
+            ]
         )
         cond = q["$and"][0]
         assert cond["data.city"]["$regex"].endswith("$")
@@ -147,13 +197,29 @@ class TestStringOperators:
         assert "$nin" in cond["data.status"]
 
     def test_is_empty(self):
-        q = build([{"field": "notes", "operator": "is_empty", "value": None, "field_type": "string"}])
+        q = build(
+            [
+                {
+                    "field": "notes",
+                    "operator": "is_empty",
+                    "value": None,
+                    "field_type": "string",
+                }
+            ]
+        )
         cond = q["$and"][0]
         assert "$or" in cond
 
     def test_is_not_empty(self):
         q = build(
-            [{"field": "notes", "operator": "is_not_empty", "value": None, "field_type": "string"}]
+            [
+                {
+                    "field": "notes",
+                    "operator": "is_not_empty",
+                    "value": None,
+                    "field_type": "string",
+                }
+            ]
         )
         cond = q["$and"][0]
         assert "$exists" in cond["data.notes"]
@@ -166,28 +232,61 @@ class TestStringOperators:
 
 class TestNumberOperators:
     def test_gt(self):
-        q = build([{"field": "age", "operator": "gt", "value": 25, "field_type": "number"}])
+        q = build(
+            [{"field": "age", "operator": "gt", "value": 25, "field_type": "number"}]
+        )
         cond = q["$and"][0]
         assert cond == {"data.age": {"$gt": 25.0}}
 
     def test_gte(self):
-        q = build([{"field": "age", "operator": "gte", "value": 18, "field_type": "number"}])
+        q = build(
+            [{"field": "age", "operator": "gte", "value": 18, "field_type": "number"}]
+        )
         assert q["$and"][0] == {"data.age": {"$gte": 18.0}}
 
     def test_lt(self):
-        q = build([{"field": "score", "operator": "lt", "value": 50, "field_type": "number"}])
+        q = build(
+            [{"field": "score", "operator": "lt", "value": 50, "field_type": "number"}]
+        )
         assert q["$and"][0] == {"data.score": {"$lt": 50.0}}
 
     def test_lte(self):
-        q = build([{"field": "score", "operator": "lte", "value": 100, "field_type": "number"}])
+        q = build(
+            [
+                {
+                    "field": "score",
+                    "operator": "lte",
+                    "value": 100,
+                    "field_type": "number",
+                }
+            ]
+        )
         assert q["$and"][0] == {"data.score": {"$lte": 100.0}}
 
     def test_equals(self):
-        q = build([{"field": "count", "operator": "equals", "value": 5, "field_type": "number"}])
+        q = build(
+            [
+                {
+                    "field": "count",
+                    "operator": "equals",
+                    "value": 5,
+                    "field_type": "number",
+                }
+            ]
+        )
         assert q["$and"][0] == {"data.count": {"$eq": 5.0}}
 
     def test_not_equals(self):
-        q = build([{"field": "count", "operator": "not_equals", "value": 0, "field_type": "number"}])
+        q = build(
+            [
+                {
+                    "field": "count",
+                    "operator": "not_equals",
+                    "value": 0,
+                    "field_type": "number",
+                }
+            ]
+        )
         assert q["$and"][0] == {"data.count": {"$ne": 0.0}}
 
     def test_between(self):
@@ -310,12 +409,32 @@ class TestDateOperators:
 
 class TestBooleanOperators:
     def test_equals_true(self):
-        q = build([{"field": "is_draft", "operator": "equals", "value": True, "field_type": "boolean", "is_meta": True}])
+        q = build(
+            [
+                {
+                    "field": "is_draft",
+                    "operator": "equals",
+                    "value": True,
+                    "field_type": "boolean",
+                    "is_meta": True,
+                }
+            ]
+        )
         cond = q["$and"][0]
         assert cond == {"is_draft": {"$eq": True}}
 
     def test_equals_false(self):
-        q = build([{"field": "is_draft", "operator": "equals", "value": False, "field_type": "boolean", "is_meta": True}])
+        q = build(
+            [
+                {
+                    "field": "is_draft",
+                    "operator": "equals",
+                    "value": False,
+                    "field_type": "boolean",
+                    "is_meta": True,
+                }
+            ]
+        )
         cond = q["$and"][0]
         assert cond == {"is_draft": {"$eq": False}}
 
@@ -342,7 +461,14 @@ class TestBooleanOperators:
 class TestKeyMapping:
     def test_regular_field_prefixed_with_data(self):
         q = build(
-            [{"field": "q-uuid-999", "operator": "equals", "value": "x", "field_type": "string"}]
+            [
+                {
+                    "field": "q-uuid-999",
+                    "operator": "equals",
+                    "value": "x",
+                    "field_type": "string",
+                }
+            ]
         )
         cond = q["$and"][0]
         key = list(cond.keys())[0]
@@ -488,7 +614,12 @@ class TestMultipleFilters:
     def test_multiple_filters_produce_and(self):
         q = build(
             [
-                {"field": "q1", "operator": "equals", "value": "Male", "field_type": "string"},
+                {
+                    "field": "q1",
+                    "operator": "equals",
+                    "value": "Male",
+                    "field_type": "string",
+                },
                 {"field": "q2", "operator": "gt", "value": 25, "field_type": "number"},
             ]
         )
@@ -498,7 +629,12 @@ class TestMultipleFilters:
     def test_and_conditions_are_correct(self):
         q = build(
             [
-                {"field": "q1", "operator": "equals", "value": "A", "field_type": "string"},
+                {
+                    "field": "q1",
+                    "operator": "equals",
+                    "value": "A",
+                    "field_type": "string",
+                },
                 {"field": "q2", "operator": "gte", "value": 10, "field_type": "number"},
             ]
         )

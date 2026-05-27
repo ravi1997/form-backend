@@ -68,7 +68,11 @@ def get_file(form_id, question_id, filename):
         # Check if the question is of file_upload type
         question_found = False
         latest_version = form.versions[-1] if form.versions else None
-        sections = latest_version.resolved_snapshot.get("sections", []) if latest_version else []
+        sections = (
+            latest_version.resolved_snapshot.get("sections", [])
+            if latest_version
+            else []
+        )
         for section in sections:
             for question in section.get("questions", []):
                 if (
@@ -108,6 +112,3 @@ def get_file(form_id, question_id, filename):
             f"Error serving file {filename} for form_id {form_id}: {str(e)}"
         )
         return jsonify({"error": "Error serving file"}), 500
-
-
-

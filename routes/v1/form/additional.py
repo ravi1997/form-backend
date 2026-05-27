@@ -16,8 +16,6 @@ from logger.unified_logger import app_logger, error_logger, audit_logger
 from utils.response_helper import success_response, error_response
 
 
-
-
 @form_bp.route("/<form_id>/share", methods=["POST"])
 @swag_from(
     {

@@ -103,10 +103,10 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
         """
         from utils.encryption import encrypt_value
         from models.Form import Form, FormVersion
-        
+
         # 1. Identify sensitive fields from the version snapshot
         sensitive_fields = set()
-        
+
         # We prefer using the linked form_version which should be a FormVersion instance
         version_doc = None
         raw_form_version = self._data.get("form_version")
@@ -115,20 +115,28 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
             if isinstance(raw_form_version, FormVersion):
                 version_doc = raw_form_version
             else:
-                version_doc = FormVersion.objects(id=getattr(raw_form_version, "id", raw_form_version)).first()
-        
+                version_doc = FormVersion.objects(
+                    id=getattr(raw_form_version, "id", raw_form_version)
+                ).first()
+
         if not version_doc:
             # Avoid dereferencing self.form directly; ReferenceField dereference can fail
             # when raw refs/DBRefs are present in request-time save paths.
             raw_form_ref = self._data.get("form")
             form_id = getattr(raw_form_ref, "id", raw_form_ref)
             if form_id:
-                form_doc = Form.objects(
-                    id=form_id,
-                    organization_id=self.organization_id,
-                    is_deleted=False,
-                ).only("active_version").first()
-                active_id = getattr(form_doc, "active_version_id", None) if form_doc else None
+                form_doc = (
+                    Form.objects(
+                        id=form_id,
+                        organization_id=self.organization_id,
+                        is_deleted=False,
+                    )
+                    .only("active_version")
+                    .first()
+                )
+                active_id = (
+                    getattr(form_doc, "active_version_id", None) if form_doc else None
+                )
                 if active_id:
                     version_doc = FormVersion.objects(
                         form=form_id,
@@ -138,6 +146,7 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
 
         if version_doc:
             snapshot = version_doc.resolved_snapshot or {}
+
             def extract_sensitive(sections):
                 for sec in sections:
                     for q in sec.get("questions", []):
@@ -147,6 +156,7 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
                                 sensitive_fields.add(var_name)
                     if sec.get("sections"):
                         extract_sensitive(sec["sections"])
+
             extract_sensitive(snapshot.get("sections", []))
 
         # 2. Process data payload
@@ -163,6 +173,7 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
     def get_decrypted_data(self):
         """Returns the full data payload with sensitive fields decrypted."""
         from utils.encryption import decrypt_value
+
         full_data = self.data.copy()
         for field, enc_val in self.encrypted_data.items():
             full_data[field] = decrypt_value(enc_val)
@@ -253,15 +264,19 @@ class DynamicViewDefinition(BaseDocument, SoftDeleteMixin):
     updated_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
     tags = ListField(StringField())
 
+
 class BulkExport(BaseDocument):
     """Tracks status and stores results of background export jobs."""
+
     meta = {
         "collection": "bulk_exports",
         "indexes": ["organization_id", "status"],
         "index_background": True,
     }
     form_ids = ListField(StringField())
-    status = StringField(choices=("pending", "processing", "completed", "failed"), default="pending")
+    status = StringField(
+        choices=("pending", "processing", "completed", "failed"), default="pending"
+    )
     file_binary = BinaryField()
     filename = StringField()
     error_message = StringField()

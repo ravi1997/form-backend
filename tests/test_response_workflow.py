@@ -3,6 +3,7 @@ import uuid
 from models.Form import Project
 from models.FormResponseWorkflow import FormResponseWorkflow, WorkflowApprovalStep
 
+
 def test_workflow_sequential_transitions(app, db_connection):
     # 1. Create a Workflow instance
     workflow_id = uuid.uuid4()
@@ -15,14 +16,12 @@ def test_workflow_sequential_transitions(app, db_connection):
             WorkflowApprovalStep(
                 step_name="Department Review",
                 assigned_roles=["manager"],
-                status="pending"
+                status="pending",
             ),
             WorkflowApprovalStep(
-                step_name="Admin Sanction",
-                assigned_roles=["admin"],
-                status="pending"
-            )
-        ]
+                step_name="Admin Sanction", assigned_roles=["admin"], status="pending"
+            ),
+        ],
     ).save()
 
     # Validate initialization

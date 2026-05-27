@@ -44,7 +44,9 @@ def process_sms(self, sub_type: str, data: dict):
     """
     app_logger.info(f"Entering process_sms: sub_type={sub_type}")
     try:
-        priority = SERVICE_TYPES_CONFIG.get("sms", {}).get(sub_type, {}).get("priority", 5)
+        priority = (
+            SERVICE_TYPES_CONFIG.get("sms", {}).get(sub_type, {}).get("priority", 5)
+        )
         app_logger.info(f"Processing SMS of type {sub_type} with priority {priority}")
         audit_logger.info(f"SMS processed: sub_type={sub_type}, priority={priority}")
         app_logger.info("Exiting process_sms")
@@ -60,7 +62,9 @@ def process_mail(self, sub_type: str, data: dict):
     """
     app_logger.info(f"Entering process_mail: sub_type={sub_type}")
     try:
-        priority = SERVICE_TYPES_CONFIG.get("mail", {}).get(sub_type, {}).get("priority", 5)
+        priority = (
+            SERVICE_TYPES_CONFIG.get("mail", {}).get(sub_type, {}).get("priority", 5)
+        )
         app_logger.info(f"Processing Mail of type {sub_type} with priority {priority}")
         audit_logger.info(f"Mail processed: sub_type={sub_type}, priority={priority}")
         app_logger.info("Exiting process_mail")
@@ -77,12 +81,16 @@ def process_ehospital(self, sub_type: str, data: dict):
     app_logger.info(f"Entering process_ehospital: sub_type={sub_type}")
     try:
         priority = (
-            SERVICE_TYPES_CONFIG.get("ehospital", {}).get(sub_type, {}).get("priority", 5)
+            SERVICE_TYPES_CONFIG.get("ehospital", {})
+            .get(sub_type, {})
+            .get("priority", 5)
         )
         app_logger.info(
             f"Processing eHospital request of type {sub_type} with priority {priority}"
         )
-        audit_logger.info(f"eHospital request processed: sub_type={sub_type}, priority={priority}")
+        audit_logger.info(
+            f"eHospital request processed: sub_type={sub_type}, priority={priority}"
+        )
         app_logger.info("Exiting process_ehospital")
     except Exception as e:
         error_logger.error(f"Error processing eHospital request: {e}")
@@ -99,8 +107,12 @@ def process_request(self, sub_type: str, data: dict):
         priority = (
             SERVICE_TYPES_CONFIG.get("request", {}).get(sub_type, {}).get("priority", 5)
         )
-        app_logger.info(f"Processing Request of type {sub_type} with priority {priority}")
-        audit_logger.info(f"Request processed: sub_type={sub_type}, priority={priority}")
+        app_logger.info(
+            f"Processing Request of type {sub_type} with priority {priority}"
+        )
+        audit_logger.info(
+            f"Request processed: sub_type={sub_type}, priority={priority}"
+        )
         app_logger.info("Exiting process_request")
     except Exception as e:
         error_logger.error(f"Error processing request: {e}")
@@ -115,12 +127,16 @@ def process_employee(self, sub_type: str, data: dict):
     app_logger.info(f"Entering process_employee: sub_type={sub_type}")
     try:
         priority = (
-            SERVICE_TYPES_CONFIG.get("employee", {}).get(sub_type, {}).get("priority", 5)
+            SERVICE_TYPES_CONFIG.get("employee", {})
+            .get(sub_type, {})
+            .get("priority", 5)
         )
         app_logger.info(
             f"Processing Employee service of type {sub_type} with priority {priority}"
         )
-        audit_logger.info(f"Employee service processed: sub_type={sub_type}, priority={priority}")
+        audit_logger.info(
+            f"Employee service processed: sub_type={sub_type}, priority={priority}"
+        )
         app_logger.info("Exiting process_employee")
     except Exception as e:
         error_logger.error(f"Error processing employee service: {e}")

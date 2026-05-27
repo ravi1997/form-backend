@@ -42,6 +42,7 @@ def view_form(form_id):
     Private forms require authentication and organization match.
     """
     from datetime import datetime, timezone
+
     app_logger.info(f"Viewing form {form_id}")
     try:
         # Enforce soft-deletion check (is_deleted=False)
@@ -51,7 +52,9 @@ def view_form(form_id):
         if getattr(form, "is_public", False):
             app_logger.info(f"Public form {form_id} accessed without auth")
             if form.status != "published":
-                app_logger.warning(f"Attempt to access public form {form_id} with status {form.status}")
+                app_logger.warning(
+                    f"Attempt to access public form {form_id} with status {form.status}"
+                )
                 return jsonify({"error": "Form is not published"}), 403
         else:
             # Private forms require authentication and organization match
@@ -60,9 +63,10 @@ def view_form(form_id):
                 app_logger.warning(
                     f"Unauthorized access attempt to private form {form_id}"
                 )
-                return jsonify(
-                    {"error": "Authentication required for private forms"}
-                ), 401
+                return (
+                    jsonify({"error": "Authentication required for private forms"}),
+                    401,
+                )
 
             # Check organization match for private forms
             if current_user.organization_id != form.organization_id:
@@ -70,9 +74,10 @@ def view_form(form_id):
                     f"Cross-tenant access attempt: User {current_user.id} (org: {current_user.organization_id}) "
                     f"attempting to access form {form_id} (org: {form.organization_id})"
                 )
-                return jsonify(
-                    {"error": "Form is not accessible to your organization"}
-                ), 403
+                return (
+                    jsonify({"error": "Form is not accessible to your organization"}),
+                    403,
+                )
 
         # Add scheduling (publish_at) and expiry (expires_at) checks
         now = datetime.now(timezone.utc)
@@ -81,7 +86,9 @@ def view_form(form_id):
             if pub_at.tzinfo is None:
                 pub_at = pub_at.replace(tzinfo=timezone.utc)
             if now < pub_at:
-                app_logger.warning(f"Form {form_id} is not active yet (publish_at: {pub_at})")
+                app_logger.warning(
+                    f"Form {form_id} is not active yet (publish_at: {pub_at})"
+                )
                 return jsonify({"error": "Form is not active yet"}), 403
 
         if getattr(form, "expires_at", None):
@@ -129,6 +136,7 @@ def get_form_info(form_id):
     Used for initial form discovery.
     """
     from datetime import datetime, timezone
+
     app_logger.info(f"Getting form info for {form_id}")
     try:
         # Enforce soft-deletion check (is_deleted=False)
@@ -142,7 +150,9 @@ def get_form_info(form_id):
             return jsonify({"error": "Authentication required"}), 401
 
         if form.status != "published":
-            app_logger.warning(f"Attempt to access public form info {form_id} with status {form.status}")
+            app_logger.warning(
+                f"Attempt to access public form info {form_id} with status {form.status}"
+            )
             return jsonify({"error": "Form is not published"}), 403
 
         # Add scheduling (publish_at) and expiry (expires_at) checks

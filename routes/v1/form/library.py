@@ -11,16 +11,7 @@ library_bp = Blueprint("library", __name__)
 
 
 @library_bp.route("/", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Library"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Library"], "responses": {"200": {"description": "Success"}}})
 @jwt_required()
 def list_field_templates():
     app_logger.info("Entering list_field_templates")
@@ -62,7 +53,9 @@ def list_field_templates():
                 }
             )
 
-        app_logger.info(f"Listed {len(result)} field templates for user {current_user_id}")
+        app_logger.info(
+            f"Listed {len(result)} field templates for user {current_user_id}"
+        )
         if "templates" in request.path:
             return jsonify({"templates": result}), 200
         return jsonify(result), 200
@@ -72,16 +65,7 @@ def list_field_templates():
 
 
 @library_bp.route("/", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Library"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Library"], "responses": {"200": {"description": "Success"}}})
 @jwt_required()
 def save_field_template():
     app_logger.info("Entering save_field_template")
@@ -106,9 +90,13 @@ def save_field_template():
         # If formId is provided, we are creating a template from an existing form
         if form_id:
             try:
-                form = Form.objects.get(id=form_id, organization_id=current_user.organization_id)
+                form = Form.objects.get(
+                    id=form_id, organization_id=current_user.organization_id
+                )
                 if not has_form_permission(current_user, form, "view"):
-                    app_logger.warning(f"User {current_user.id} unauthorized to access form {form_id} for template creation")
+                    app_logger.warning(
+                        f"User {current_user.id} unauthorized to access form {form_id} for template creation"
+                    )
                     return jsonify({"error": "Unauthorized to access form"}), 403
 
                 # Use form data as template data
@@ -143,7 +131,9 @@ def save_field_template():
             template.question_data = Question(**question_data_raw)
 
         template.save()
-        audit_logger.info(f"Field template '{name}' (ID: {template.id}) saved by user {current_user_id}")
+        audit_logger.info(
+            f"Field template '{name}' (ID: {template.id}) saved by user {current_user_id}"
+        )
 
         # Align response with frontend FormTemplate
         return (
@@ -168,24 +158,15 @@ def save_field_template():
 
 
 @library_bp.route("/<template_id>", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Library"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "template_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Library"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "template_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_field_template(template_id):
     app_logger.info(f"Entering get_field_template for ID {template_id}")
@@ -230,24 +211,15 @@ def get_field_template(template_id):
 
 
 @library_bp.route("/<template_id>", methods=["DELETE"])
-@swag_from({
-    "tags": [
-        "Library"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "template_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Library"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "template_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def delete_field_template(template_id):
     app_logger.info(f"Entering delete_field_template for ID {template_id}")
@@ -257,7 +229,9 @@ def delete_field_template(template_id):
             id=template_id, user_id=str(current_user_id)
         )
         template.delete()
-        audit_logger.info(f"Field template {template_id} deleted by user {current_user_id}")
+        audit_logger.info(
+            f"Field template {template_id} deleted by user {current_user_id}"
+        )
         return jsonify({"message": "Field template deleted"}), 200
     except Exception as e:
         error_logger.error(f"Error deleting field template {template_id}: {e}")

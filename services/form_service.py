@@ -1,6 +1,12 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
+from logger.unified_logger import (
+    app_logger,
+    error_logger,
+    audit_logger,
+    get_logger,
+    log_performance,
+)
 from logger.sla import enforce_sla
 from services.base import BaseService
 from services.access_control_service import AccessControlService
@@ -29,7 +35,9 @@ class FormService(BaseService):
     def __init__(self):
         super().__init__(model=Form, schema=FormSchema)
 
-    def sync_form_canvas(self, form_id: str, organization_id: str, canvas_data: Dict[str, Any]) -> Form:
+    def sync_form_canvas(
+        self, form_id: str, organization_id: str, canvas_data: Dict[str, Any]
+    ) -> Form:
         """Replace the form's canvas from the builder payload.
 
         The frontend intentionally sends both:
@@ -67,12 +75,14 @@ class FormService(BaseService):
             option = dict(option_payload or {})
             option.pop("id", None)
             option.pop("_id", None)
-            option["option_label"] = _coerce_text(
-                option.pop("option_label", option.pop("label", None))
-            ) or ""
-            option["option_value"] = _coerce_text(
-                option.pop("option_value", option.pop("value", None))
-            ) or option["option_label"]
+            option["option_label"] = (
+                _coerce_text(option.pop("option_label", option.pop("label", None)))
+                or ""
+            )
+            option["option_value"] = (
+                _coerce_text(option.pop("option_value", option.pop("value", None)))
+                or option["option_label"]
+            )
             if "description" in option:
                 option["description"] = _coerce_text(option["description"])
             visibility_condition = option.get("visibility_condition")
@@ -84,7 +94,9 @@ class FormService(BaseService):
             question = dict(question_payload or {})
             question.pop("id", None)
             question.pop("_id", None)
-            question["label"] = _coerce_text(question.get("label")) or "Untitled Question"
+            question["label"] = (
+                _coerce_text(question.get("label")) or "Untitled Question"
+            )
             if "help_text" in question:
                 question["help_text"] = _coerce_text(question.get("help_text"))
             if "default_value" in question:
@@ -98,7 +110,9 @@ class FormService(BaseService):
 
             if "options" in question and isinstance(question["options"], list):
                 question["options"] = [
-                    _normalize_option(opt) for opt in question["options"] if isinstance(opt, dict)
+                    _normalize_option(opt)
+                    for opt in question["options"]
+                    if isinstance(opt, dict)
                 ]
 
             for key in ("metadata", "metaData"):
@@ -120,7 +134,9 @@ class FormService(BaseService):
                     question[key] = _coerce_text(question[key])
             return question
 
-        def _normalize_section_payload(section_payload: Dict[str, Any]) -> Dict[str, Any]:
+        def _normalize_section_payload(
+            section_payload: Dict[str, Any],
+        ) -> Dict[str, Any]:
             payload = SectionService.normalize_section_tree(dict(section_payload or {}))
             nested_payloads = payload.pop("sections", []) or []
             payload.pop("id", None)
@@ -132,9 +148,14 @@ class FormService(BaseService):
                 payload["help_text"] = _coerce_text(payload.get("help_text"))
             if "questions" in payload and isinstance(payload["questions"], list):
                 payload["questions"] = [
-                    _normalize_question(q) for q in payload["questions"] if isinstance(q, dict)
+                    _normalize_question(q)
+                    for q in payload["questions"]
+                    if isinstance(q, dict)
                 ]
-            if "response_templates" in payload and payload["response_templates"] is None:
+            if (
+                "response_templates" in payload
+                and payload["response_templates"] is None
+            ):
                 payload["response_templates"] = []
             if "tags" in payload and payload["tags"] is None:
                 payload["tags"] = []
@@ -156,9 +177,15 @@ class FormService(BaseService):
             if not versions:
                 return []
             first_version = versions[0] if isinstance(versions[0], dict) else {}
-            return first_version.get("sections", []) if isinstance(first_version, dict) else []
+            return (
+                first_version.get("sections", [])
+                if isinstance(first_version, dict)
+                else []
+            )
 
-        sections_data = _extract_sections(canvas_data) if isinstance(canvas_data, dict) else []
+        sections_data = (
+            _extract_sections(canvas_data) if isinstance(canvas_data, dict) else []
+        )
         normalized_sections = []
 
         def build_section(section_payload: Dict[str, Any]):
@@ -202,7 +229,9 @@ class FormService(BaseService):
                 **(getattr(form_doc, "metadata", {}) or {}),
                 **canvas_data["metadata"],
             }
-        access_policy = canvas_data.get("access_policy", canvas_data.get("accessPolicy"))
+        access_policy = canvas_data.get(
+            "access_policy", canvas_data.get("accessPolicy")
+        )
         if access_policy is not None:
             form_doc.access_policy = access_policy
         if "active_version" in canvas_data:
@@ -230,11 +259,18 @@ class FormService(BaseService):
         audit_logger.info(f"AUDIT: Form canvas synced for form {form_id}")
         return form_doc
 
-    def _stamp_sections_with_version(self, form_doc: Form, version_doc: Version, form_version: FormVersion) -> None:
+    def _stamp_sections_with_version(
+        self, form_doc: Form, version_doc: Version, form_version: FormVersion
+    ) -> None:
         """Persist version references on all direct and nested sections."""
+
         def stamp(section_ref):
             section_id = getattr(section_ref, "id", section_ref)
-            section_doc = Section.objects(id=section_id, organization_id=form_doc.organization_id, is_deleted=False).first()
+            section_doc = Section.objects(
+                id=section_id,
+                organization_id=form_doc.organization_id,
+                is_deleted=False,
+            ).first()
             if not section_doc:
                 return
             section_doc.version = version_doc
@@ -297,7 +333,9 @@ class FormService(BaseService):
         )
         store.save()
 
-        form_version = FormVersion.objects(form=form_doc.id, version=version_doc).first()
+        form_version = FormVersion.objects(
+            form=form_doc.id, version=version_doc
+        ).first()
         if not form_version:
             form_version = FormVersion(
                 form=form_doc,
@@ -311,7 +349,9 @@ class FormService(BaseService):
             form_version.translations = form_doc.translations or {}
             form_version.status = "draft"
 
-        if hasattr(form_version, "access_policy") and hasattr(form_doc, "access_policy"):
+        if hasattr(form_version, "access_policy") and hasattr(
+            form_doc, "access_policy"
+        ):
             try:
                 form_version.access_policy = form_doc.access_policy
             except Exception:
@@ -321,12 +361,16 @@ class FormService(BaseService):
         form_version.save()
         form_doc.save()
         self._stamp_sections_with_version(form_doc, version_doc, form_version)
-        app_logger.info(f"Successfully completed sync_draft_version for Form ID {form_id}")
+        app_logger.info(
+            f"Successfully completed sync_draft_version for Form ID {form_id}"
+        )
         return form_version
 
     @enforce_sla(max_ms=100)
     def create(self, create_schema: FormCreateSchema) -> FormSchema:
-        app_logger.info(f"Entering FormService.create with title: {create_schema.title}")
+        app_logger.info(
+            f"Entering FormService.create with title: {create_schema.title}"
+        )
         try:
             data = create_schema.model_dump(exclude_unset=True, exclude={"sections"})
             form_doc = self.model(**data)
@@ -334,8 +378,12 @@ class FormService(BaseService):
             self.sync_draft_version(str(form_doc.id), form_doc.organization_id)
             form = self._to_schema(form_doc)
             event_bus.publish("form.indexed", form.model_dump())
-            audit_logger.info(f"AUDIT: Form created with ID {form.id} and title {form.title}")
-            app_logger.info(f"Successfully completed FormService.create for ID {form.id}")
+            audit_logger.info(
+                f"AUDIT: Form created with ID {form.id} and title {form.title}"
+            )
+            app_logger.info(
+                f"Successfully completed FormService.create for ID {form.id}"
+            )
             return form
         except Exception as e:
             error_logger.error(f"Error in FormService.create: {str(e)}", exc_info=True)
@@ -349,13 +397,19 @@ class FormService(BaseService):
     ) -> FormSchema:
         app_logger.info(f"Entering FormService.update for Form ID {form_id}")
         try:
-            form = super().update(form_id, update_schema, organization_id=organization_id)
+            form = super().update(
+                form_id, update_schema, organization_id=organization_id
+            )
             event_bus.publish("form.indexed", form.model_dump())
             audit_logger.info(f"AUDIT: Form updated with ID {form_id}")
-            app_logger.info(f"Successfully completed FormService.update for ID {form_id}")
+            app_logger.info(
+                f"Successfully completed FormService.update for ID {form_id}"
+            )
             return form
         except Exception as e:
-            error_logger.error(f"Error in FormService.update for ID {form_id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Error in FormService.update for ID {form_id}: {str(e)}", exc_info=True
+            )
             raise
 
     @enforce_sla(max_ms=50)
@@ -370,12 +424,14 @@ class FormService(BaseService):
             if not form_doc:
                 app_logger.debug(f"Form '{slug}' not found in org {organization_id}")
                 raise NotFoundError(f"Form '{slug}' not found")
-            
+
             app_logger.info(f"Successfully completed get_by_slug for: {slug}")
             return self._to_schema(form_doc)
         except Exception as e:
             if not isinstance(e, NotFoundError):
-                error_logger.error(f"Error in get_by_slug for {slug}: {str(e)}", exc_info=True)
+                error_logger.error(
+                    f"Error in get_by_slug for {slug}: {str(e)}", exc_info=True
+                )
             raise
 
     def _snapshot_section(self, section: Section) -> Dict[str, Any]:
@@ -393,20 +449,20 @@ class FormService(BaseService):
             data = section_doc.to_mongo().to_dict()
         if "_id" in data:
             data["id"] = str(data.pop("_id"))
-        
+
         # Snapshot sub-sections recursively
         nested_sections = []
         for nested in getattr(section, "sections", []) or []:
             nested_sections.append(self._snapshot_section(nested))
         if nested_sections:
             data["sections"] = nested_sections
-        
-        # Snapshot questions (Questions are embedded, so to_mongo handles them, 
+
+        # Snapshot questions (Questions are embedded, so to_mongo handles them,
         # but we ensure IDs are strings)
         for q in data.get("questions", []):
             if "_id" in q:
                 q["id"] = str(q.pop("_id"))
-                
+
         return data
 
     @log_performance
@@ -422,10 +478,10 @@ class FormService(BaseService):
         (FormVersion) so active live forms are safe from structural breakage.
         """
         app_logger.info(f"Entering publish_form for Form ID {form_id}")
-        filters = {'id': form_id, 'is_deleted': False}
+        filters = {"id": form_id, "is_deleted": False}
         if organization_id:
-            filters['organization_id'] = organization_id
-            
+            filters["organization_id"] = organization_id
+
         form_doc = self.model.objects(**filters).first()
         if not form_doc:
             app_logger.warning(f"Form {form_id} not found for publishing")
@@ -464,26 +520,26 @@ class FormService(BaseService):
             }
             if getattr(form_doc, "workflows", None) is not None:
                 snapshot_data["workflows"] = form_doc.workflows
-            
+
             # --- Snapshot Hardening (Phase 4) ---
             from models.Form import SnapshotStore
             import zlib
             import json
-            
+
             snapshot_json = json.dumps(snapshot_data, default=str)
             size_bytes = len(snapshot_json)
-            
+
             # Compress snapshot for storage efficiency
-            compressed_data = zlib.compress(snapshot_json.encode('utf-8'))
-            
-            if size_bytes > 10 * 1024 * 1024: # 10MB limit
+            compressed_data = zlib.compress(snapshot_json.encode("utf-8"))
+
+            if size_bytes > 10 * 1024 * 1024:  # 10MB limit
                 app_logger.warning(f"Oversized snapshot detected: {size_bytes} bytes")
-            
+
             store = SnapshotStore(
                 organization_id=form_doc.organization_id,
                 compressed_data=compressed_data,
                 is_compressed=True,
-                size_bytes=size_bytes
+                size_bytes=size_bytes,
             )
             store.save()
 
@@ -492,7 +548,7 @@ class FormService(BaseService):
                 version=new_version,
                 status="published",
                 snapshot_ref=store,
-                translations=form_doc.translations or {}, # Keep for compatibility
+                translations=form_doc.translations or {},  # Keep for compatibility
             )
             snapshot.save()
             self._stamp_sections_with_version(form_doc, new_version, snapshot)
@@ -507,14 +563,14 @@ class FormService(BaseService):
                 f"AUDIT: Published '{form_doc.title}' at version v{major}.{minor}.{patch}"
             )
             app_logger.info(f"Successfully completed publish_form for ID {form_id}")
-            
+
             result = self._to_schema(form_doc).model_dump()
             result["version_metadata"] = {
                 "version_string": new_version.version_string,
                 "major": major,
                 "minor": minor,
                 "patch": patch,
-                "form_version_id": str(snapshot.id)
+                "form_version_id": str(snapshot.id),
             }
             return result
 
@@ -526,7 +582,6 @@ class FormService(BaseService):
                 "Publish sequence failed",
                 details={"error": str(e)},
             )
-
 
 
 class ProjectCreateSchema(ProjectSchema, InboundPayloadSchema):
@@ -541,7 +596,12 @@ class ProjectService(BaseService):
     def __init__(self):
         super().__init__(model=Project, schema=ProjectSchema)
 
-    def create_project_with_form(self, project_data: Dict[str, Any], form_data: Dict[str, Any], organization_id: str) -> Dict[str, Any]:
+    def create_project_with_form(
+        self,
+        project_data: Dict[str, Any],
+        form_data: Dict[str, Any],
+        organization_id: str,
+    ) -> Dict[str, Any]:
         app_logger.info("Entering create_project_with_form")
         project_data = dict(project_data or {})
         form_data = dict(form_data or {})
@@ -552,26 +612,42 @@ class ProjectService(BaseService):
         form_data["project"] = str(project.id)
         form_schema = FormCreateSchema(**form_data)
         form = FormService().create(form_schema)
-        project_doc = Project.objects(id=project.id, organization_id=organization_id, is_deleted=False).first()
-        form_doc = Form.objects(id=form.id, organization_id=organization_id, is_deleted=False).first()
+        project_doc = Project.objects(
+            id=project.id, organization_id=organization_id, is_deleted=False
+        ).first()
+        form_doc = Form.objects(
+            id=form.id, organization_id=organization_id, is_deleted=False
+        ).first()
         if project_doc and form_doc:
             project_doc.forms.append(form_doc)
             project_doc.save()
         return {"project": project, "form": form}
 
-    def create_form_in_project(self, project_id: str, form_data: Dict[str, Any], organization_id: str, user: Optional[Any] = None) -> FormSchema:
+    def create_form_in_project(
+        self,
+        project_id: str,
+        form_data: Dict[str, Any],
+        organization_id: str,
+        user: Optional[Any] = None,
+    ) -> FormSchema:
         app_logger.info(f"Entering create_form_in_project for project {project_id}")
-        project = Project.objects(id=project_id, organization_id=organization_id, is_deleted=False).first()
+        project = Project.objects(
+            id=project_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not project:
             raise NotFoundError("Project not found")
-        if user and not AccessControlService.check_project_permission(user, project, "edit"):
+        if user and not AccessControlService.check_project_permission(
+            user, project, "edit"
+        ):
             raise PermissionError("Unauthorized to manage this project")
         form_data = dict(form_data or {})
         form_data["organization_id"] = organization_id
         form_data["project"] = str(project.id)
         form_schema = FormCreateSchema(**form_data)
         form = FormService().create(form_schema)
-        project_form = Form.objects(id=form.id, organization_id=organization_id, is_deleted=False).first()
+        project_form = Form.objects(
+            id=form.id, organization_id=organization_id, is_deleted=False
+        ).first()
         project.forms.append(project_form)
         project.save()
         return form
@@ -584,10 +660,10 @@ class ProjectService(BaseService):
         """Deep queries safely resolved linked active forms in a project tree."""
         app_logger.info(f"Entering list_forms_in_project for Project ID {project_id}")
         try:
-            filters = {'id': project_id, 'is_deleted': False}
+            filters = {"id": project_id, "is_deleted": False}
             if organization_id:
-                filters['organization_id'] = organization_id
-                
+                filters["organization_id"] = organization_id
+
             project_doc = self.model.objects(**filters).first()
             if not project_doc:
                 app_logger.warning(f"Project {project_id} not found")
@@ -611,25 +687,44 @@ class ProjectService(BaseService):
                     form = Form.objects(
                         id=form_id,
                         is_deleted=False,
-                        **({"organization_id": organization_id} if organization_id else {})
+                        **(
+                            {"organization_id": organization_id}
+                            if organization_id
+                            else {}
+                        ),
                     ).first()
                     if not form:
                         app_logger.warning(f"Form {form_id} not found")
                         continue
                     app_logger.info(f"Form {form_id} found")
                     form_payload = FormSerializer.serialize(form.to_dict())
-                    form_payload["organization_id"] = str(getattr(form, "organization_id", organization_id))
-                    form_payload["project"] = str(form_payload["project"]) if form_payload.get("project") is not None else None
+                    form_payload["organization_id"] = str(
+                        getattr(form, "organization_id", organization_id)
+                    )
+                    form_payload["project"] = (
+                        str(form_payload["project"])
+                        if form_payload.get("project") is not None
+                        else None
+                    )
                     if form_payload.get("active_version") is not None:
-                        form_payload["active_version"] = str(form_payload["active_version"])
+                        form_payload["active_version"] = str(
+                            form_payload["active_version"]
+                        )
                     forms.append(FormSchema.model_validate(form_payload))
                 except Exception as e:
-                    app_logger.warning(f"Error in list_forms_in_project for Project ID {project_id}: {str(e)}")
+                    app_logger.warning(
+                        f"Error in list_forms_in_project for Project ID {project_id}: {str(e)}"
+                    )
                     continue
 
-            app_logger.info(f"Successfully completed list_forms_in_project for Project ID {project_id} with total forms {len(forms)}")
+            app_logger.info(
+                f"Successfully completed list_forms_in_project for Project ID {project_id} with total forms {len(forms)}"
+            )
             return forms
         except Exception as e:
             if not isinstance(e, NotFoundError):
-                error_logger.error(f"Error in list_forms_in_project for Project ID {project_id}: {str(e)}", exc_info=True)
+                error_logger.error(
+                    f"Error in list_forms_in_project for Project ID {project_id}: {str(e)}",
+                    exc_info=True,
+                )
             raise

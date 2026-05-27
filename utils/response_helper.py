@@ -1,12 +1,16 @@
 from flask import g, jsonify
 from datetime import datetime
 
+
 class BaseSerializer:
     @staticmethod
     def clean_dict(data, preserve_fields=()):
         """Recursively removes internal mongo fields and stringifies UUIDs/Dates."""
         if isinstance(data, list):
-            return [BaseSerializer.clean_dict(i, preserve_fields=preserve_fields) for i in data]
+            return [
+                BaseSerializer.clean_dict(i, preserve_fields=preserve_fields)
+                for i in data
+            ]
         if not isinstance(data, dict):
             return data
 
@@ -14,24 +18,34 @@ class BaseSerializer:
         preserve_fields = set(preserve_fields or ())
         # HARDENED: Expanded list of internal/sensitive fields to exclude
         EXCLUDE_FIELDS = (
-            "_id", "_cls", "organization_id", "__v", 
-            "editors", "viewers", "submitters", # ACL internals
-            "snapshot_ref", "snapshot", # Snapshot raw data (use resolved fields)
-            "meta_data", "internal_metadata", # Internal flags
-            "password_hash", "salt" # Security
+            "_id",
+            "_cls",
+            "organization_id",
+            "__v",
+            "editors",
+            "viewers",
+            "submitters",  # ACL internals
+            "snapshot_ref",
+            "snapshot",  # Snapshot raw data (use resolved fields)
+            "meta_data",
+            "internal_metadata",  # Internal flags
+            "password_hash",
+            "salt",  # Security
         )
-        
+
         for k, v in data.items():
             if k in EXCLUDE_FIELDS and k not in preserve_fields:
                 continue
-            
+
             # Key mapping
             if k == "id" or k == "_id":
                 cleaned["id"] = str(v)
             elif isinstance(v, datetime):
                 cleaned[k] = v.isoformat()
             elif isinstance(v, dict):
-                cleaned[k] = BaseSerializer.clean_dict(v, preserve_fields=preserve_fields)
+                cleaned[k] = BaseSerializer.clean_dict(
+                    v, preserve_fields=preserve_fields
+                )
             elif isinstance(v, list):
                 cleaned[k] = [
                     BaseSerializer.clean_dict(i, preserve_fields=preserve_fields)
@@ -41,12 +55,13 @@ class BaseSerializer:
                 cleaned[k] = v
         return cleaned
 
+
 class FormSerializer(BaseSerializer):
     @staticmethod
     def serialize(form_dict, include_snapshot=False):
         """Sanitizes form dictionary for public API output."""
         cleaned = BaseSerializer.clean_dict(form_dict, preserve_fields=("meta_data",))
-        
+
         # Ensure versions are cleaned but don't leak full snapshot unless requested
         if "versions" in cleaned:
             for v in cleaned["versions"]:
@@ -58,12 +73,13 @@ class FormSerializer(BaseSerializer):
                         v["snapshot"],
                         preserve_fields=("meta_data",),
                     )
-        
+
         # Clean top-level snapshots if any leaked through
         cleaned.pop("snapshot", None)
         cleaned.pop("snapshot_data", None)
-        
+
         return cleaned
+
 
 def _request_id():
     return getattr(g, "request_id", None)
@@ -80,7 +96,7 @@ def success_response(data=None, message="Success", status_code=200):
     }
     if data is not None:
         response["data"] = data
-        
+
     return jsonify(response), status_code
 
 
@@ -111,7 +127,7 @@ def error_response(
         "error": error,
         "request_id": _request_id(),
     }
-        
+
     return jsonify(response), status_code
 
 
@@ -147,6 +163,7 @@ def pagination_response(items, page, page_size, total, **extra):
     payload.update(extra)
     return payload
 
+
 def get_pagination_params():
     """
     Extracts pagination parameters from request query arguments.
@@ -154,7 +171,7 @@ def get_pagination_params():
     """
     from flask import request
     from config.settings import settings
-    
+
     try:
         page = int(request.args.get("page", 1))
         page_size = int(request.args.get("page_size", settings.DEFAULT_PAGE_SIZE))
@@ -165,5 +182,5 @@ def get_pagination_params():
     # Enforce safe bounds
     page = max(1, page)
     page_size = max(1, min(page_size, settings.MAX_PAGE_SIZE))
-    
+
     return page, page_size

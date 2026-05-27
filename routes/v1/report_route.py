@@ -14,6 +14,7 @@ from logger.unified_logger import app_logger, error_logger, audit_logger
 
 report_bp = Blueprint("report", __name__)
 
+
 @report_bp.route("/", methods=["POST"])
 @jwt_required()
 @require_permission("project", "edit")
@@ -21,10 +22,14 @@ def create_report_config(project_id):
     """Create a new embedded Report Configuration inside the Project."""
     user_id = get_jwt_identity()
     org_id = get_jwt().get("org_id")
-    app_logger.info(f"User {user_id} creating report configuration in project {project_id}")
+    app_logger.info(
+        f"User {user_id} creating report configuration in project {project_id}"
+    )
 
     try:
-        project = Project.objects(id=project_id, organization_id=org_id, is_deleted=False).first()
+        project = Project.objects(
+            id=project_id, organization_id=org_id, is_deleted=False
+        ).first()
         if not project:
             raise NotFoundError(f"Project {project_id} not found")
 
@@ -66,7 +71,9 @@ def list_report_configs(project_id):
     """List all active Report Configurations in a Project."""
     org_id = get_jwt().get("org_id")
     try:
-        project = Project.objects(id=project_id, organization_id=org_id, is_deleted=False).first()
+        project = Project.objects(
+            id=project_id, organization_id=org_id, is_deleted=False
+        ).first()
         if not project:
             raise NotFoundError(f"Project {project_id} not found")
 
@@ -96,12 +103,16 @@ def delete_report_config(project_id, config_id):
     """Delete a Report Configuration from Project."""
     org_id = get_jwt().get("org_id")
     try:
-        project = Project.objects(id=project_id, organization_id=org_id, is_deleted=False).first()
+        project = Project.objects(
+            id=project_id, organization_id=org_id, is_deleted=False
+        ).first()
         if not project:
             raise NotFoundError(f"Project {project_id} not found")
 
         original_len = len(project.report_configs)
-        project.report_configs = [c for c in project.report_configs if str(c.id) != config_id]
+        project.report_configs = [
+            c for c in project.report_configs if str(c.id) != config_id
+        ]
 
         if len(project.report_configs) == original_len:
             raise NotFoundError(f"Report Config {config_id} not found")
@@ -120,22 +131,26 @@ def list_report_job_logs(project_id, config_id):
     org_id = get_jwt().get("org_id")
     try:
         # Check permissions & project membership
-        project = Project.objects(id=project_id, organization_id=org_id, is_deleted=False).first()
+        project = Project.objects(
+            id=project_id, organization_id=org_id, is_deleted=False
+        ).first()
         if not project:
             raise NotFoundError(f"Project {project_id} not found")
 
-        logs = ReportJobLog.objects(project_id=project_id, config_id=config_id).order_by("-executed_at")
+        logs = ReportJobLog.objects(
+            project_id=project_id, config_id=config_id
+        ).order_by("-executed_at")
         data = [
             {
-                "id": str(l.id),
-                "status": l.status,
-                "trigger_reason": l.trigger_reason,
-                "executed_at": l.executed_at.isoformat(),
-                "duration_ms": l.duration_ms,
-                "file_url": l.file_url,
-                "error_message": l.error_message,
+                "id": str(log.id),
+                "status": log.status,
+                "trigger_reason": log.trigger_reason,
+                "executed_at": log.executed_at.isoformat(),
+                "duration_ms": log.duration_ms,
+                "file_url": log.file_url,
+                "error_message": log.error_message,
             }
-            for l in logs
+            for log in logs
         ]
         return success_response(data=data)
     except Exception as e:

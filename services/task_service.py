@@ -20,7 +20,9 @@ class TaskService:
             # 1. Try to fetch from Redis tracking first
             tracked_status = task_observability_service.get_task_status(task_id)
             if tracked_status and tracked_status.get("state"):
-                app_logger.debug(f"Found tracked status in Redis for task_id {task_id}: {tracked_status}")
+                app_logger.debug(
+                    f"Found tracked status in Redis for task_id {task_id}: {tracked_status}"
+                )
                 return {
                     "task_id": task_id,
                     "state": tracked_status.get("state"),
@@ -45,7 +47,11 @@ class TaskService:
 
             if task.ready():
                 if task.successful():
-                    payload["result"] = task.result if isinstance(task.result, dict) else {"data": task.result}
+                    payload["result"] = (
+                        task.result
+                        if isinstance(task.result, dict)
+                        else {"data": task.result}
+                    )
                 elif task.failed():
                     payload["error"] = str(task.info)
                     payload["traceback"] = task.traceback

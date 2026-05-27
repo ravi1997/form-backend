@@ -2,7 +2,6 @@ import json
 import re
 from pathlib import Path
 
-
 COLL = Path("postman_collection_merged.json")
 OUT = Path("postman_coverage_report.md")
 
@@ -72,10 +71,14 @@ def code_routes():
     out = []
     for file_path, prefix in MOUNTS.items():
         txt = Path(file_path).read_text()
-        for m in re.finditer(r'@\w+\.route\((.*?)\,\s*methods=\[(.*?)\]\)', txt, re.S):
-            route = m.group(1).strip().strip('"\'')
-            methods = [x.strip().strip('"\'') for x in m.group(2).split(",")]
-            route = route.replace("<string:", "<").replace("<int:", "<").replace("<path:", "<")
+        for m in re.finditer(r"@\w+\.route\((.*?)\,\s*methods=\[(.*?)\]\)", txt, re.S):
+            route = m.group(1).strip().strip("\"'")
+            methods = [x.strip().strip("\"'") for x in m.group(2).split(",")]
+            route = (
+                route.replace("<string:", "<")
+                .replace("<int:", "<")
+                .replace("<path:", "<")
+            )
             for method in methods:
                 out.append((method, normalize_path(prefix + route), file_path))
     return out
@@ -84,13 +87,21 @@ def code_routes():
 def collection_routes():
     coll = json.loads(COLL.read_text())["collection"]
     out = []
+
     def walk(items, group):
         for it in items:
             if "request" in it:
-                raw = it["request"]["url"]["raw"] if isinstance(it["request"]["url"], dict) else it["request"]["url"]
-                out.append((group, it["name"], it["request"]["method"], normalize_path(raw)))
+                raw = (
+                    it["request"]["url"]["raw"]
+                    if isinstance(it["request"]["url"], dict)
+                    else it["request"]["url"]
+                )
+                out.append(
+                    (group, it["name"], it["request"]["method"], normalize_path(raw))
+                )
             if "item" in it:
                 walk(it["item"], it.get("name", group))
+
     walk(coll["item"], "")
     return out
 
@@ -128,7 +139,9 @@ def main():
         "|---|---|---:|---|---|---|",
     ]
     for group, name, method, path, code_ref, status in rows:
-        lines.append(f"| {group} | {name} | {method} | `{path}` | `{code_ref}` | {status} |")
+        lines.append(
+            f"| {group} | {name} | {method} | `{path}` | `{code_ref}` | {status} |"
+        )
 
     lines += [
         "",

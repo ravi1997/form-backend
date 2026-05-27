@@ -1,7 +1,11 @@
 from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import ConnectionError as ESConnectionError, TransportError
+from elasticsearch.exceptions import (
+    ConnectionError as ESConnectionError,
+    TransportError,
+)
 from config.settings import settings
 from logger.unified_logger import app_logger, error_logger, audit_logger
+
 
 class SearchService:
     def __init__(self):
@@ -41,9 +45,14 @@ class SearchService:
                 self.es.indices.create(index=self.index_name, body=mappings)
                 audit_logger.info(f"Created Elasticsearch index: {self.index_name}")
             else:
-                app_logger.debug(f"Elasticsearch index already exists: {self.index_name}")
+                app_logger.debug(
+                    f"Elasticsearch index already exists: {self.index_name}"
+                )
         except Exception as e:
-            error_logger.error(f"Failed to initialize Elasticsearch index {self.index_name}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Failed to initialize Elasticsearch index {self.index_name}: {str(e)}",
+                exc_info=True,
+            )
 
     def index_form(self, form_data: dict):
         """Indexes a form document into Elasticsearch."""
@@ -55,22 +64,24 @@ class SearchService:
                     f"Skipping Elasticsearch indexing for form {form_id} because the cluster is unavailable"
                 )
                 return
-            res = self.es.index(
-                index=self.index_name, id=form_id, body=form_data
-            )
+            res = self.es.index(index=self.index_name, id=form_id, body=form_data)
             audit_logger.info(f"Indexed form {form_id}: {res['result']}")
         except (ESConnectionError, TransportError) as e:
             app_logger.warning(
                 f"Elasticsearch unavailable while indexing form {form_id}; skipping indexing: {str(e)}"
             )
         except Exception as e:
-            error_logger.error(f"Failed to index form {form_id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Failed to index form {form_id}: {str(e)}", exc_info=True
+            )
 
     def search_forms(
         self, query_text: str, organization_id: str, page: int = 1, page_size: int = 10
     ):
         """Searches for forms using a multi-match query with filtering and pagination."""
-        app_logger.info(f"Searching forms for query: '{query_text}', org: {organization_id}")
+        app_logger.info(
+            f"Searching forms for query: '{query_text}', org: {organization_id}"
+        )
         body = {
             "from": (page - 1) * page_size,
             "size": page_size,
@@ -97,7 +108,9 @@ class SearchService:
             res = self.es.search(index=self.index_name, body=body)
             hits = res["hits"]["hits"]
             total = res["hits"]["total"]["value"]
-            app_logger.info(f"Search successful. Found {total} results for query: '{query_text}'")
+            app_logger.info(
+                f"Search successful. Found {total} results for query: '{query_text}'"
+            )
             return {
                 "items": [hit["_source"] for hit in hits],
                 "total": total,
@@ -105,7 +118,9 @@ class SearchService:
                 "page_size": page_size,
             }
         except Exception as e:
-            error_logger.error(f"Search failed for query '{query_text}': {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Search failed for query '{query_text}': {str(e)}", exc_info=True
+            )
             return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
 

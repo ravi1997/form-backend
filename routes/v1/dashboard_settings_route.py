@@ -5,9 +5,7 @@ from services.dashboard_service import DashboardService
 from utils.response_helper import success_response, error_response
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
-dashboard_settings_bp = Blueprint(
-    "dashboard_settings", __name__
-)
+dashboard_settings_bp = Blueprint("dashboard_settings", __name__)
 dashboard_service = DashboardService()
 
 
@@ -15,16 +13,12 @@ dashboard_service = DashboardService()
 
 
 @dashboard_settings_bp.route("/settings", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Get user dashboard settings."
-        }
+@swag_from(
+    {
+        "tags": ["Dashboard_Settings"],
+        "responses": {"200": {"description": "Get user dashboard settings."}},
     }
-})
+)
 @jwt_required()
 def get_dashboard_settings():
     """Get user dashboard settings."""
@@ -33,25 +27,23 @@ def get_dashboard_settings():
     app_logger.info(f"User {user_id} fetching dashboard settings for org {org_id}")
 
     if not org_id:
-        app_logger.warning(f"Get dashboard settings failed for user {user_id}: Organization context missing")
+        app_logger.warning(
+            f"Get dashboard settings failed for user {user_id}: Organization context missing"
+        )
         return error_response(message="Organization context missing", status_code=400)
-        
+
     settings = dashboard_service.get_user_settings(user_id, org_id)
     app_logger.info(f"Dashboard settings retrieved successfully for user {user_id}")
     return success_response(data=settings.model_dump())
 
 
 @dashboard_settings_bp.route("/settings", methods=["PUT"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Update user dashboard settings."
-        }
+@swag_from(
+    {
+        "tags": ["Dashboard_Settings"],
+        "responses": {"200": {"description": "Update user dashboard settings."}},
     }
-})
+)
 @jwt_required()
 def update_dashboard_settings():
     """Update user dashboard settings."""
@@ -60,28 +52,28 @@ def update_dashboard_settings():
     app_logger.info(f"User {user_id} updating dashboard settings for org {org_id}")
 
     if not org_id:
-        app_logger.warning(f"Update dashboard settings failed for user {user_id}: Organization context missing")
+        app_logger.warning(
+            f"Update dashboard settings failed for user {user_id}: Organization context missing"
+        )
         return error_response(message="Organization context missing", status_code=400)
-        
+
     data = request.get_json() or {}
     settings = dashboard_service.update_user_settings(user_id, org_id, data)
-    
+
     audit_logger.info(f"User {user_id} updated dashboard settings for org {org_id}")
     app_logger.info(f"Dashboard settings updated successfully for user {user_id}")
     return success_response(data=settings.model_dump(), message="Settings updated")
 
 
 @dashboard_settings_bp.route("/reset", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Reset user dashboard settings to defaults."
-        }
+@swag_from(
+    {
+        "tags": ["Dashboard_Settings"],
+        "responses": {
+            "200": {"description": "Reset user dashboard settings to defaults."}
+        },
     }
-})
+)
 @jwt_required()
 def reset_dashboard_settings():
     """Reset user dashboard settings to defaults."""
@@ -90,36 +82,40 @@ def reset_dashboard_settings():
     app_logger.info(f"User {user_id} resetting dashboard settings for org {org_id}")
 
     if not org_id:
-        app_logger.warning(f"Reset dashboard settings failed for user {user_id}: Organization missing")
+        app_logger.warning(
+            f"Reset dashboard settings failed for user {user_id}: Organization missing"
+        )
         return error_response(message="Organization missing", status_code=400)
-        
-    settings = dashboard_service.update_user_settings(user_id, org_id, {
-        "theme": "system",
-        "language": "en",
-        "timezone": "UTC",
-        "layout_config": {},
-        "favorite_dashboards": []
-    })
-    
+
+    settings = dashboard_service.update_user_settings(
+        user_id,
+        org_id,
+        {
+            "theme": "system",
+            "language": "en",
+            "timezone": "UTC",
+            "layout_config": {},
+            "favorite_dashboards": [],
+        },
+    )
+
     audit_logger.info(f"User {user_id} reset dashboard settings for org {org_id}")
     app_logger.info(f"Dashboard settings reset successfully for user {user_id}")
-    return success_response(data=settings.model_dump(), message="Settings reset to defaults")
+    return success_response(
+        data=settings.model_dump(), message="Settings reset to defaults"
+    )
 
 
 # ==================== Widget Endpoints ====================
 
 
 @dashboard_settings_bp.route("/widgets", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Get list of available widget types."
-        }
+@swag_from(
+    {
+        "tags": ["Dashboard_Settings"],
+        "responses": {"200": {"description": "Get list of available widget types."}},
     }
-})
+)
 @jwt_required()
 def get_available_widgets():
     """Get list of available widget types."""
@@ -130,42 +126,29 @@ def get_available_widgets():
 
 
 @dashboard_settings_bp.route("/widgets", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from(
+    {"tags": ["Dashboard_Settings"], "responses": {"200": {"description": "Success"}}}
+)
 @jwt_required()
 def add_widget():
     user_id = get_jwt_identity()
     app_logger.warning(f"User {user_id} attempted to use deprecated add_widget route")
-    return error_response(message="Direct widget addition is deprecated. Update Dashboard instead.", status_code=405)
+    return error_response(
+        message="Direct widget addition is deprecated. Update Dashboard instead.",
+        status_code=405,
+    )
 
 
 @dashboard_settings_bp.route("/widgets/<widget_id>", methods=["DELETE"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "widget_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Dashboard_Settings"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "widget_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def remove_widget(widget_id):
     """Remove a widget from the user's dashboard."""
@@ -185,24 +168,15 @@ def remove_widget(widget_id):
 
 
 @dashboard_settings_bp.route("/widgets/<widget_id>", methods=["PUT"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "widget_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Dashboard_Settings"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "widget_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def update_widget(widget_id):
     """Update a widget's configuration."""
@@ -233,20 +207,15 @@ def update_widget(widget_id):
 
     audit_logger.info(f"User {user_id} updated widget {widget_id} configuration")
     app_logger.info(f"Widget {widget_id} updated successfully for user: {user_id}")
-    return success_response(data={"widget": widget}, message="Widget updated successfully")
+    return success_response(
+        data={"widget": widget}, message="Widget updated successfully"
+    )
 
 
 @dashboard_settings_bp.route("/widgets/positions", methods=["PUT"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from(
+    {"tags": ["Dashboard_Settings"], "responses": {"200": {"description": "Success"}}}
+)
 @jwt_required()
 def update_widget_positions():
     """Update positions for multiple widgets."""
@@ -274,20 +243,16 @@ def update_widget_positions():
     app_logger.info(
         f"Successfully updated positions for {len(updated)} widgets (user: {user_id})"
     )
-    return success_response(data={"updated_widgets": updated}, message=f"Updated positions for {len(updated)} widgets")
+    return success_response(
+        data={"updated_widgets": updated},
+        message=f"Updated positions for {len(updated)} widgets",
+    )
 
 
 @dashboard_settings_bp.route("/layout", methods=["PUT"])
-@swag_from({
-    "tags": [
-        "Dashboard_Settings"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from(
+    {"tags": ["Dashboard_Settings"], "responses": {"200": {"description": "Success"}}}
+)
 @jwt_required()
 def update_layout():
     """Update only the layout configuration."""
@@ -308,7 +273,11 @@ def update_layout():
         app_logger.warning(
             f"Layout validation failed for user: {user_id}: {validation_result['errors']}"
         )
-        return error_response(message="Validation failed", details=validation_result["errors"], status_code=400)
+        return error_response(
+            message="Validation failed",
+            details=validation_result["errors"],
+            status_code=400,
+        )
     app_logger.debug(f"Layout validation successful for user: {user_id}")
 
     settings = DashboardService.save_settings(
@@ -317,4 +286,6 @@ def update_layout():
 
     audit_logger.info(f"User {user_id} updated dashboard layout")
     app_logger.info(f"Layout updated successfully for user: {user_id}")
-    return success_response(data={"settings": settings.to_dict()}, message="Layout updated")
+    return success_response(
+        data={"settings": settings.to_dict()}, message="Layout updated"
+    )

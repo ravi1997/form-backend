@@ -9,7 +9,9 @@ class _Collection:
         return None
 
     def find(self, query, projection):
-        return [row for row in self.rows.values() if row.get("status") == query["status"]]
+        return [
+            row for row in self.rows.values() if row.get("status") == query["status"]
+        ]
 
     def update_one(self, query, update, upsert=False):
         version = query["version"]

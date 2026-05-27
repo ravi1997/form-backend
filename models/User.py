@@ -144,12 +144,9 @@ class User(BaseDocument, SoftDeleteMixin):
     @staticmethod
     def authenticate(identifier: str, password: str) -> "User | None":
         user = User.objects(
-            Q(is_active=True) & 
-            Q(is_deleted=False) & (
-                Q(username=identifier) | 
-                Q(email=identifier) | 
-                Q(employee_id=identifier)
-            )
+            Q(is_active=True)
+            & Q(is_deleted=False)
+            & (Q(username=identifier) | Q(email=identifier) | Q(employee_id=identifier))
         ).first()
 
         if not user or user.is_locked():

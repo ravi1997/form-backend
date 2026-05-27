@@ -9,6 +9,7 @@ from schemas.analysis_board import AnalysisBoardSchema, AnalysisNodeSchema
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from extensions import redis_client
 
+
 class AnalysisBoardService(BaseService):
     def __init__(self):
         super().__init__(model=AnalysisBoard, schema=AnalysisBoardSchema)
@@ -18,23 +19,31 @@ class AnalysisBoardService(BaseService):
         Executes the entire visual calculation nodes graph of an Analysis Board.
         Utilizes Redis-backed result caching, evicted on new form response events.
         """
-        app_logger.info(f"Executing Analysis Board: {board_id} for org {organization_id}")
-        
+        app_logger.info(
+            f"Executing Analysis Board: {board_id} for org {organization_id}"
+        )
+
         # 1. Check Redis Cache
         cache_key = f"analysis_board:cache:{organization_id}:{board_id}"
         try:
             cached = redis_client.get(cache_key)
             if cached:
                 import json
-                app_logger.info(f"Returning cached execution results for board {board_id}")
+
+                app_logger.info(
+                    f"Returning cached execution results for board {board_id}"
+                )
                 return json.loads(cached)
         except Exception as cache_err:
             app_logger.warning(f"Failed to read Analysis Board cache: {cache_err}")
 
         # 2. Retrieve Board from DB
-        board_doc = self.model.objects(id=board_id, organization_id=organization_id, is_deleted=False).first()
+        board_doc = self.model.objects(
+            id=board_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not board_doc:
             from utils.exceptions import NotFoundError
+
             raise NotFoundError(f"Analysis Board {board_id} not found")
 
         # 3. Topological Sort of Nodes based on 'inputs' dependency graph
@@ -46,14 +55,20 @@ class AnalysisBoardService(BaseService):
         for node_id in execution_order:
             node = nodes_dict[node_id]
             try:
-                results[node_id] = self._execute_single_node(node, results, organization_id)
+                results[node_id] = self._execute_single_node(
+                    node, results, organization_id
+                )
             except Exception as node_err:
-                error_logger.error(f"Error executing node {node.title} ({node_id}): {node_err}", exc_info=True)
+                error_logger.error(
+                    f"Error executing node {node.title} ({node_id}): {node_err}",
+                    exc_info=True,
+                )
                 results[node_id] = {"error": str(node_err)}
 
         # 5. Cache Results
         try:
             import json
+
             redis_client.setex(cache_key, 3600, json.dumps(results))  # Cache for 1 hour
         except Exception as cache_err:
             app_logger.warning(f"Failed to set Analysis Board cache: {cache_err}")
@@ -73,7 +88,7 @@ class AnalysisBoardService(BaseService):
         """Performs a topological sort on calculation nodes based on their inputs dependencies."""
         graph = {}
         in_degree = {}
-        
+
         # Initialize graph
         for node in nodes:
             nid = str(node.id)
@@ -103,40 +118,52 @@ class AnalysisBoardService(BaseService):
 
         if len(order) != len(nodes):
             # Circular dependency detected, fallback to standard database order
-            app_logger.warning("Circular dependency detected in calculation nodes graph! Falling back to raw list order.")
+            app_logger.warning(
+                "Circular dependency detected in calculation nodes graph! Falling back to raw list order."
+            )
             return [str(node.id) for node in nodes]
 
         return order
 
-    def _execute_single_node(self, node: AnalysisNode, resolved_parent_results: Dict[str, Any], org_id: str) -> Any:
+    def _execute_single_node(
+        self, node: AnalysisNode, resolved_parent_results: Dict[str, Any], org_id: str
+    ) -> Any:
         """Runs the calculation logic for a single node."""
         func = node.function_id.upper()
-        
+
         # Basic MongoDB aggregations
         DB_AGG_FUNCTIONS = {"SUM", "COUNT", "AVERAGE", "MIN", "MAX", "STD_DEV"}
-        
+
         if func in DB_AGG_FUNCTIONS:
             return self._run_db_aggregation(node, org_id)
-        
+
         elif func == "CORRELATION":
             return self._run_pearson_correlation(node, org_id)
-            
+
         elif func == "FREQ_DIST":
             return self._run_frequency_distribution(node, org_id)
-            
+
         # Graph calculations (linked formulas)
         elif func in ("RATIO", "DIFFERENCE", "PERCENT"):
             if not node.inputs or len(node.inputs) < 2:
-                return {"error": f"Function {func} requires at least 2 parent node inputs"}
-            
-            val_a = self._extract_node_value(resolved_parent_results.get(str(node.inputs[0])))
-            val_b = self._extract_node_value(resolved_parent_results.get(str(node.inputs[1])))
-            
+                return {
+                    "error": f"Function {func} requires at least 2 parent node inputs"
+                }
+
+            val_a = self._extract_node_value(
+                resolved_parent_results.get(str(node.inputs[0]))
+            )
+            val_b = self._extract_node_value(
+                resolved_parent_results.get(str(node.inputs[1]))
+            )
+
             if val_a is None or val_b is None:
                 return None
-            
-            if isinstance(val_a, dict) and "error" in val_a: return val_a
-            if isinstance(val_b, dict) and "error" in val_b: return val_b
+
+            if isinstance(val_a, dict) and "error" in val_a:
+                return val_a
+            if isinstance(val_b, dict) and "error" in val_b:
+                return val_b
 
             try:
                 if func == "RATIO":
@@ -144,10 +171,14 @@ class AnalysisBoardService(BaseService):
                 elif func == "DIFFERENCE":
                     return float(val_a) - float(val_b)
                 elif func == "PERCENT":
-                    return (float(val_a) / float(val_b)) * 100.0 if float(val_b) != 0.0 else None
+                    return (
+                        (float(val_a) / float(val_b)) * 100.0
+                        if float(val_b) != 0.0
+                        else None
+                    )
             except Exception as calc_err:
                 return {"error": f"Calculation error: {calc_err}"}
-                
+
         return {"error": f"Unsupported function: {func}"}
 
     def _run_db_aggregation(self, node: AnalysisNode, org_id: str) -> Optional[float]:
@@ -155,7 +186,7 @@ class AnalysisBoardService(BaseService):
         match_query = {
             "form": node.target_form_id,
             "is_deleted": False,
-            "organization_id": org_id
+            "organization_id": org_id,
         }
         # Mix in any segment pre-filters
         if node.filters:
@@ -163,10 +194,10 @@ class AnalysisBoardService(BaseService):
                 match_query[f"data.{key}"] = val
 
         pipeline = [{"$match": match_query}]
-        
+
         func = node.function_id.upper()
         field = f"$data.{node.target_field_id}"
-        
+
         # Map operator
         if func == "COUNT":
             op = {"$sum": 1}
@@ -184,14 +215,16 @@ class AnalysisBoardService(BaseService):
             return None
 
         pipeline.append({"$group": {"_id": None, "result": op}})
-        
+
         results = list(FormResponse.objects.aggregate(*pipeline))
         if not results:
             return 0.0 if func in ("COUNT", "SUM") else None
-            
+
         return results[0].get("result")
 
-    def _run_pearson_correlation(self, node: AnalysisNode, org_id: str) -> Optional[float]:
+    def _run_pearson_correlation(
+        self, node: AnalysisNode, org_id: str
+    ) -> Optional[float]:
         """Computes Pearson Correlation natively and efficiently over multiple numerical fields."""
         if not node.secondary_field_id:
             raise ValueError("Correlation function requires a secondary_field_id")
@@ -199,7 +232,7 @@ class AnalysisBoardService(BaseService):
         match_query = {
             "form": node.target_form_id,
             "is_deleted": False,
-            "organization_id": org_id
+            "organization_id": org_id,
         }
         if node.filters:
             for key, val in node.filters.items():
@@ -211,12 +244,7 @@ class AnalysisBoardService(BaseService):
         # Clean/filter out nulls, project numeric conversions
         pipeline = [
             {"$match": match_query},
-            {
-                "$project": {
-                    "x": {"$toDouble": field_x},
-                    "y": {"$toDouble": field_y}
-                }
-            },
+            {"$project": {"x": {"$toDouble": field_x}, "y": {"$toDouble": field_y}}},
             {
                 "$group": {
                     "_id": None,
@@ -225,9 +253,9 @@ class AnalysisBoardService(BaseService):
                     "sum_x2": {"$sum": {"$multiply": ["$x", "$x"]}},
                     "sum_y2": {"$sum": {"$multiply": ["$y", "$y"]}},
                     "sum_xy": {"$sum": {"$multiply": ["$x", "$y"]}},
-                    "n": {"$sum": 1}
+                    "n": {"$sum": 1},
                 }
-            }
+            },
         ]
 
         results = list(FormResponse.objects.aggregate(*pipeline))
@@ -246,20 +274,22 @@ class AnalysisBoardService(BaseService):
         sum_xy = stats["sum_xy"]
 
         numerator = (n * sum_xy) - (sum_x * sum_y)
-        denominator_term = (n * sum_x2 - (sum_x ** 2)) * (n * sum_y2 - (sum_y ** 2))
-        
+        denominator_term = (n * sum_x2 - (sum_x**2)) * (n * sum_y2 - (sum_y**2))
+
         if denominator_term <= 0:
             return None
-            
+
         r = numerator / math.sqrt(denominator_term)
         return round(r, 4)
 
-    def _run_frequency_distribution(self, node: AnalysisNode, org_id: str) -> Dict[str, int]:
+    def _run_frequency_distribution(
+        self, node: AnalysisNode, org_id: str
+    ) -> Dict[str, int]:
         """Semantic word split occurrences counter inside textual form responses."""
         match_query = {
             "form": node.target_form_id,
             "is_deleted": False,
-            "organization_id": org_id
+            "organization_id": org_id,
         }
         if node.filters:
             for key, val in node.filters.items():
@@ -273,7 +303,7 @@ class AnalysisBoardService(BaseService):
             {"$unwind": "$words"},
             {"$group": {"_id": "$words", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-            {"$limit": 50}
+            {"$limit": 50},
         ]
 
         results = list(FormResponse.objects.aggregate(*pipeline))
@@ -283,7 +313,7 @@ class AnalysisBoardService(BaseService):
             word = str(r["_id"]).strip(",.?!()\"';:")
             if word and len(word) > 2:  # skip extremely short stop-words
                 freq[word] = freq.get(word, 0) + r["count"]
-                
+
         return freq
 
     def _extract_node_value(self, result: Any) -> Optional[float]:
@@ -301,20 +331,36 @@ class AnalysisBoardService(BaseService):
         """
         Evicts cached results for all Analysis Boards targeting a specific form.
         """
-        app_logger.info(f"Evicting Analysis Board caches for form {form_id} in org {organization_id}")
+        app_logger.info(
+            f"Evicting Analysis Board caches for form {form_id} in org {organization_id}"
+        )
         try:
             from models.AnalysisBoard import AnalysisBoard
+
             # Find all boards in the organization
-            boards = AnalysisBoard.objects(organization_id=organization_id, is_deleted=False)
+            boards = AnalysisBoard.objects(
+                organization_id=organization_id, is_deleted=False
+            )
             evicted_count = 0
             for board in boards:
                 # Check if any node in the board targets this form
-                targets_form = any(str(node.target_form_id) == str(form_id) for node in board.nodes)
+                targets_form = any(
+                    str(node.target_form_id) == str(form_id) for node in board.nodes
+                )
                 if targets_form:
-                    cache_key = f"analysis_board:cache:{organization_id}:{str(board.id)}"
+                    cache_key = (
+                        f"analysis_board:cache:{organization_id}:{str(board.id)}"
+                    )
                     redis_client.delete(cache_key)
-                    app_logger.info(f"Evicted cache for Analysis Board {board.id} due to submission on form {form_id}")
+                    app_logger.info(
+                        f"Evicted cache for Analysis Board {board.id} due to submission on form {form_id}"
+                    )
                     evicted_count += 1
-            app_logger.info(f"Evicted {evicted_count} analysis board caches for form {form_id}")
+            app_logger.info(
+                f"Evicted {evicted_count} analysis board caches for form {form_id}"
+            )
         except Exception as e:
-            error_logger.error(f"Failed to evict Analysis Board caches for form {form_id}: {e}", exc_info=True)
+            error_logger.error(
+                f"Failed to evict Analysis Board caches for form {form_id}: {e}",
+                exc_info=True,
+            )

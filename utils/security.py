@@ -6,11 +6,7 @@ Utilizes flask-jwt-extended for secure token handling.
 
 from functools import wraps
 from flask import jsonify
-from flask_jwt_extended import (
-    verify_jwt_in_request,
-    get_jwt,
-    get_jwt_identity
-)
+from flask_jwt_extended import verify_jwt_in_request, get_jwt, get_jwt_identity
 from utils.response_helper import error_response
 
 
@@ -19,10 +15,12 @@ def require_auth(fn):
     Decorator to ensure a valid JWT is present in the request.
     Automatically handles CSRF if enabled in app config.
     """
+
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
         return fn(*args, **kwargs)
+
     return wrapper
 
 
@@ -37,20 +35,21 @@ def require_roles(*roles: str):
         def admin_view():
             ...
     """
+
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             # 1. Ensure a valid JWT exists
             verify_jwt_in_request()
-            
+
             # 2. Check roles in payload
             jwt_data = get_jwt()
-            user_roles = jwt_data.get("roles", [])            
+            user_roles = jwt_data.get("roles", [])
 
             if not any(role in user_roles for role in roles):
                 return error_response(
                     message=f"Insufficient permissions. Required roles: {', '.join(roles)}",
-                    status_code=403
+                    status_code=403,
                 )
             return fn(*args, **kwargs)
 

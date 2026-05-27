@@ -462,20 +462,30 @@ class AccessControlService:
             ):
                 return True
 
-            if action in ("edit", "delete") and resource_acl.owner and str(resource_acl.owner.id) == user_id_str:
+            if (
+                action in ("edit", "delete")
+                and resource_acl.owner
+                and str(resource_acl.owner.id) == user_id_str
+            ):
                 return True
 
             if action in ("edit", "delete"):
                 for entry in resource_acl.access_list or []:
                     if entry.grantee_type == "user" and entry.grantee_user:
-                        if str(entry.grantee_user.id) == user_id_str and acl_permissions.intersection(
+                        if str(
+                            entry.grantee_user.id
+                        ) == user_id_str and acl_permissions.intersection(
                             set(entry.permissions or [])
                         ):
                             return True
                     if entry.grantee_type == "group" and entry.grantee_group:
                         group = entry.grantee_group
-                        if user_id_str in [str(member.id) for member in (group.members or [])]:
-                            if acl_permissions.intersection(set(entry.permissions or [])):
+                        if user_id_str in [
+                            str(member.id) for member in (group.members or [])
+                        ]:
+                            if acl_permissions.intersection(
+                                set(entry.permissions or [])
+                            ):
                                 return True
 
         return False

@@ -12,14 +12,24 @@ import re
 
 # Masking patterns for sensitive data
 SENSITIVE_KEYS = {
-    "password", "token", "secret", "otp", "credit_card", "cvv", 
-    "authorization", "api_key", "cookie"
+    "password",
+    "token",
+    "secret",
+    "otp",
+    "credit_card",
+    "cvv",
+    "authorization",
+    "api_key",
+    "cookie",
 }
 
 PII_PATTERNS = {
     "email": re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"),
-    "phone": re.compile(r"(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}"),
+    "phone": re.compile(
+        r"(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}"
+    ),
 }
+
 
 class SensitiveDataFilter(logging.Filter):
     """
@@ -28,18 +38,23 @@ class SensitiveDataFilter(logging.Filter):
 
     def filter(self, record):
         from flask import g, has_request_context
+
         # Inject request_id for the formatter
-        record.request_id = g.request_id if has_request_context() and hasattr(g, "request_id") else "no-request"
-        
+        record.request_id = (
+            g.request_id
+            if has_request_context() and hasattr(g, "request_id")
+            else "no-request"
+        )
+
         if not isinstance(record.msg, str):
             return True
 
         msg = record.msg
-        
+
         # 1. Mask PII via Regex
         for pii_type, pattern in PII_PATTERNS.items():
             msg = pattern.sub(f" [MASKED_{pii_type.upper()}] ", msg)
-            
+
         # 2. Mask Key-Value pairs
         for key in SENSITIVE_KEYS:
             # Matches key followed by separator and value (e.g. password: value, password=value)
@@ -63,9 +78,7 @@ class RequestSequenceFilter(logging.Filter):
         return True
 
 
-CONSOLE_FORMAT = (
-    "%(asctime)s | %(levelname)s | %(name)s | req=%(request_id)s | step=%(log_sequence)s | %(message)s"
-)
+CONSOLE_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | req=%(request_id)s | step=%(log_sequence)s | %(message)s"
 FILE_FORMAT = (
     "%(asctime)s [%(levelname)s] [ReqID: %(request_id)s] "
     "step=%(log_sequence)s %(name)s (%(filename)s:%(lineno)d): %(message)s"
@@ -102,7 +115,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
         },
         "request_sequence_filter": {
             "()": RequestSequenceFilter,
-        }
+        },
     },
     "handlers": {
         "console": {

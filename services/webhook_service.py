@@ -30,10 +30,7 @@ class WebhookService:
         app_logger.info("Creating new webhook stub")
         audit_logger.info(
             "Webhook created (stub)",
-            extra={
-                "event": "webhook_created",
-                "webhook_id": "stub_webhook_id"
-            }
+            extra={"event": "webhook_created", "webhook_id": "stub_webhook_id"},
         )
         return {"id": "stub_webhook_id"}
 
@@ -48,7 +45,7 @@ class WebhookService:
             "payload": payload,
             "retry_count": attempt,
             "max_retries": cls.DEFAULT_MAX_RETRIES,
-            "next_retry_backoff": (2 ** attempt) * 10,
+            "next_retry_backoff": (2**attempt) * 10,
             "status": "pending_delivery",
         }
 
@@ -60,8 +57,8 @@ class WebhookService:
             extra={
                 "event": "webhook_deleted",
                 "webhook_id": webhook_id,
-                "user_id": user_id
-            }
+                "user_id": user_id,
+            },
         )
         return True
 
@@ -90,7 +87,9 @@ class WebhookService:
         schedule_for: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         app_logger.info(f"Preparing to send webhook {webhook_id} to {url}")
-        delivery_id = f"{webhook_id}:{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+        delivery_id = (
+            f"{webhook_id}:{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+        )
         delivery_record = {
             "delivery_id": delivery_id,
             "webhook_id": webhook_id,
@@ -175,7 +174,9 @@ class WebhookService:
         page: int = 1,
         per_page: int = 20,
     ) -> Dict[str, Any]:
-        app_logger.info(f"Fetching webhook history (form_id={form_id}, webhook_id={webhook_id}, status={status})")
+        app_logger.info(
+            f"Fetching webhook history (form_id={form_id}, webhook_id={webhook_id}, status={status})"
+        )
         entries = cls._load_history()
         filtered = []
         for entry in entries:
@@ -197,8 +198,12 @@ class WebhookService:
         }
 
     @classmethod
-    def retry_webhook(cls, delivery_id: str, reset_count: bool = False) -> Dict[str, Any]:
-        app_logger.info(f"Retrying webhook delivery {delivery_id} (reset_count={reset_count})")
+    def retry_webhook(
+        cls, delivery_id: str, reset_count: bool = False
+    ) -> Dict[str, Any]:
+        app_logger.info(
+            f"Retrying webhook delivery {delivery_id} (reset_count={reset_count})"
+        )
         record = cls.get_webhook_status(delivery_id)
         if not record:
             error_logger.error(f"Webhook delivery {delivery_id} not found for retry")
@@ -218,14 +223,20 @@ class WebhookService:
         if reset_count:
             payload["max_retries"] = cls.DEFAULT_MAX_RETRIES
 
-        return cls.trigger_webhook(record.get("webhook_id"), payload, organization_id=record.get("organization_id"))
+        return cls.trigger_webhook(
+            record.get("webhook_id"),
+            payload,
+            organization_id=record.get("organization_id"),
+        )
 
     @classmethod
     def cancel_webhook(cls, delivery_id: str) -> Dict[str, Any]:
         app_logger.info(f"Cancelling webhook delivery {delivery_id}")
         record = cls.get_webhook_status(delivery_id)
         if not record:
-            error_logger.error(f"Webhook delivery {delivery_id} not found for cancellation")
+            error_logger.error(
+                f"Webhook delivery {delivery_id} not found for cancellation"
+            )
             raise ValueError("Webhook delivery not found")
 
         record["status"] = "cancelled"
@@ -234,10 +245,7 @@ class WebhookService:
         cls._append_history(record)
         audit_logger.info(
             f"Webhook delivery {delivery_id} cancelled",
-            extra={
-                "event": "webhook_delivery_cancelled",
-                "delivery_id": delivery_id
-            }
+            extra={"event": "webhook_delivery_cancelled", "delivery_id": delivery_id},
         )
         return record
 
@@ -272,7 +280,9 @@ class WebhookService:
             template = string.Template(template_str)
             return template.safe_substitute(**flat_data)
         except Exception as exc:
-            app_logger.warning(f"Webhook Transform failure. Proceeding with raw JSON. {exc}")
+            app_logger.warning(
+                f"Webhook Transform failure. Proceeding with raw JSON. {exc}"
+            )
             return json.dumps(event_data)
 
     @classmethod
@@ -308,12 +318,16 @@ class WebhookService:
         }
 
         try:
-            response = requests.post(url, json=payload, headers=headers or {}, timeout=timeout)
+            response = requests.post(
+                url, json=payload, headers=headers or {}, timeout=timeout
+            )
             response.raise_for_status()
             record["status"] = "delivered"
             record["response_status"] = response.status_code
             record["delivered_at"] = datetime.now(timezone.utc).isoformat()
-            app_logger.info(f"Webhook {delivery_id} delivered successfully with status {response.status_code}")
+            app_logger.info(
+                f"Webhook {delivery_id} delivered successfully with status {response.status_code}"
+            )
         except requests.RequestException as exc:
             record["status"] = "failed"
             record["retry_count"] = 1
@@ -335,7 +349,9 @@ class WebhookService:
 
     @classmethod
     def _save_status(cls, delivery_id: str, record: Dict[str, Any]) -> None:
-        redis_service.cache.set(f"{cls.STATUS_KEY_PREFIX}{delivery_id}", record, ttl=7 * 24 * 3600)
+        redis_service.cache.set(
+            f"{cls.STATUS_KEY_PREFIX}{delivery_id}", record, ttl=7 * 24 * 3600
+        )
 
     @classmethod
     def _load_history(cls) -> List[Dict[str, Any]]:
@@ -345,7 +361,9 @@ class WebhookService:
     def _append_history(cls, record: Dict[str, Any]) -> None:
         history = cls._load_history()
         history.insert(0, record)
-        redis_service.cache.set(cls.HISTORY_KEY, history[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600)
+        redis_service.cache.set(
+            cls.HISTORY_KEY, history[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600
+        )
 
     @classmethod
     def _append_log(cls, record: Dict[str, Any]) -> None:
@@ -361,7 +379,9 @@ class WebhookService:
                 "last_error": record.get("last_error"),
             },
         )
-        redis_service.cache.set(cls.LOG_KEY, logs[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600)
+        redis_service.cache.set(
+            cls.LOG_KEY, logs[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600
+        )
 
 
 webhook_service = WebhookService()

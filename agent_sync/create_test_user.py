@@ -1,5 +1,6 @@
 import sys
 import os
+
 sys.path.append(os.getcwd())
 
 from models.User import User
@@ -15,7 +16,7 @@ try:
             username="testuser_frontend",
             email="frontend@test.com",
             user_type="employee",
-            is_active=True
+            is_active=True,
         )
     user.set_password("TestPass123!")
     user.save()

@@ -6,6 +6,7 @@ import redis
 from config.redis import RedisConfig
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
+
 def with_retry(max_retries: int = 3, base_delay: float = 0.1, max_delay: float = 2.0):
     """Decorator to retry Redis operations with exponential backoff on connection errors."""
 
@@ -30,7 +31,10 @@ def with_retry(max_retries: int = 3, base_delay: float = 0.1, max_delay: float =
                     time.sleep(delay)
                     delay = min(delay * 2, max_delay)
                 except Exception as e:
-                    error_logger.error(f"Unexpected Redis error in '{func.__name__}': {str(e)}", exc_info=True)
+                    error_logger.error(
+                        f"Unexpected Redis error in '{func.__name__}': {str(e)}",
+                        exc_info=True,
+                    )
                     raise
 
         return wrapper
@@ -59,7 +63,9 @@ class RedisClientProxy:
         val = self.client.get(key)
         elapsed = (time.time() - start) * 1000
         if val is None:
-            app_logger.info(f"[{self.name}] GET miss for key: '{key}' ({elapsed:.2f}ms)")
+            app_logger.info(
+                f"[{self.name}] GET miss for key: '{key}' ({elapsed:.2f}ms)"
+            )
             return None
 
         app_logger.debug(f"[{self.name}] GET hit for key: '{key}' ({elapsed:.2f}ms)")
@@ -95,7 +101,9 @@ class RedisClientProxy:
         app_logger.debug(f"[{self.name}] DEL keys: {keys}")
         res = self.client.delete(*keys)
         elapsed = (time.time() - start) * 1000
-        app_logger.info(f"[{self.name}] DEL keys: {keys}, deleted: {res} ({elapsed:.2f}ms)")
+        app_logger.info(
+            f"[{self.name}] DEL keys: {keys}, deleted: {res} ({elapsed:.2f}ms)"
+        )
         return res
 
     @with_retry()
@@ -105,7 +113,9 @@ class RedisClientProxy:
         app_logger.debug(f"[{self.name}] EXPIRE key: '{key}', ttl: {ttl}")
         res = self.client.expire(key, ttl)
         elapsed = (time.time() - start) * 1000
-        app_logger.info(f"[{self.name}] EXPIRE key: '{key}', ttl: {ttl} ({elapsed:.2f}ms)")
+        app_logger.info(
+            f"[{self.name}] EXPIRE key: '{key}', ttl: {ttl} ({elapsed:.2f}ms)"
+        )
         return res
 
     @with_retry()

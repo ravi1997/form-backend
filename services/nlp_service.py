@@ -1,5 +1,6 @@
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
+
 class NLPSearchService:
     @staticmethod
     def validate_date_range(date_range):
@@ -40,6 +41,7 @@ class NLPSearchService:
         app_logger.info(f"Performing semantic search for tenant {tenant_id}: {query}")
         try:
             from services.vector_provider import vector_provider
+
             results = vector_provider.semantic_search(tenant_id, query, limit)
             app_logger.info(f"Semantic search returned {len(results)} results")
             return results

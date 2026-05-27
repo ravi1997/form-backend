@@ -3,6 +3,7 @@ from config.settings import settings
 from services.ai_provider import LocalHeuristicProvider, OllamaProvider
 from logger.unified_logger import app_logger, error_logger
 
+
 class SummarizationService:
     def __init__(self):
         # Initialize provider based on settings
@@ -11,9 +12,13 @@ class SummarizationService:
                 self.provider = OllamaProvider(base_url=settings.OLLAMA_BASE_URL)
             else:
                 self.provider = LocalHeuristicProvider()
-            app_logger.info(f"SummarizationService initialized with {settings.AI_PROVIDER} provider")
+            app_logger.info(
+                f"SummarizationService initialized with {settings.AI_PROVIDER} provider"
+            )
         except Exception as e:
-            error_logger.error(f"Failed to initialize SummarizationService: {e}", exc_info=True)
+            error_logger.error(
+                f"Failed to initialize SummarizationService: {e}", exc_info=True
+            )
             raise
 
     def hybrid_summarize(self, text: str, context: Optional[str] = None) -> str:
@@ -36,7 +41,9 @@ class SummarizationService:
         app_logger.info("Saving summary snapshot (stub)")
         return "stub_snapshot_id"
 
-    def generate_executive_summary(self, responses: List[Dict[str, Any]], chunk_size: int = 50) -> str:
+    def generate_executive_summary(
+        self, responses: List[Dict[str, Any]], chunk_size: int = 50
+    ) -> str:
         """
         Aggregates multiple responses into a single executive summary using Map-Reduce.
         """
@@ -44,7 +51,7 @@ class SummarizationService:
         if not responses:
             app_logger.warning("No data to summarize for executive summary")
             return "No data to summarize."
-            
+
         try:
             # 1. Map Phase: Summarize each chunk
             chunk_summaries = []
@@ -54,22 +61,30 @@ class SummarizationService:
                 combined_text = "\n".join([str(r.get("data", "")) for r in chunk])
                 # Sanitize before sending to provider
                 safe_text = self.provider.sanitize_prompt(combined_text)
-                summary = self.provider.summarize(safe_text, context=f"Chunk {i//chunk_size} Summary")
+                summary = self.provider.summarize(
+                    safe_text, context=f"Chunk {i//chunk_size} Summary"
+                )
                 chunk_summaries.append(summary)
-                
+
             # 2. Reduce Phase: Summarize the summaries
             if len(chunk_summaries) == 1:
                 app_logger.info("Single chunk summary completed")
                 return chunk_summaries[0]
-                
-            app_logger.info(f"Reducing {len(chunk_summaries)} chunk summaries into final executive summary")
+
+            app_logger.info(
+                f"Reducing {len(chunk_summaries)} chunk summaries into final executive summary"
+            )
             final_input_text = "\n---\n".join(chunk_summaries)
             # Final summarization to produce executive overview
-            result = self.provider.summarize(final_input_text, context="Final Executive Reduction")
+            result = self.provider.summarize(
+                final_input_text, context="Final Executive Reduction"
+            )
             app_logger.info("Executive summary generation completed")
             return result
         except Exception as e:
-            error_logger.error(f"Error generating executive summary: {e}", exc_info=True)
+            error_logger.error(
+                f"Error generating executive summary: {e}", exc_info=True
+            )
             return "Error generating executive summary."
 
     def _analyze_themes(self, *args, **kwargs):
@@ -82,7 +97,7 @@ class SummarizationService:
         app_logger.info("Comparing summaries")
         return {
             "comparison": "Similarity analysis not yet implemented in provider.",
-            "provider": settings.AI_PROVIDER
+            "provider": settings.AI_PROVIDER,
         }
 
     def get_summary_trends(self, *args, **kwargs):
@@ -91,5 +106,6 @@ class SummarizationService:
     def invalidate_cache(self, *args, **kwargs):
         app_logger.info("Invalidating summarization cache")
         return True
+
 
 summarization_service = SummarizationService()

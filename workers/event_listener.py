@@ -7,6 +7,7 @@ from services.vector_provider import vector_provider
 from services.search_service import search_service
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
+
 def handle_form_submitted(payload: dict):
     """
     Consumer logic for the 'form.submitted' event.
@@ -16,31 +17,41 @@ def handle_form_submitted(payload: dict):
     form_id = payload.get("form_id")
     response_id = payload.get("response_id")
     organization_id = payload.get("organization_id")
-    
+
     app_logger.info(f"Entering handle_form_submitted: response_id={response_id}")
-    
+
     try:
         # Evict Analysis Board caches targeting this form
         if form_id and organization_id:
             try:
                 from services.analysis_board_service import AnalysisBoardService
+
                 AnalysisBoardService.evict_caches_for_form(form_id, organization_id)
             except Exception as evict_err:
-                error_logger.error(f"Failed to evict analysis board caches during form.submitted handling: {evict_err}")
+                error_logger.error(
+                    f"Failed to evict analysis board caches during form.submitted handling: {evict_err}"
+                )
 
         form = Form.objects(id=form_id, is_deleted=False).first()
         if form and form.triggers:
-            triggers_data = [t.to_mongo().to_dict() for t in form.triggers if t.is_active]
+            triggers_data = [
+                t.to_mongo().to_dict() for t in form.triggers if t.is_active
+            ]
             if triggers_data:
                 process_notification_triggers.delay(triggers_data, payload)
-                app_logger.info(f"Delegated {len(triggers_data)} triggers to Celery for {response_id}")
+                app_logger.info(
+                    f"Delegated {len(triggers_data)} triggers to Celery for {response_id}"
+                )
 
         # Check project-bound automated reports threshold triggers
         if form and form.project:
             try:
                 from models.Form import Project
                 from tasks.report_tasks import async_generate_report
-                proj = Project.objects(id=str(form.project.id), is_deleted=False).first()
+
+                proj = Project.objects(
+                    id=str(form.project.id), is_deleted=False
+                ).first()
                 if proj and proj.report_configs:
                     updated = False
                     for cfg in proj.report_configs:
@@ -48,25 +59,38 @@ def handle_form_submitted(payload: dict):
                             cfg.current_threshold_counter += 1
                             updated = True
                             if cfg.current_threshold_counter >= cfg.threshold_limit:
-                                app_logger.info(f"Report Config threshold hit ({cfg.threshold_limit}) for config {cfg.id}!")
-                                async_generate_report.delay(str(proj.id), str(cfg.id), f"Threshold Hit ({cfg.threshold_limit})")
+                                app_logger.info(
+                                    f"Report Config threshold hit ({cfg.threshold_limit}) for config {cfg.id}!"
+                                )
+                                async_generate_report.delay(
+                                    str(proj.id),
+                                    str(cfg.id),
+                                    f"Threshold Hit ({cfg.threshold_limit})",
+                                )
                                 cfg.current_threshold_counter = 0
                     if updated:
                         proj.save()
             except Exception as report_trigger_err:
-                error_logger.error(f"Failed to process automated report threshold trigger: {report_trigger_err}")
-        
-        audit_logger.info(f"Event 'form.submitted' processed for response_id={response_id}")
+                error_logger.error(
+                    f"Failed to process automated report threshold trigger: {report_trigger_err}"
+                )
+
+        audit_logger.info(
+            f"Event 'form.submitted' processed for response_id={response_id}"
+        )
         app_logger.info(f"Exiting handle_form_submitted: {response_id}")
     except Exception as e:
-        error_logger.error(f"Error handling form.submitted event for {response_id}: {e}")
+        error_logger.error(
+            f"Error handling form.submitted event for {response_id}: {e}"
+        )
+
 
 def handle_form_indexed(payload: dict):
     """
     Consumer logic for 'form.indexed'.
     Synchronizes the MongoDB truth to Elasticsearch entirely out-of-band.
     """
-    form_id = payload.get('id')
+    form_id = payload.get("id")
     app_logger.info(f"Entering handle_form_indexed: form_id={form_id}")
     try:
         search_service.index_form(payload)
@@ -74,12 +98,13 @@ def handle_form_indexed(payload: dict):
         vector_provider.embed_and_store(
             tenant_id=payload.get("organization_id", "unknown"),
             document_id=form_id,
-            text=str(payload)
+            text=str(payload),
         )
         audit_logger.info(f"Event 'form.indexed' processed for form_id={form_id}")
         app_logger.info(f"Exiting handle_form_indexed: {form_id}")
     except Exception as e:
         error_logger.error(f"Error handling form.indexed event for {form_id}: {e}")
+
 
 def start_consumers():
     """Blocking loop to consume Redis PubSub events."""
@@ -103,6 +128,7 @@ def start_consumers():
         app_logger.info(f"Started {len(threads)} consumer threads")
         for thread in threads:
             thread.join()
+
 
 if __name__ == "__main__":
     start_consumers()

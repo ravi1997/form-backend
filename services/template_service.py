@@ -37,7 +37,9 @@ class FormBlueprintService(BaseService):
         Hydrates a new live Form from a Blueprint template.
         Copies structural definitions while initializing new tenant-specific state.
         """
-        app_logger.info(f"Instantiating blueprint {blueprint_id} for organization {organization_id} by {created_by}")
+        app_logger.info(
+            f"Instantiating blueprint {blueprint_id} for organization {organization_id} by {created_by}"
+        )
         try:
             blueprint = self.model.objects(id=blueprint_id).first()
             if not blueprint:
@@ -62,15 +64,19 @@ class FormBlueprintService(BaseService):
                     "blueprint_id": blueprint_id,
                     "form_id": str(new_form.id),
                     "organization_id": organization_id,
-                    "user_id": created_by
-                }
+                    "user_id": created_by,
+                },
             )
-            app_logger.info(f"Successfully instantiated form {new_form.id} from blueprint {blueprint_id}")
+            app_logger.info(
+                f"Successfully instantiated form {new_form.id} from blueprint {blueprint_id}"
+            )
             return new_form
         except NotFoundError:
             raise
         except Exception as e:
-            error_logger.error(f"Error instantiating blueprint {blueprint_id}: {e}", exc_info=True)
+            error_logger.error(
+                f"Error instantiating blueprint {blueprint_id}: {e}", exc_info=True
+            )
             raise
 
 

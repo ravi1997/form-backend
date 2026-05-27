@@ -87,7 +87,7 @@ class ResponseTemplateSchema(BaseEmbeddedSchema):
 
 class QuestionSchema(BaseEmbeddedSchema):
     label: str = Field(..., max_length=255)
-    field_type: str # Allow all from FIELD_TYPE_CHOICES
+    field_type: str  # Allow all from FIELD_TYPE_CHOICES
     help_text: Optional[str] = None
     default_value: Optional[str] = None
     order: int = Field(default=0, ge=0)

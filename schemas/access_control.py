@@ -73,6 +73,7 @@ class ResourceAccessControlSchema(BaseSchema):
     meta_data: Optional[Dict[str, Any]] = None
     tags: List[str] = Field(default_factory=list)
 
+
 class ExternalHookSchema(BaseSchema):
     name: str
     organization_id: str

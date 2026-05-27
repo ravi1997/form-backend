@@ -5,6 +5,7 @@ from schemas.form import SectionSchema
 from utils.exceptions import NotFoundError, ValidationError
 from logger.unified_logger import app_logger, audit_logger
 
+
 class SectionService(BaseService):
     def __init__(self):
         super().__init__(model=Section, schema=SectionSchema)
@@ -28,10 +29,7 @@ class SectionService(BaseService):
             normalized["field_type"] = "input"
         if "isRepeatable" in normalized and "is_repeatable" not in normalized:
             normalized["is_repeatable"] = normalized.pop("isRepeatable")
-        if (
-            "is_repeatable_question" in normalized
-            and "is_repeatable" not in normalized
-        ):
+        if "is_repeatable_question" in normalized and "is_repeatable" not in normalized:
             normalized["is_repeatable"] = normalized.pop("is_repeatable_question")
         if "repeatMin" in normalized and "repeat_min" not in normalized:
             normalized["repeat_min"] = normalized.pop("repeatMin")
@@ -65,10 +63,7 @@ class SectionService(BaseService):
             normalized["is_hidden"] = normalized.pop("isHidden")
         if "isRepeatable" in normalized and "is_repeatable" not in normalized:
             normalized["is_repeatable"] = normalized.pop("isRepeatable")
-        if (
-            "is_repeatable_section" in normalized
-            and "is_repeatable" not in normalized
-        ):
+        if "is_repeatable_section" in normalized and "is_repeatable" not in normalized:
             normalized["is_repeatable"] = normalized.pop("is_repeatable_section")
         if "repeatMin" in normalized and "repeat_min" not in normalized:
             normalized["repeat_min"] = normalized.pop("repeatMin")
@@ -115,7 +110,10 @@ class SectionService(BaseService):
             if "repeat_max" in normalized:
                 logic["repeat_max"] = normalized["repeat_max"]
             normalized["conditional_logic"] = logic
-        if normalized.get("conditional_logic") is not None and "logic" not in normalized:
+        if (
+            normalized.get("conditional_logic") is not None
+            and "logic" not in normalized
+        ):
             normalized["logic"] = {"conditional_logic": normalized["conditional_logic"]}
 
         if isinstance(normalized.get("questions"), list):
@@ -144,16 +142,18 @@ class SectionService(BaseService):
         parent_section_id: Optional[str] = None,
     ) -> Section:
         """Creates a new section and appends it to the form or a parent section."""
-        form = Form.objects(id=form_id, organization_id=organization_id, is_deleted=False).first()
+        form = Form.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not form:
             raise NotFoundError("Form not found")
-            
+
         # Create section
         normalized_data = self._normalize_section_payload(section_data)
         section = Section(**normalized_data)
         section.organization_id = organization_id
         section.save()
-        
+
         # Add to form
         if parent_section_id:
             parent_section = Section.objects(
@@ -171,47 +171,60 @@ class SectionService(BaseService):
 
         # Keep draft version metadata in sync with the current section tree.
         from services.form_service import FormService
+
         form_version = FormService().sync_draft_version(form_id, organization_id)
         if form_version and form_version.version:
             section.version = form_version.version
             section.save()
         audit_logger.info(
             f"AUDIT: Section created with ID {section.id} on form {form_id}"
-            + (f" under parent section {parent_section_id}" if parent_section_id else "")
+            + (
+                f" under parent section {parent_section_id}"
+                if parent_section_id
+                else ""
+            )
         )
-        
+
         return section
 
     def delete_section(self, form_id: str, section_id: str, organization_id: str):
         """Removes a section from a form and soft-deletes it."""
-        form = Form.objects(id=form_id, organization_id=organization_id, is_deleted=False).first()
+        form = Form.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not form:
             raise NotFoundError("Form not found")
-            
-        section = Section.objects(id=section_id, organization_id=organization_id, is_deleted=False).first()
+
+        section = Section.objects(
+            id=section_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not section:
             raise NotFoundError("Section not found")
-            
+
         # Remove reference from form
         if section in form.sections:
             form.sections.remove(section)
             form.save()
-            
+
         # Soft delete the section
         section.soft_delete()
-        
-    def update_section_order(self, form_id: str, section_ids: List[str], organization_id: str):
+
+    def update_section_order(
+        self, form_id: str, section_ids: List[str], organization_id: str
+    ):
         """Updates the order of sections in a form."""
-        form = Form.objects(id=form_id, organization_id=organization_id, is_deleted=False).first()
+        form = Form.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not form:
             raise NotFoundError("Form not found")
-            
+
         # Reorder based on provided IDs
         new_sections = []
         for sid in section_ids:
             s = next((sec for sec in form.sections if str(sec.id) == sid), None)
             if s:
                 new_sections.append(s)
-                
+
         form.sections = new_sections
         form.save()

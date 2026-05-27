@@ -7,6 +7,7 @@ from flasgger import Swagger
 from flask import request
 import os
 
+
 def tenant_aware_key_func():
     """
     Generates a rate-limit key based on Organization ID or IP address.
@@ -20,13 +21,14 @@ def tenant_aware_key_func():
             return f"tenant:{org_id}"
     except Exception:
         pass
-        
+
     # Fallback to header or IP
     org_header = request.headers.get("X-Organization-ID")
     if org_header:
         return f"tenant:{org_header}"
-        
+
     return get_remote_address()
+
 
 jwt = JWTManager()
 cors = CORS()
@@ -39,7 +41,7 @@ limiter_storage = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 limiter = Limiter(
     key_func=tenant_aware_key_func,
     default_limits=["2000 per hour", "100 per minute"],
-    storage_uri=limiter_storage
+    storage_uri=limiter_storage,
 )
 talisman = Talisman()
 
@@ -48,6 +50,7 @@ talisman = Talisman()
 # simple get/set/setex interface without going through the full RedisService.
 try:
     import redis as _redis
+
     redis_client = _redis.Redis(
         host=REDIS_HOST,
         port=int(REDIS_PORT),
@@ -65,16 +68,16 @@ template = {
     "info": {
         "title": "Forms Backend API",
         "description": "Comprehensive API for managing forms, responses, and AI analysis.",
-        "version": "1.0.0"
+        "version": "1.0.0",
     },
     "securityDefinitions": {
         "Bearer": {
             "type": "apiKey",
             "name": "Authorization",
             "in": "header",
-            "description": "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\""
+            "description": 'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"',
         }
-    }
+    },
 }
 
 # Try to load generated definitions for Flasgger
@@ -82,6 +85,7 @@ template = {
 try:
     import json
     import os
+
     # Try multiple possible paths to accommodate different launch contexts
     base_path = os.path.dirname(os.path.abspath(__file__))
     def_path = os.path.join(base_path, "docs/swagger_definitions.json")

@@ -42,9 +42,21 @@ def _builder_metadata_payload():
             "roles": list(ROLE_CHOICES),
         },
         "validation": {
-            "text": ["min_length", "max_length", "min_word_count", "max_word_count", "regex"],
+            "text": [
+                "min_length",
+                "max_length",
+                "min_word_count",
+                "max_word_count",
+                "regex",
+            ],
             "number": ["min_value", "max_value"],
-            "date": ["date_min", "date_max", "disable_past_dates", "disable_future_dates", "disable_weekends"],
+            "date": [
+                "date_min",
+                "date_max",
+                "disable_past_dates",
+                "disable_future_dates",
+                "disable_weekends",
+            ],
             "file": ["allowed_file_types", "max_files", "max_file_size"],
             "selection": ["min_selection", "max_selection"],
         },
@@ -56,7 +68,9 @@ def _builder_metadata_payload():
 
 
 @builder_metadata_bp.route("/builder-metadata", methods=["GET"])
-@swag_from({"tags": ["Form"], "responses": {"200": {"description": "Builder metadata"}}})
+@swag_from(
+    {"tags": ["Form"], "responses": {"200": {"description": "Builder metadata"}}}
+)
 @jwt_required()
 def get_builder_metadata():
     return success_response(data=_builder_metadata_payload())

@@ -35,13 +35,15 @@ class WorkflowInstanceService(BaseService):
         """Safely parses conditional gates using AST to prevent eval() RCE."""
         app_logger.debug(f"Evaluating workflow condition: {expression}")
         try:
-            tree = ast.parse(expression, mode='eval')
-            compiled = compile(tree, '<string>', 'eval')
+            tree = ast.parse(expression, mode="eval")
+            compiled = compile(tree, "<string>", "eval")
             result = bool(eval(compiled, {"__builtins__": {}}, context))
             app_logger.debug(f"Condition evaluation result: {result}")
             return result
         except Exception as e:
-            error_logger.error(f"Failed to evaluate workflow condition '{expression}': {e}")
+            error_logger.error(
+                f"Failed to evaluate workflow condition '{expression}': {e}"
+            )
             return False
 
     def get_active_workflow_for_resource(
@@ -57,7 +59,9 @@ class WorkflowInstanceService(BaseService):
         ).first()
 
         if not doc:
-            app_logger.warning(f"No active workflow found for {resource_type}:{resource_id}")
+            app_logger.warning(
+                f"No active workflow found for {resource_type}:{resource_id}"
+            )
             raise NotFoundError(
                 f"No active workflow found for {resource_type}:{resource_id}"
             )
@@ -74,14 +78,18 @@ class WorkflowInstanceService(BaseService):
         Executes an Approve/Reject state transition in the workflow instance.
         Validates the user's authority to act on the current step.
         """
-        app_logger.info(f"Processing workflow action '{action}' for instance {instance_id} by user {user_id}")
+        app_logger.info(
+            f"Processing workflow action '{action}' for instance {instance_id} by user {user_id}"
+        )
         instance = self.model.objects(id=instance_id, is_deleted=False).first()
         if not instance:
             app_logger.warning(f"Workflow instance {instance_id} not found")
             raise NotFoundError("Workflow instance not found")
 
         if instance.status in ["approved", "rejected"]:
-            app_logger.warning(f"Action '{action}' attempted on completed workflow {instance_id} (status: {instance.status})")
+            app_logger.warning(
+                f"Action '{action}' attempted on completed workflow {instance_id} (status: {instance.status})"
+            )
             raise StateTransitionError(
                 f"Cannot perform action on a completed workflow (status: {instance.status})"
             )
@@ -94,7 +102,9 @@ class WorkflowInstanceService(BaseService):
         )
 
         if not current_step:
-            error_logger.critical(f"Current workflow step definition missing for instance {instance_id}, order {instance.current_step_order}")
+            error_logger.critical(
+                f"Current workflow step definition missing for instance {instance_id}, order {instance.current_step_order}"
+            )
             raise StateTransitionError(
                 "Critical Error: Current workflow step definition is missing"
             )
@@ -103,19 +113,23 @@ class WorkflowInstanceService(BaseService):
         step_key = str(instance.current_step_order)
         if step_key not in instance.step_approvals:
             instance.step_approvals[step_key] = []
-            
+
         if user_id in instance.step_approvals[step_key] and action == "approve":
-            app_logger.warning(f"User {user_id} already approved step {step_key} for instance {instance_id}")
+            app_logger.warning(
+                f"User {user_id} already approved step {step_key} for instance {instance_id}"
+            )
             raise StateTransitionError("User has already approved this step")
 
         is_authorized = any(str(u_id) == user_id for u_id in current_step.approvers)
         if not is_authorized and current_step.approver_groups:
-             # Placeholder: In a real system, we'd check group membership
-             # For this pass, we'll assume the service layer or RBAC decorator handled group check if passed
-             pass
+            # Placeholder: In a real system, we'd check group membership
+            # For this pass, we'll assume the service layer or RBAC decorator handled group check if passed
+            pass
 
         if not is_authorized:
-            app_logger.warning(f"User {user_id} not authorized for step {step_key} in workflow {instance_id}")
+            app_logger.warning(
+                f"User {user_id} not authorized for step {step_key} in workflow {instance_id}"
+            )
             raise ForbiddenError(
                 "You are not authorized to approve/reject at this step"
             )
@@ -150,7 +164,7 @@ class WorkflowInstanceService(BaseService):
         elif action == "approve":
             # Add to step approvals
             instance.step_approvals[step_key].append(user_id)
-            
+
             # Check if threshold reached
             approvals_count = len(instance.step_approvals[step_key])
             if approvals_count >= current_step.required_approvals:
@@ -167,7 +181,9 @@ class WorkflowInstanceService(BaseService):
                     instance.current_step_order = next_step.order
                     instance.status = "in_progress"
                     instance.current_step_started_at = datetime.now(timezone.utc)
-                    app_logger.info(f"Workflow {instance_id} advancing to step {instance.current_step_order}")
+                    app_logger.info(
+                        f"Workflow {instance_id} advancing to step {instance.current_step_order}"
+                    )
                 else:
                     instance.status = "approved"
                     instance.completed_at = datetime.now(timezone.utc)
@@ -178,9 +194,13 @@ class WorkflowInstanceService(BaseService):
             else:
                 # Stay in same step, but mark as partially approved
                 instance.status = "partially_approved"
-                app_logger.info(f"Workflow {instance_id} partially approved at step {step_key} ({approvals_count}/{current_step.required_approvals})")
+                app_logger.info(
+                    f"Workflow {instance_id} partially approved at step {step_key} ({approvals_count}/{current_step.required_approvals})"
+                )
         else:
-            error_logger.error(f"Unknown workflow action '{action}' for instance {instance_id}")
+            error_logger.error(
+                f"Unknown workflow action '{action}' for instance {instance_id}"
+            )
             raise StateTransitionError(f"Unknown action '{action}'")
 
         instance.save()
@@ -193,21 +213,26 @@ class WorkflowInstanceService(BaseService):
                 "user_id": user_id,
                 "old_status": old_status,
                 "new_status": instance.status,
-                "step_order": instance.current_step_order
-            }
+                "step_order": instance.current_step_order,
+            },
         )
-        
+
         # --- Analytics Emit (Phase 6) ---
         try:
-            event_bus.publish("analytics.workflow_execution", {
-                "instance_id": instance_id,
-                "action": action,
-                "status": instance.status,
-                "user_id": user_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            event_bus.publish(
+                "analytics.workflow_execution",
+                {
+                    "instance_id": instance_id,
+                    "action": action,
+                    "status": instance.status,
+                    "user_id": user_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
         except Exception as e:
-            error_logger.warning(f"Failed to emit workflow analytics for {instance_id}: {e}")
+            error_logger.warning(
+                f"Failed to emit workflow analytics for {instance_id}: {e}"
+            )
 
         return self._to_schema(instance)
 
@@ -215,7 +240,9 @@ class WorkflowInstanceService(BaseService):
         self, resource_type: str, resource_id: str, new_status: str
     ) -> None:
         """Syncs the source document status with the workflow outcome."""
-        app_logger.info(f"Updating resource {resource_type}:{resource_id} status to '{new_status}'")
+        app_logger.info(
+            f"Updating resource {resource_type}:{resource_id} status to '{new_status}'"
+        )
         if resource_type == "form_response":
             try:
                 response = FormResponse.objects.get(id=resource_id)
@@ -239,34 +266,44 @@ class WorkflowInstanceService(BaseService):
         Retrieves all workflow instances that are currently awaiting approval
         from the specified user in the given organization.
         """
-        app_logger.info(f"Listing pending workflow approvals for user {user_id} in org {organization_id}")
-        
+        app_logger.info(
+            f"Listing pending workflow approvals for user {user_id} in org {organization_id}"
+        )
+
         # Fetch active workflow instances for this organization
         active_instances = self.model.objects(
             organization_id=organization_id,
             is_deleted=False,
-            status__in=["pending", "in_progress", "partially_approved"]
+            status__in=["pending", "in_progress", "partially_approved"],
         )
-        
+
         pending_list = []
         for instance in active_instances:
             workflow_def = instance.workflow_definition
             if not workflow_def or getattr(workflow_def, "is_deleted", False):
                 continue
-                
+
             current_step = next(
-                (s for s in workflow_def.steps if s.order == instance.current_step_order),
+                (
+                    s
+                    for s in workflow_def.steps
+                    if s.order == instance.current_step_order
+                ),
                 None,
             )
             if not current_step:
                 continue
-                
+
             # Check if user is one of the approvers
             if user_id in current_step.approvers:
                 # Check if they have not approved yet
                 step_key = str(instance.current_step_order)
-                approved_users = instance.step_approvals.get(step_key, []) if instance.step_approvals else []
+                approved_users = (
+                    instance.step_approvals.get(step_key, [])
+                    if instance.step_approvals
+                    else []
+                )
                 if user_id not in approved_users:
                     pending_list.append(self._to_schema(instance))
-                    
+
         return pending_list

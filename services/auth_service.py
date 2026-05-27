@@ -11,7 +11,7 @@ from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    get_jti
+    get_jti,
 )
 from config.settings import settings
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger
@@ -33,7 +33,7 @@ class AuthService(BaseService):
 
     def _get_auth_params(self) -> Dict[str, Any]:
         """
-        Fetches auth parameters from SystemSettings in DB, 
+        Fetches auth parameters from SystemSettings in DB,
         falling back to config/settings.py.
         """
         app_logger.info("Entering _get_auth_params")
@@ -42,13 +42,13 @@ class AuthService(BaseService):
             app_logger.info("Successfully completed _get_auth_params")
             return {
                 "access_mins": db_settings.jwt_access_token_expires_minutes,
-                "refresh_days": db_settings.jwt_refresh_token_expires_days
+                "refresh_days": db_settings.jwt_refresh_token_expires_days,
             }
         except Exception as e:
             app_logger.warning(f"Using settings fallback: {e}")
             return {
                 "access_mins": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
-                "refresh_days": settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
+                "refresh_days": settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS,
             }
 
     def generate_tokens(self, user: User) -> TokenResponse:
@@ -66,7 +66,7 @@ class AuthService(BaseService):
             roles = list(getattr(user, "roles", []) or [])
             if getattr(user, "is_admin", False) and "admin" not in roles:
                 roles.append("admin")
-                
+
             organization_id = getattr(user, "organization_id", None)
 
             access_token = create_access_token(
@@ -75,26 +75,32 @@ class AuthService(BaseService):
                     "roles": roles,
                     "organization_id": organization_id,
                 },
-                expires_delta=access_expires
+                expires_delta=access_expires,
             )
 
             refresh_token = create_refresh_token(
-                identity=str(user.id),
-                expires_delta=refresh_expires
+                identity=str(user.id), expires_delta=refresh_expires
             )
 
             audit_logger.info(f"AUDIT: Generated tokens for User ID {user.id}")
-            app_logger.info(f"Successfully completed generate_tokens for User ID {user.id}")
+            app_logger.info(
+                f"Successfully completed generate_tokens for User ID {user.id}"
+            )
             return TokenResponse(
                 access_token=access_token,
                 refresh_token=refresh_token,
                 expires_in=params["access_mins"] * 60,
             )
         except Exception as e:
-            error_logger.error(f"Error in generate_tokens for User ID {user.id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Error in generate_tokens for User ID {user.id}: {str(e)}",
+                exc_info=True,
+            )
             raise
 
-    def create_token(self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    def create_token(
+        self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
+    ) -> str:
         """
         Backward-compatible helper used by tests and internal callers.
         """
@@ -104,8 +110,12 @@ class AuthService(BaseService):
             if not identity:
                 raise UnauthorizedError("Missing subject for token creation")
             claims = {k: v for k, v in data.items() if k != "sub"}
-            token = create_access_token(identity=identity, additional_claims=claims, expires_delta=expires_delta)
-            app_logger.info(f"Successfully completed create_token for identity: {identity}")
+            token = create_access_token(
+                identity=identity, additional_claims=claims, expires_delta=expires_delta
+            )
+            app_logger.info(
+                f"Successfully completed create_token for identity: {identity}"
+            )
             return token
         except Exception as e:
             if not isinstance(e, UnauthorizedError):
@@ -116,8 +126,12 @@ class AuthService(BaseService):
         app_logger.info("Entering validate_token")
         try:
             payload = decode_token(token)
-            if self.check_global_revocation(payload["sub"], payload["iat"]) or self.is_token_revoked(payload["jti"]):
-                app_logger.warning(f"Token validation failed (revoked) for JTI: {payload.get('jti')}")
+            if self.check_global_revocation(
+                payload["sub"], payload["iat"]
+            ) or self.is_token_revoked(payload["jti"]):
+                app_logger.warning(
+                    f"Token validation failed (revoked) for JTI: {payload.get('jti')}"
+                )
                 raise UnauthorizedError("Token has been revoked")
 
             from schemas.auth import TokenPayload
@@ -138,18 +152,22 @@ class AuthService(BaseService):
             if not user:
                 app_logger.warning(f"Authentication failed for {identifier}")
                 raise UnauthorizedError("Invalid credentials")
-            
+
             audit_logger.info(f"AUDIT: User {user.id} authenticated")
-            app_logger.info(f"Successfully completed authenticate_user for {identifier}")
+            app_logger.info(
+                f"Successfully completed authenticate_user for {identifier}"
+            )
             return user
         except Exception as e:
             if not isinstance(e, UnauthorizedError):
-                error_logger.error(f"Error in authenticate_user: {str(e)}", exc_info=True)
+                error_logger.error(
+                    f"Error in authenticate_user: {str(e)}", exc_info=True
+                )
             raise
 
     def revoke_token(self, token: str) -> None:
         """
-        Revokes a JWT token by its JTI. 
+        Revokes a JWT token by its JTI.
         Calculates TTL based on the token's 'exp' claim.
         """
         app_logger.info("Entering revoke_token")
@@ -157,11 +175,12 @@ class AuthService(BaseService):
             decoded = decode_token(token)
             jti = decoded["jti"]
             exp_timestamp = decoded["exp"]
-            
+
             # Persist revocation to both Redis (fast) and MongoDB (audit)
             from datetime import datetime, timezone
+
             expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
-            
+
             # Add to Redis
             ttl = int(exp_timestamp - datetime.now(timezone.utc).timestamp())
             if ttl > 0:
@@ -171,9 +190,9 @@ class AuthService(BaseService):
             if not TokenBlocklist.objects(jti=jti).first():
                 TokenBlocklist(jti=jti, expires_at=expires_at).save()
                 audit_logger.info(f"AUDIT: Token revoked: {jti}")
-            
+
             app_logger.info(f"Successfully completed revoke_token for JTI: {jti}")
-                
+
         except Exception as e:
             error_logger.error(f"Failed to revoke token: {e}", exc_info=True)
 
@@ -194,10 +213,14 @@ class AuthService(BaseService):
             if not TokenBlocklist.objects(jti=jti).first():
                 TokenBlocklist(jti=jti, expires_at=expires_at).save()
                 audit_logger.info(f"AUDIT: Token payload revoked: {jti}")
-            
-            app_logger.info(f"Successfully completed revoke_token_payload for JTI: {jti}")
+
+            app_logger.info(
+                f"Successfully completed revoke_token_payload for JTI: {jti}"
+            )
         except Exception as e:
-            error_logger.error(f"Failed to revoke decoded token payload: {e}", exc_info=True)
+            error_logger.error(
+                f"Failed to revoke decoded token payload: {e}", exc_info=True
+            )
 
     def is_token_revoked(self, jti: str) -> bool:
         """Checks if a JTI exists in the blocklist (Redis first, then DB)."""
@@ -210,7 +233,7 @@ class AuthService(BaseService):
 
     def revoke_all_user_sessions(self, user_id: str) -> None:
         """
-        Sets the last_token_revocation_at timestamp for a user, 
+        Sets the last_token_revocation_at timestamp for a user,
         effectively invalidating all existing tokens.
         """
         app_logger.info(f"Entering revoke_all_user_sessions for User ID {user_id}")
@@ -218,12 +241,18 @@ class AuthService(BaseService):
             user = User.objects(id=user_id).first()
             if user:
                 from datetime import datetime, timezone
+
                 user.last_token_revocation_at = datetime.now(timezone.utc)
                 user.save()
                 audit_logger.info(f"AUDIT: All sessions revoked for user: {user_id}")
-                app_logger.info(f"Successfully completed revoke_all_user_sessions for User ID {user_id}")
+                app_logger.info(
+                    f"Successfully completed revoke_all_user_sessions for User ID {user_id}"
+                )
         except Exception as e:
-            error_logger.error(f"Failed to revoke all sessions for User ID {user_id}: {e}", exc_info=True)
+            error_logger.error(
+                f"Failed to revoke all sessions for User ID {user_id}: {e}",
+                exc_info=True,
+            )
 
     def check_global_revocation(self, user_id: str, iat_timestamp: int) -> bool:
         """
@@ -233,12 +262,15 @@ class AuthService(BaseService):
             user = User.objects(id=user_id).only("last_token_revocation_at").first()
         except Exception as exc:
             if exc.__class__.__name__ == "ConnectionFailure":
-                app_logger.warning("Skipping global token revocation check: database unavailable")
+                app_logger.warning(
+                    "Skipping global token revocation check: database unavailable"
+                )
                 return False
             raise
         if not user or not user.last_token_revocation_at:
             return False
-        
+
         from datetime import datetime, timezone
+
         token_iat = datetime.fromtimestamp(iat_timestamp, tz=timezone.utc)
         return token_iat < user.last_token_revocation_at

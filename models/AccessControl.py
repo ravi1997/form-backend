@@ -145,16 +145,16 @@ class ExternalHook(BaseDocument, SoftDeleteMixin):
     url = StringField(required=True)
     method = StringField(default="POST")
     headers = DictField()
-    
+
     # Validation schemas for input and output
     input_schema = DictField()
     output_schema = DictField()
-    
+
     status = StringField(choices=("pending", "approved", "rejected"), default="pending")
     approved_by = ReferenceField("User")
     approved_at = DateTimeField()
-    
+
     created_by = ReferenceField("User", required=True)
     is_active = BooleanField(default=True)
-    
+
     meta_data = DictField()

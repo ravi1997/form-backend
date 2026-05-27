@@ -16,16 +16,7 @@ analytics_bp = Blueprint("analytics_bp", __name__)
 
 
 @analytics_bp.route("/dashboard", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Analytics"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Analytics"], "responses": {"200": {"description": "Success"}}})
 @require_roles("admin", "superadmin", "manager")
 def get_dashboard_stats():
     """
@@ -36,13 +27,13 @@ def get_dashboard_stats():
     jwt_data = get_jwt()
     org_id = jwt_data.get("org_id")
     role = jwt_data.get("role")
-    
+
     app_logger.info(f"Fetching dashboard stats for user: {user_id}")
     try:
         kwargs = {}
         if role != "superadmin" and org_id:
             kwargs["organization_id"] = org_id
-            
+
         total_forms = Form.objects(**kwargs).count()
         published_forms = Form.objects(status="published", **kwargs).count()
         total_responses = FormResponse.objects(is_deleted=False, **kwargs).count()
@@ -89,21 +80,20 @@ def get_dashboard_stats():
         )
 
     except Exception as e:
-        error_logger.error(f"Failed to generate dashboard statistics for user {user_id}: {e}", exc_info=True)
+        error_logger.error(
+            f"Failed to generate dashboard statistics for user {user_id}: {e}",
+            exc_info=True,
+        )
         return error_response(message="Failed to generate analytics", status_code=500)
 
 
 @analytics_bp.route("/summary", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Analytics"
-    ],
-    "responses": {
-        "200": {
-            "description": "Returns organization-wide summary."
-        }
+@swag_from(
+    {
+        "tags": ["Analytics"],
+        "responses": {"200": {"description": "Returns organization-wide summary."}},
     }
-})
+)
 @require_roles("admin", "superadmin")
 def get_summary():
     """Returns organization-wide summary statistics."""
@@ -111,20 +101,21 @@ def get_summary():
     jwt_data = get_jwt()
     org_id = jwt_data.get("org_id")
     role = jwt_data.get("role")
-    
+
     app_logger.info(f"Fetching analytics summary for user: {user_id}")
     try:
         kwargs = {}
         if role != "superadmin" and org_id:
             kwargs["organization_id"] = org_id
-            
+
         total_forms = Form.objects(**kwargs).count()
         total_responses = FormResponse.objects(is_deleted=False, **kwargs).count()
         app_logger.info(f"Analytics summary retrieved for user: {user_id}")
-        return success_response(data={"total_forms": total_forms, "total_responses": total_responses})
+        return success_response(
+            data={"total_forms": total_forms, "total_responses": total_responses}
+        )
     except Exception as e:
-        error_logger.error(f"Error fetching analytics summary for user {user_id}: {e}", exc_info=True)
+        error_logger.error(
+            f"Error fetching analytics summary for user {user_id}: {e}", exc_info=True
+        )
         return error_response(str(e), status_code=500)
-
-
-

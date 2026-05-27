@@ -4,82 +4,92 @@ scripts/manage.py
 Operational Control System (Phase 13)
 Provides administrative recovery, replay, and rebuild utilities.
 """
+
 import sys
 import argparse
 import logging
 import os
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 def rebuild_vectors(organization_id=None):
     """Revectorizes all responses for a given tenant or globally."""
     from app import create_app
     from models.Response import FormResponse
     from tasks.ai_tasks import async_index_response_vector
-    
+
     app = create_app()
     with app.app_context():
         filters = {"is_deleted": False}
         if organization_id:
             filters["organization_id"] = organization_id
-        
+
         responses = FormResponse.objects(**filters).only("id", "organization_id")
         count = responses.count()
-        logger.info(f"Enqueuing {count} responses for vectorization (Tenant: {organization_id or 'ALL'})")
-        
+        logger.info(
+            f"Enqueuing {count} responses for vectorization (Tenant: {organization_id or 'ALL'})"
+        )
+
         for r in responses:
             async_index_response_vector.delay(str(r.id), r.organization_id)
-        
+
         logger.info("Successfully enqueued all vector rebuild tasks.")
+
 
 def rebuild_analytics(organization_id=None):
     """Rebuilds OLAP analytics from historical MongoDB data."""
     from app import create_app
     from models.Response import FormResponse
     from tasks.ai_tasks import async_export_to_olap
-    
+
     app = create_app()
     with app.app_context():
         filters = {"is_deleted": False}
         if organization_id:
             filters["organization_id"] = organization_id
-            
+
         responses = FormResponse.objects(**filters)
         count = responses.count()
         logger.info(f"Exporting {count} historical responses to OLAP store...")
-        
+
         for r in responses:
             event = {
                 "response_id": str(r.id),
                 "form_id": str(r.form.id),
                 "organization_id": r.organization_id,
                 "timestamp": r.submitted_at.isoformat(),
-                "data": r.data
+                "data": r.data,
             }
             async_export_to_olap.delay(event)
-            
+
         logger.info("Analytics rebuild enqueued.")
+
 
 def retry_webhooks(organization_id=None):
     """Retries failed webhooks from the DLQ."""
     from app import create_app
     from services.event_replay_service import event_replay_service
-    
+
     app = create_app()
     with app.app_context():
         count = event_replay_service.retry_dlq("webhook.failed", organization_id)
         logger.info(f"Retried {count} failed webhooks.")
 
+
 def replay_events(topic: str, hours: int, organization_id: str = None):
     """Replays durable stream checkpoints for derived systems."""
     from app import create_app
     from services.event_replay_service import event_replay_service
-    
+
     app = create_app()
     with app.app_context():
         count = event_replay_service.replay_stream(topic, hours, organization_id)
         logger.info(f"Successfully replayed {count} events from {topic}.")
+
 
 def migrate_schema(direction="up", dry_run=False, target_version=None):
     """Runs database schema migrations."""
@@ -92,25 +102,34 @@ def migrate_schema(direction="up", dry_run=False, target_version=None):
     with app.app_context():
         runner = MigrationRunner(get_db())
         if direction == "down":
-            versions = runner.migrate_down(target_version=target_version, dry_run=dry_run)
+            versions = runner.migrate_down(
+                target_version=target_version, dry_run=dry_run
+            )
         else:
             versions = runner.migrate_up(dry_run=dry_run)
     logger.info("Schema migration result: %s", versions)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Form Backend Operational Controls")
     subparsers = parser.add_subparsers(dest="command")
 
     # Command: rebuild_vectors
-    vectors_parser = subparsers.add_parser("rebuild_vectors", help="Rebuild Vector Embeddings")
+    vectors_parser = subparsers.add_parser(
+        "rebuild_vectors", help="Rebuild Vector Embeddings"
+    )
     vectors_parser.add_argument("--org", help="Organization ID")
 
     # Command: rebuild_analytics
-    analytics_parser = subparsers.add_parser("rebuild_analytics", help="Rebuild OLAP Analytics")
+    analytics_parser = subparsers.add_parser(
+        "rebuild_analytics", help="Rebuild OLAP Analytics"
+    )
     analytics_parser.add_argument("--org", help="Organization ID")
 
     # Command: retry_webhooks
-    webhooks_parser = subparsers.add_parser("retry_webhooks", help="Retry failed webhooks from DLQ")
+    webhooks_parser = subparsers.add_parser(
+        "retry_webhooks", help="Retry failed webhooks from DLQ"
+    )
     webhooks_parser.add_argument("--org", help="Organization ID")
 
     # Command: event_replay
@@ -120,10 +139,16 @@ def main():
     replay_parser.add_argument("--org", help="Organization ID")
 
     # Command: migrate_schema
-    migrate_parser = subparsers.add_parser("migrate_schema", help="Run database schema migrations")
+    migrate_parser = subparsers.add_parser(
+        "migrate_schema", help="Run database schema migrations"
+    )
     migrate_parser.add_argument("--down", action="store_true", help="Revert migrations")
-    migrate_parser.add_argument("--target-version", help="Target version for down migrations")
-    migrate_parser.add_argument("--dry-run", action="store_true", help="List migrations without executing")
+    migrate_parser.add_argument(
+        "--target-version", help="Target version for down migrations"
+    )
+    migrate_parser.add_argument(
+        "--dry-run", action="store_true", help="List migrations without executing"
+    )
 
     args = parser.parse_args()
 
@@ -143,6 +168,7 @@ def main():
         )
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()

@@ -27,6 +27,7 @@ celery_app = Celery(
 
 # ── Tracing ────────────────────────────────────────────────────────────
 from config.tracing import init_celery_tracing
+
 init_celery_tracing()
 
 # Advanced Configuration

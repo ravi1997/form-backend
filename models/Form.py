@@ -10,6 +10,7 @@ from mongoengine import (
     BinaryField,
     ValidationError,
     UUIDField,
+    DoesNotExist,
 )
 import uuid
 from datetime import datetime, timezone
@@ -35,13 +36,16 @@ class Option(BaseEmbeddedDocument):
     option_code = StringField(max_length=100)
     option_label = StringField(max_length=255, required=True)
     option_value = StringField(max_length=255, required=True)
-    parent_option_value = StringField(help_text="For cascading selects: the value of the parent field that enables this option")
+    parent_option_value = StringField(
+        help_text="For cascading selects: the value of the parent field that enables this option"
+    )
     order = IntField(default=0)
     visibility_condition = EmbeddedDocumentField(Condition)
 
 
 class MatrixRow(BaseEmbeddedDocument):
     """A row definition for matrix_choice fields."""
+
     row_label = StringField(required=True)
     row_value = StringField(required=True)
     order = IntField(default=0)
@@ -100,7 +104,9 @@ class QuestionLogic(LogicComponent):
     """Question-specific logic (e.g., derived values)."""
 
     calculated_value = StringField()
-    parent_variable_name = StringField(help_text="For cascading selects: the variable name of the parent field")
+    parent_variable_name = StringField(
+        help_text="For cascading selects: the variable name of the parent field"
+    )
 
 
 class QuestionUI(UIComponent):
@@ -143,7 +149,7 @@ class Question(BaseEmbeddedDocument):
 
     is_hidden = BooleanField(default=False)
     is_read_only = BooleanField(default=False)
-    is_sensitive = BooleanField(default=False) # FLE/PII protection
+    is_sensitive = BooleanField(default=False)  # FLE/PII protection
 
     validation = EmbeddedDocumentField(Validation, default=lambda: Validation())
     logic = EmbeddedDocumentField(QuestionLogic, default=lambda: QuestionLogic())
@@ -241,7 +247,9 @@ class Section(BaseDocument, SoftDeleteMixin):
     def validate_depth(section, current_depth):
         MAX_SECTION_DEPTH = 5
         if current_depth > MAX_SECTION_DEPTH:
-            raise ValidationError(f"Section depth exceeds maximum limit of {MAX_SECTION_DEPTH}")
+            raise ValidationError(
+                f"Section depth exceeds maximum limit of {MAX_SECTION_DEPTH}"
+            )
         for sub in section.sections:
             resolved = Section._resolve_nested_section(sub)
             if resolved is not None:
@@ -335,6 +343,7 @@ class Form(BaseDocument, SoftDeleteMixin):
     def versions(self):
         """Returns all versions associated with this form, sorted by creation time."""
         from models.Form import FormVersion
+
         return FormVersion.objects(form=self.id).order_by("created_at")
 
     @property
@@ -365,15 +374,22 @@ class ReportConfig(BaseEmbeddedDocument):
     Automated Custom branded Report Configuration.
     Saved inside parent Project container for lightweight reads.
     """
+
     id = UUIDField(required=True, default=uuid.uuid4)
     name = StringField(required=True, trim=True)
-    trigger_type = StringField(required=True, choices=["schedule", "threshold"], default="schedule")
+    trigger_type = StringField(
+        required=True, choices=["schedule", "threshold"], default="schedule"
+    )
     cron_expression = StringField()  # e.g., "0 9 * * 1"
     threshold_limit = IntField()  # e.g. 100
     current_threshold_counter = IntField(default=0)
-    blocks = ListField(DictField(), default=list)  # Drag-and-drop structural blocks list
+    blocks = ListField(
+        DictField(), default=list
+    )  # Drag-and-drop structural blocks list
     recipients = ListField(StringField(), default=list)  # Target email addresses
-    channels = ListField(StringField(), default=lambda: ["storage", "email"])  # active distribution channels
+    channels = ListField(
+        StringField(), default=lambda: ["storage", "email"]
+    )  # active distribution channels
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
 
@@ -453,14 +469,22 @@ class Version(BaseDocument):
 
 class SnapshotStore(BaseDocument):
     """Deep storage for large form snapshots to avoid 16MB document limits and keep FormVersion light."""
+
     meta = {
         "collection": "form_snapshots",
         "index_background": True,
         "indexes": [
             # TTL: auto-delete snapshots older than 90 days
-            {"fields": ["created_at"], "expireAfterSeconds": 7776000, "name": "ttl_90d"},
+            {
+                "fields": ["created_at"],
+                "expireAfterSeconds": 7776000,
+                "name": "ttl_90d",
+            },
             # Compound index for tenant-scoped version lookups
-            {"fields": ["organization_id", "form_id", "-created_at"], "name": "org_form_created"},
+            {
+                "fields": ["organization_id", "form_id", "-created_at"],
+                "name": "org_form_created",
+            },
         ],
     }
     # Tenant isolation — required for all tenant-owned data
@@ -472,6 +496,7 @@ class SnapshotStore(BaseDocument):
     is_compressed = BooleanField(default=False)
     size_bytes = IntField()
 
+
 class FormVersion(BaseDocument):
     """Immutable snapshot of form structure at a specific version."""
 
@@ -482,7 +507,7 @@ class FormVersion(BaseDocument):
     }
     form = ReferenceField(Form, required=True, reverse_delete_rule=2)
     version = ReferenceField(Version, required=True)
-    
+
     # New separate storage reference
     snapshot_ref = ReferenceField(SnapshotStore)
     translations = DictField()
@@ -496,6 +521,7 @@ class FormVersion(BaseDocument):
         if snapshot_ref:
             import zlib
             import json
+
             try:
                 store = snapshot_ref
                 if not hasattr(store, "is_compressed"):
@@ -505,21 +531,22 @@ class FormVersion(BaseDocument):
                 if not store:
                     raise DoesNotExist("Snapshot store not found")
                 if store.is_compressed:
-                    raw_json = zlib.decompress(store.compressed_data).decode('utf-8')
+                    raw_json = zlib.decompress(store.compressed_data).decode("utf-8")
                     return json.loads(raw_json)
                 return store.data or {}
             except Exception:
                 pass
-        
+
         # Legacy reconstruction from reference list
         sections_data = []
         if hasattr(self, "sections") and self.sections:
             for sec in self.sections:
                 if hasattr(sec, "to_mongo"):
                     data = sec.to_mongo().to_dict()
-                    if "_id" in data: data["id"] = str(data.pop("_id"))
+                    if "_id" in data:
+                        data["id"] = str(data.pop("_id"))
                     sections_data.append(data)
-        
+
         return {"sections": sections_data}
 
 

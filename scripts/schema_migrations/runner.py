@@ -20,7 +20,9 @@ class MigrationRunner:
             return []
 
         migrations = []
-        for module_info in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
+        for module_info in pkgutil.iter_modules(
+            package.__path__, package.__name__ + "."
+        ):
             module = importlib.import_module(module_info.name)
             for _, cls in inspect.getmembers(module, inspect.isclass):
                 if cls is BaseSchemaMigration:
@@ -38,7 +40,9 @@ class MigrationRunner:
     def migrate_up(self, dry_run=False):
         applied = self.applied_versions()
         pending = [
-            migration for migration in self.discover() if migration.version not in applied
+            migration
+            for migration in self.discover()
+            if migration.version not in applied
         ]
         if dry_run:
             return [migration.version for migration in pending]
@@ -64,7 +68,9 @@ class MigrationRunner:
         migrations = [
             migration for migration in self.discover() if migration.version in applied
         ]
-        migrations = sorted(migrations, key=lambda migration: migration.version, reverse=True)
+        migrations = sorted(
+            migrations, key=lambda migration: migration.version, reverse=True
+        )
         if target_version:
             migrations = [
                 migration

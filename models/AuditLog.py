@@ -2,9 +2,11 @@
 models/AuditLog.py
 Model for storing audit log entries with soft-delete support.
 """
+
 from mongoengine import StringField, DictField, DateTimeField
 from datetime import datetime, timezone
 from .base import BaseDocument, SoftDeleteMixin
+
 
 class AuditLog(BaseDocument, SoftDeleteMixin):
     """
@@ -14,7 +16,13 @@ class AuditLog(BaseDocument, SoftDeleteMixin):
 
     meta = {
         "collection": "audit_logs",
-        "indexes": ["organization_id", "resource_type", "resource_id", "actor_id", "-timestamp"],
+        "indexes": [
+            "organization_id",
+            "resource_type",
+            "resource_id",
+            "actor_id",
+            "-timestamp",
+        ],
         "index_background": True,
     }
 

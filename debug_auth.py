@@ -11,8 +11,11 @@ with app.app_context():
         if user:
             print(f"SUCCESS: Authenticated user {user.username}")
         else:
-            print("FAILURE: Authentication returned None (user not found, locked, or wrong password)")
+            print(
+                "FAILURE: Authentication returned None (user not found, locked, or wrong password)"
+            )
     except Exception as e:
         import traceback
+
         print(f"CRASH: Authentication failed with error: {str(e)}")
         traceback.print_exc()

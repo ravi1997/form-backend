@@ -1,6 +1,12 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple, Optional
-from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger, log_performance
+from logger.unified_logger import (
+    app_logger,
+    error_logger,
+    audit_logger,
+    get_logger,
+    log_performance,
+)
 from services.base import BaseService, PaginatedResult, TSchema, TUpdateSchema
 from utils.exceptions import NotFoundError, ValidationError, ConflictError
 from models import Form, FormResponse, DynamicViewDefinition
@@ -22,31 +28,37 @@ class FormResponseService(BaseService):
     def __init__(self):
         super().__init__(model=FormResponse, schema=FormResponseSchema)
 
-    def get_decrypted_response(self, response_id: str, organization_id: str) -> Dict[str, Any]:
+    def get_decrypted_response(
+        self, response_id: str, organization_id: str
+    ) -> Dict[str, Any]:
         """
         Fetches a single response, decrypts its sensitive fields, and caches the result in Redis.
         Uses batch decryption for efficiency.
         """
-        app_logger.info(f"Entering get_decrypted_response for Response ID {response_id}")
+        app_logger.info(
+            f"Entering get_decrypted_response for Response ID {response_id}"
+        )
         try:
             from services.redis_service import redis_service
             from config.settings import settings
             from utils.encryption import batch_decrypt_values
-            
+
             cache_key = f"decrypted_response:{organization_id}:{response_id}"
-            
+
             if settings.CACHE_ENABLED:
                 cached = redis_service.cache.get(cache_key)
                 if cached:
                     app_logger.info(f"Cache hit for decrypted response: {response_id}")
                     return cached
-            
+
             # Fetch from DB
-            response = self.model.objects(id=response_id, organization_id=organization_id, is_deleted=False).first()
+            response = self.model.objects(
+                id=response_id, organization_id=organization_id, is_deleted=False
+            ).first()
             if not response:
                 app_logger.warning(f"Response {response_id} not found")
                 raise NotFoundError("Response not found")
-            
+
             # Batch Decrypt
             full_data = response.data.copy()
             if response.encrypted_data:
@@ -55,84 +67,115 @@ class FormResponseService(BaseService):
                 decrypted_values = batch_decrypt_values(values)
                 for i, field in enumerate(fields):
                     full_data[field] = decrypted_values[i]
-            
+
             # Build full result
             result = self._to_schema(response).model_dump()
-            result['data'] = full_data
-            
+            result["data"] = full_data
+
             if settings.CACHE_ENABLED:
-                redis_service.cache.set(cache_key, result, ttl=settings.RESPONSE_CACHE_TTL)
-            
-            audit_logger.info(f"AUDIT: Decrypted response accessed: {response_id} by org {organization_id}")
-            app_logger.info(f"Successfully completed get_decrypted_response for {response_id}")
+                redis_service.cache.set(
+                    cache_key, result, ttl=settings.RESPONSE_CACHE_TTL
+                )
+
+            audit_logger.info(
+                f"AUDIT: Decrypted response accessed: {response_id} by org {organization_id}"
+            )
+            app_logger.info(
+                f"Successfully completed get_decrypted_response for {response_id}"
+            )
             return result
         except Exception as e:
             if not isinstance(e, NotFoundError):
-                error_logger.error(f"Error in get_decrypted_response for {response_id}: {str(e)}", exc_info=True)
+                error_logger.error(
+                    f"Error in get_decrypted_response for {response_id}: {str(e)}",
+                    exc_info=True,
+                )
             raise
 
-    def update(self, doc_id: str, update_schema: TUpdateSchema, organization_id: str = None) -> TSchema:
+    def update(
+        self, doc_id: str, update_schema: TUpdateSchema, organization_id: str = None
+    ) -> TSchema:
         """Override update to invalidate decrypted response cache."""
         app_logger.info(f"Entering FormResponseService.update for ID {doc_id}")
         try:
             from services.redis_service import redis_service
             from config.settings import settings
-            
+
             result = super().update(doc_id, update_schema, organization_id)
-            
+
             if settings.CACHE_ENABLED:
                 keys_to_delete = [f"decrypted_response:{doc_id}"]
                 if organization_id:
-                    keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
+                    keys_to_delete.append(
+                        f"decrypted_response:{organization_id}:{doc_id}"
+                    )
                 redis_service.cache.delete(*keys_to_delete)
-            
+
             audit_logger.info(f"AUDIT: FormResponse updated with ID {doc_id}")
-            app_logger.info(f"Successfully completed FormResponseService.update for ID {doc_id}")
+            app_logger.info(
+                f"Successfully completed FormResponseService.update for ID {doc_id}"
+            )
             return result
         except Exception as e:
-            error_logger.error(f"Error in FormResponseService.update for ID {doc_id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Error in FormResponseService.update for ID {doc_id}: {str(e)}",
+                exc_info=True,
+            )
             raise
 
-    def delete(self, doc_id: str, organization_id: str = None, hard_delete: bool = False) -> None:
+    def delete(
+        self, doc_id: str, organization_id: str = None, hard_delete: bool = False
+    ) -> None:
         """Override delete to invalidate decrypted response cache."""
         app_logger.info(f"Entering FormResponseService.delete for ID {doc_id}")
         try:
             from services.redis_service import redis_service
             from config.settings import settings
-            
+
             super().delete(doc_id, organization_id, hard_delete)
-            
+
             if settings.CACHE_ENABLED:
                 keys_to_delete = [f"decrypted_response:{doc_id}"]
                 if organization_id:
-                    keys_to_delete.append(f"decrypted_response:{organization_id}:{doc_id}")
+                    keys_to_delete.append(
+                        f"decrypted_response:{organization_id}:{doc_id}"
+                    )
                 redis_service.cache.delete(*keys_to_delete)
-            
+
             audit_logger.info(f"AUDIT: FormResponse deleted with ID {doc_id}")
-            app_logger.info(f"Successfully completed FormResponseService.delete for ID {doc_id}")
+            app_logger.info(
+                f"Successfully completed FormResponseService.delete for ID {doc_id}"
+            )
         except Exception as e:
-            error_logger.error(f"Error in FormResponseService.delete for ID {doc_id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Error in FormResponseService.delete for ID {doc_id}: {str(e)}",
+                exc_info=True,
+            )
             raise
 
-    def validate_payload(self, form_id: str, payload_data: Dict[str, Any], organization_id: str = None) -> Tuple[bool, Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
+    def validate_payload(
+        self, form_id: str, payload_data: Dict[str, Any], organization_id: str = None
+    ) -> Tuple[bool, Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Dynamically cross-checks an incoming submission against the strict Option, Logic,
         and Validation rule sets using the unified FormValidationService.
         """
         app_logger.info(f"Entering validate_payload for Form ID {form_id}")
         from services.form_validation_service import FormValidationService
-        
+
         # This service handles everything: version resolution, conditions, calculations, etc.
-        is_valid, cleaned_data, errors, calculated_values = FormValidationService.validate_submission(
-            form_id=form_id,
-            payload=payload_data,
-            organization_id=organization_id
+        is_valid, cleaned_data, errors, calculated_values = (
+            FormValidationService.validate_submission(
+                form_id=form_id, payload=payload_data, organization_id=organization_id
+            )
         )
-        
+
         if not is_valid:
-            app_logger.warning(f"Payload validation failed for Form {form_id}: {errors}")
+            app_logger.warning(
+                f"Payload validation failed for Form {form_id}: {errors}"
+            )
             raise ValidationError(f"Payload validation failed", details=errors)
-            
+
         return is_valid, cleaned_data, errors, calculated_values
 
     def create_submission(self, data: FormResponseCreateSchema) -> FormResponseSchema:
@@ -159,7 +202,11 @@ class FormResponseService(BaseService):
                     incoming_hash = (data.meta_data or {}).get(
                         "idempotency_request_hash"
                     )
-                    if existing_hash and incoming_hash and existing_hash != incoming_hash:
+                    if (
+                        existing_hash
+                        and incoming_hash
+                        and existing_hash != incoming_hash
+                    ):
                         raise ConflictError(
                             "Idempotency-Key was reused with a different request body"
                         )
@@ -170,17 +217,20 @@ class FormResponseService(BaseService):
 
             # --- Size Guard ---
             import json
+
             payload_size = len(json.dumps(data.data))
-            if payload_size > 5 * 1024 * 1024: # 5MB limit
-                raise ValidationError(f"Payload too large: {payload_size} bytes (max 5MB)")
-            
+            if payload_size > 5 * 1024 * 1024:  # 5MB limit
+                raise ValidationError(
+                    f"Payload too large: {payload_size} bytes (max 5MB)"
+                )
+
             # 1. Unified Validation (includes conditions, calculations, type checks)
             is_valid, cleaned_data, errors, calculated_values = self.validate_payload(
-                form_id=str(data.form), 
-                payload_data=data.data, 
-                organization_id=data.organization_id
+                form_id=str(data.form),
+                payload_data=data.data,
+                organization_id=data.organization_id,
             )
-            
+
             # Update data with cleaned values.
             # If validator cannot map fields (e.g., missing variable_name in draft forms),
             # preserve original payload instead of writing an empty dict.
@@ -195,10 +245,14 @@ class FormResponseService(BaseService):
             )
 
             # 2. Fetch Active Version and Snapshot for the response record
-            form_doc = Form.objects(id=data.form, organization_id=data.organization_id, is_deleted=False).first()
+            form_doc = Form.objects(
+                id=data.form, organization_id=data.organization_id, is_deleted=False
+            ).first()
             if form_doc:
                 raw_active_version = form_doc._data.get("active_version")
-                active_version_id = getattr(raw_active_version, "id", raw_active_version)
+                active_version_id = getattr(
+                    raw_active_version, "id", raw_active_version
+                )
                 if active_version_id:
                     from models.Form import Version, FormVersion
 
@@ -208,11 +262,19 @@ class FormResponseService(BaseService):
 
                     fv = None
                     if version_doc:
-                        fv = FormVersion.objects(form=form_doc.id, version=version_doc).first()
+                        fv = FormVersion.objects(
+                            form=form_doc.id, version=version_doc
+                        ).first()
                         if not fv:
-                            fv = FormVersion.objects(form=form_doc.id, version__id=version_doc.id).first()
+                            fv = FormVersion.objects(
+                                form=form_doc.id, version__id=version_doc.id
+                            ).first()
                     if not fv:
-                        fv = FormVersion.objects(form=form_doc.id, status="published").order_by("-created_at").first()
+                        fv = (
+                            FormVersion.objects(form=form_doc.id, status="published")
+                            .order_by("-created_at")
+                            .first()
+                        )
                     if fv:
                         data.form_version = str(fv.id)
 
@@ -234,7 +296,11 @@ class FormResponseService(BaseService):
                         incoming_hash = (data.meta_data or {}).get(
                             "idempotency_request_hash"
                         )
-                        if existing_hash and incoming_hash and existing_hash != incoming_hash:
+                        if (
+                            existing_hash
+                            and incoming_hash
+                            and existing_hash != incoming_hash
+                        ):
                             raise
                         return self._to_schema(existing)
                 raise
@@ -242,31 +308,45 @@ class FormResponseService(BaseService):
             # Trigger background tasks
             try:
                 from tasks.ai_tasks import async_index_response_vector
-                async_index_response_vector.delay(str(response.id), data.organization_id)
+
+                async_index_response_vector.delay(
+                    str(response.id), data.organization_id
+                )
             except Exception as e:
                 error_logger.warning(f"Failed to enqueue vector indexing: {e}")
 
             # Publish Domain Event to decouple notification and webhook routing
             try:
                 from services import event_bus
-                event_bus.publish("form.submitted", {
-                    "form_id": str(data.form),
-                    "response_id": str(response.id),
-                    "organization_id": data.organization_id,
-                    "data": data.data,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
+
+                event_bus.publish(
+                    "form.submitted",
+                    {
+                        "form_id": str(data.form),
+                        "response_id": str(response.id),
+                        "organization_id": data.organization_id,
+                        "data": data.data,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
             except Exception as e:
                 error_logger.error(
                     f"Failed to publish domain event for response {response.id}: {str(e)}",
                     exc_info=True,
                 )
 
-            audit_logger.info(f"AUDIT: Form submission created for Form {data.form}, Response ID {response.id}")
-            app_logger.info(f"Successfully completed create_submission for Form ID {data.form}")
+            audit_logger.info(
+                f"AUDIT: Form submission created for Form {data.form}, Response ID {response.id}"
+            )
+            app_logger.info(
+                f"Successfully completed create_submission for Form ID {data.form}"
+            )
             return response
         except Exception as e:
-            error_logger.error(f"Error in create_submission for Form {data.form}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Error in create_submission for Form {data.form}: {str(e)}",
+                exc_info=True,
+            )
             raise
 
     def list_by_form(
@@ -283,6 +363,7 @@ class FormResponseService(BaseService):
         )
         from uuid import UUID
         from models import Form, Project
+
         try:
             form_lookup_id = UUID(form_id)
         except Exception:

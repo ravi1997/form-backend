@@ -1,5 +1,6 @@
 from . import form_bp
 from flasgger import swag_from
+
 """
 Anomaly Detection Routes
 
@@ -21,24 +22,15 @@ anomaly_bp = Blueprint("anomaly", __name__)
 
 
 @anomaly_bp.route("/<form_id>/detect-anomalies", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def detect_anomalies(form_id: str):
     """
@@ -123,7 +115,9 @@ def detect_anomalies(form_id: str):
             f"Anomaly detection run for form_id: {form_id} by user: {getattr(current_user, 'id', 'unknown')}. "
             f"Scanned: {len(response_data)}, Detected: {results['anomalies_detected']}"
         )
-        app_logger.info(f"Successfully completed anomaly detection for form_id: {form_id}")
+        app_logger.info(
+            f"Successfully completed anomaly detection for form_id: {form_id}"
+        )
 
         return jsonify(
             {
@@ -145,30 +139,16 @@ def detect_anomalies(form_id: str):
 
 
 @anomaly_bp.route("/<form_id>/anomalies/<response_id>", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        },
-        {
-            "name": "response_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True},
+            {"name": "response_id", "in": "path", "type": "string", "required": True},
+        ],
+    }
+)
 @jwt_required()
 def get_anomaly_details(form_id: str, response_id: str):
     """
@@ -183,7 +163,9 @@ def get_anomaly_details(form_id: str, response_id: str):
             "suggested_actions": [...]
         }
     """
-    app_logger.info(f"Entering get_anomaly_details for form_id: {form_id}, response_id: {response_id}")
+    app_logger.info(
+        f"Entering get_anomaly_details for form_id: {form_id}, response_id: {response_id}"
+    )
     try:
         get_current_user()
 
@@ -191,7 +173,9 @@ def get_anomaly_details(form_id: str, response_id: str):
         try:
             resp = FormResponse.objects.get(id=response_id, form_id=form_id)
         except FormResponse.DoesNotExist:
-            app_logger.warning(f"Response not found for anomaly details: {response_id} in form {form_id}")
+            app_logger.warning(
+                f"Response not found for anomaly details: {response_id} in form {form_id}"
+            )
             return jsonify({"error": "Response not found"}), 404
 
         # Run detection on single response
@@ -218,7 +202,9 @@ def get_anomaly_details(form_id: str, response_id: str):
             }
         }
 
-        app_logger.info(f"Successfully retrieved anomaly details for response_id: {response_id}")
+        app_logger.info(
+            f"Successfully retrieved anomaly details for response_id: {response_id}"
+        )
         return jsonify(
             {
                 "response_id": response_id,
@@ -234,30 +220,22 @@ def get_anomaly_details(form_id: str, response_id: str):
             }
         )
     except Exception as e:
-        error_logger.error(f"Error in get_anomaly_details for response_id {response_id}: {str(e)}")
+        error_logger.error(
+            f"Error in get_anomaly_details for response_id {response_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
-
 @anomaly_bp.route("/<form_id>/thresholds/update-baseline", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def update_anomaly_baseline(form_id: str):
     """
@@ -278,10 +256,13 @@ def update_anomaly_baseline(form_id: str):
 
         # Update baseline using service
         result = AnomalyDetectionService.update_baseline(
-            form_id=form_id, created_by=str(user.id) if hasattr(user, "id") else "system"
+            form_id=form_id,
+            created_by=str(user.id) if hasattr(user, "id") else "system",
         )
 
-        audit_logger.info(f"Anomaly baseline updated for form_id: {form_id} by user: {getattr(user, 'id', 'unknown')}")
+        audit_logger.info(
+            f"Anomaly baseline updated for form_id: {form_id} by user: {getattr(user, 'id', 'unknown')}"
+        )
         app_logger.info(f"Successfully updated anomaly baseline for form_id: {form_id}")
 
         return jsonify(
@@ -294,29 +275,22 @@ def update_anomaly_baseline(form_id: str):
             }
         )
     except Exception as e:
-        error_logger.error(f"Error in update_anomaly_baseline for form_id {form_id}: {str(e)}")
+        error_logger.error(
+            f"Error in update_anomaly_baseline for form_id {form_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
 @anomaly_bp.route("/<form_id>/thresholds/history", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_threshold_history(form_id: str):
     """
@@ -342,32 +316,27 @@ def get_threshold_history(form_id: str):
             form_id=form_id, limit=limit
         )
 
-        app_logger.info(f"Successfully retrieved threshold history for form_id: {form_id}")
+        app_logger.info(
+            f"Successfully retrieved threshold history for form_id: {form_id}"
+        )
         return jsonify({"form_id": form_id, "threshold_history": history})
     except Exception as e:
-        error_logger.error(f"Error in get_threshold_history for form_id {form_id}: {str(e)}")
+        error_logger.error(
+            f"Error in get_threshold_history for form_id {form_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
 @anomaly_bp.route("/<form_id>/thresholds/latest", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_latest_threshold(form_id: str):
     """
@@ -403,32 +372,27 @@ def get_latest_threshold(form_id: str):
             app_logger.warning(f"No threshold found for form_id: {form_id}")
             return jsonify({"error": "No threshold found for this form"}), 404
 
-        app_logger.info(f"Successfully retrieved latest threshold for form_id: {form_id}")
+        app_logger.info(
+            f"Successfully retrieved latest threshold for form_id: {form_id}"
+        )
         return jsonify(threshold)
     except Exception as e:
-        error_logger.error(f"Error in get_latest_threshold for form_id {form_id}: {str(e)}")
+        error_logger.error(
+            f"Error in get_latest_threshold for form_id {form_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
 @anomaly_bp.route("/<form_id>/thresholds/manual", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def set_manual_threshold(form_id: str):
     """
@@ -461,7 +425,9 @@ def set_manual_threshold(form_id: str):
         reason = data.get("reason")
 
         if not thresholds:
-            app_logger.warning(f"Manual threshold update failed: No thresholds provided for form_id: {form_id}")
+            app_logger.warning(
+                f"Manual threshold update failed: No thresholds provided for form_id: {form_id}"
+            )
             return jsonify({"error": "thresholds is required"}), 400
 
         # Set manual threshold
@@ -472,8 +438,12 @@ def set_manual_threshold(form_id: str):
             reason=reason,
         )
 
-        audit_logger.info(f"Manual anomaly threshold set for form_id: {form_id} by user: {getattr(user, 'id', 'unknown')}. Reason: {reason}")
-        app_logger.info(f"Successfully set manual anomaly threshold for form_id: {form_id}")
+        audit_logger.info(
+            f"Manual anomaly threshold set for form_id: {form_id} by user: {getattr(user, 'id', 'unknown')}. Reason: {reason}"
+        )
+        app_logger.info(
+            f"Successfully set manual anomaly threshold for form_id: {form_id}"
+        )
 
         return jsonify(
             {
@@ -485,29 +455,22 @@ def set_manual_threshold(form_id: str):
             }
         )
     except Exception as e:
-        error_logger.error(f"Error in set_manual_threshold for form_id {form_id}: {str(e)}")
+        error_logger.error(
+            f"Error in set_manual_threshold for form_id {form_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
 @anomaly_bp.route("/<form_id>/detect-anomalies/batch", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Anomaly"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Anomaly"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def detect_anomalies_batch(form_id: str):
     """
@@ -546,16 +509,25 @@ def detect_anomalies_batch(form_id: str):
         data = request.get_json()
 
         if not data:
-            app_logger.warning(f"Batch anomaly detection failed: No body for form_id: {form_id}")
+            app_logger.warning(
+                f"Batch anomaly detection failed: No body for form_id: {form_id}"
+            )
             return jsonify({"error": "Request body is required"}), 400
 
         response_ids = data.get("response_ids")
         if not response_ids or not isinstance(response_ids, list):
-            app_logger.warning(f"Batch anomaly detection failed: Invalid response_ids for form_id: {form_id}")
-            return jsonify({"error": "response_ids is required and must be a list"}), 400
+            app_logger.warning(
+                f"Batch anomaly detection failed: Invalid response_ids for form_id: {form_id}"
+            )
+            return (
+                jsonify({"error": "response_ids is required and must be a list"}),
+                400,
+            )
 
         if len(response_ids) == 0:
-            app_logger.warning(f"Batch anomaly detection failed: Empty response_ids for form_id: {form_id}")
+            app_logger.warning(
+                f"Batch anomaly detection failed: Empty response_ids for form_id: {form_id}"
+            )
             return jsonify({"error": "response_ids cannot be empty"}), 400
 
         scan_config = data.get("scan_config", {})
@@ -570,12 +542,18 @@ def detect_anomalies_batch(form_id: str):
             batch_id=batch_id,
         )
 
-        audit_logger.info(f"Batch anomaly scan initiated for form_id: {form_id} by user: {getattr(user, 'id', 'unknown')}. Batch ID: {result.get('batch_id')}")
-        app_logger.info(f"Successfully initiated batch anomaly scan for form_id: {form_id}")
+        audit_logger.info(
+            f"Batch anomaly scan initiated for form_id: {form_id} by user: {getattr(user, 'id', 'unknown')}. Batch ID: {result.get('batch_id')}"
+        )
+        app_logger.info(
+            f"Successfully initiated batch anomaly scan for form_id: {form_id}"
+        )
 
         return jsonify(result)
     except Exception as e:
-        error_logger.error(f"Error in detect_anomalies_batch for form_id {form_id}: {str(e)}")
+        error_logger.error(
+            f"Error in detect_anomalies_batch for form_id {form_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -626,12 +604,17 @@ def get_batch_scan_status(form_id: str, batch_id: str):
 
         # Verify form_id matches
         if status.get("form_id") != form_id:
-            app_logger.warning(f"Batch scan form_id mismatch: {batch_id} (expected {form_id}, got {status.get('form_id')})")
+            app_logger.warning(
+                f"Batch scan form_id mismatch: {batch_id} (expected {form_id}, got {status.get('form_id')})"
+            )
             return jsonify({"error": "Batch scan does not belong to this form"}), 400
 
-        app_logger.info(f"Successfully retrieved batch scan status for batch_id: {batch_id}")
+        app_logger.info(
+            f"Successfully retrieved batch scan status for batch_id: {batch_id}"
+        )
         return jsonify(status)
     except Exception as e:
-        error_logger.error(f"Error in get_batch_scan_status for batch_id {batch_id}: {str(e)}")
+        error_logger.error(
+            f"Error in get_batch_scan_status for batch_id {batch_id}: {str(e)}"
+        )
         return jsonify({"error": "Internal server error"}), 500
-

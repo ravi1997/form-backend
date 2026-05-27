@@ -4,11 +4,10 @@ from utils.condition_evaluator import ConditionEvaluator
 from logger.unified_logger import app_logger, error_logger
 import re
 
+
 class FormValidationService:
     @staticmethod
-    def _append_error(
-        errors: List[Dict[str, Any]], field: str, error: str
-    ) -> None:
+    def _append_error(errors: List[Dict[str, Any]], field: str, error: str) -> None:
         errors.append({"field": field, "error": error})
 
     @staticmethod
@@ -49,26 +48,28 @@ class FormValidationService:
 
     @staticmethod
     def validate_submission(
-        form_id: str, 
-        payload: Dict[str, Any], 
+        form_id: str,
+        payload: Dict[str, Any],
         version_id: Optional[str] = None,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> Tuple[bool, Dict[str, Any], List[Dict[str, Any]], Dict[str, Any]]:
         """
         Canonical validation engine for form submissions.
         Returns: (is_valid, cleaned_data, errors, calculated_values)
         """
         app_logger.info(f"Validating submission for form {form_id}")
-        
+
         # 1. Resolve Form and Version (Scoped by organization_id)
         # Use __raw__ or explicit filter if needed, but BaseDocument handles it if current_user is set.
         # Here we use explicit filter for background tasks safety.
         from models.Form import Form, FormVersion
-        
-        form = Form.objects(id=form_id, organization_id=organization_id, is_deleted=False).first()
+
+        form = Form.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
         if not form:
             return False, {}, [{"error": "Form not found"}], {}
-            
+
         if not version_id:
             version_id = form.active_version_id
 
@@ -113,7 +114,7 @@ class FormValidationService:
 
         # 3. Initialize Evaluator
         evaluator = ConditionEvaluator(payload)
-        
+
         cleaned_data = {}
         errors = []
         calculated_values = {}
@@ -121,13 +122,15 @@ class FormValidationService:
 
         # 4. Resolve Calculation Order (Topological Sort)
         all_questions = []
+
         def flatten_questions(secs):
             for s in secs:
                 all_questions.extend(s.get("questions", []))
                 if s.get("sections"):
                     flatten_questions(s["sections"])
+
         flatten_questions(sections_data)
-        
+
         try:
             calc_order = FormValidationService._get_evaluation_order(all_questions)
         except ValueError as e:
@@ -135,21 +138,26 @@ class FormValidationService:
 
         # 5. Process Sections Recursively (First Pass: Visibility and Clean Data)
         FormValidationService._process_sections(
-            sections_data, 
-            payload, 
-            evaluator, 
-            cleaned_data, 
-            errors, 
+            sections_data,
+            payload,
+            evaluator,
+            cleaned_data,
+            errors,
             calculated_values,
             visible_fields,
-            calc_order
+            calc_order,
         )
 
         # 6. Global Calculation Pass (Second Pass: Topological Order)
         # Evaluate all calculated fields that are visible and have expressions
         # This allows cross-section calculation dependencies
-        visible_calc_fields = {q.get("variable_name"): q for q in all_questions if q.get("variable_name") in visible_fields and q.get("logic", {}).get("calculated_value")}
-        
+        visible_calc_fields = {
+            q.get("variable_name"): q
+            for q in all_questions
+            if q.get("variable_name") in visible_fields
+            and q.get("logic", {}).get("calculated_value")
+        }
+
         for var_name in calc_order:
             if var_name in visible_calc_fields:
                 q = visible_calc_fields[var_name]
@@ -159,7 +167,9 @@ class FormValidationService:
                 if isinstance(calc_result, tuple):
                     res, err = calc_result
                     if err:
-                        errors.append({"field": var_name, "error": f"Calculation error: {err}"})
+                        errors.append(
+                            {"field": var_name, "error": f"Calculation error: {err}"}
+                        )
                         continue
                     calc_val = res
                 else:
@@ -167,15 +177,17 @@ class FormValidationService:
 
                 if calc_val is not None:
                     calculated_values[var_name] = calc_val
-                    
+
                     # Strict Calculated Values validation
                     # Option A: Mismatch rejection. Reject payload if client submitted an incorrect evaluation.
                     client_val = payload.get(var_name)
                     if client_val is not None and str(client_val) != str(calc_val):
-                        errors.append({
-                            "field": var_name,
-                            "error": f"Calculated value mismatch. Expected {calc_val}, got {client_val}."
-                        })
+                        errors.append(
+                            {
+                                "field": var_name,
+                                "error": f"Calculated value mismatch. Expected {calc_val}, got {client_val}.",
+                            }
+                        )
                         continue
 
                     # Update both payload (for evaluator) and cleaned_data (for output)
@@ -189,21 +201,24 @@ class FormValidationService:
     def _get_evaluation_order(questions: List[Dict[str, Any]]) -> List[str]:
         """Performs topological sort on questions based on calculated_value dependencies."""
         graph = {}
-        all_var_names = {q.get("variable_name") for q in questions if q.get("variable_name")}
-        
+        all_var_names = {
+            q.get("variable_name") for q in questions if q.get("variable_name")
+        }
+
         for q in questions:
             var_name = q.get("variable_name")
-            if not var_name: continue
-            
+            if not var_name:
+                continue
+
             logic = q.get("logic", {})
             calc_expr = logic.get("calculated_value")
-            
+
             dependencies = []
             if calc_expr:
                 deps = ConditionEvaluator.get_dependencies(calc_expr)
                 # Filter to only include other fields in the form
                 dependencies = [d for d in deps if d in all_var_names and d != var_name]
-            
+
             graph[var_name] = dependencies
 
         # Topological Sort
@@ -213,7 +228,9 @@ class FormValidationService:
 
         def visit(node):
             if node in temp_stack:
-                raise ValueError(f"Circular calculated field dependency detected involving: {node}")
+                raise ValueError(
+                    f"Circular calculated field dependency detected involving: {node}"
+                )
             if node not in visited:
                 temp_stack.add(node)
                 for dep in graph.get(node, []):
@@ -225,12 +242,12 @@ class FormValidationService:
         for node in graph:
             if node not in visited:
                 visit(node)
-        
+
         return ordered
 
     @staticmethod
     def _process_sections(
-        sections: List[Dict[str, Any]], 
+        sections: List[Dict[str, Any]],
         payload: Dict[str, Any],
         evaluator: ConditionEvaluator,
         cleaned_data: Dict[str, Any],
@@ -238,7 +255,7 @@ class FormValidationService:
         calculated_values: Dict[str, Any],
         visible_fields: Set[str],
         calc_order: List[str],
-        parent_path: str = ""
+        parent_path: str = "",
     ):
         for section in sections:
             # 1. Section Visibility Check
@@ -246,46 +263,74 @@ class FormValidationService:
             visibility_cond = logic.get("visibility_condition")
             if visibility_cond and not evaluator.evaluate(visibility_cond):
                 continue
-                
+
             # 2. Handle Repeatable Sections
             if logic.get("is_repeatable"):
                 sid = section.get("id") or str(section.get("_id"))
-                var_name = section.get("variable_name") or sid # Repeatable sections should have variable names
-                
+                var_name = (
+                    section.get("variable_name") or sid
+                )  # Repeatable sections should have variable names
+
                 section_payload = payload.get(var_name, [])
                 if not isinstance(section_payload, list):
-                    errors.append({"field": var_name, "error": "Expected a list for repeatable section"})
+                    errors.append(
+                        {
+                            "field": var_name,
+                            "error": "Expected a list for repeatable section",
+                        }
+                    )
                     continue
-                
+
                 # min/max check
                 r_min = logic.get("repeat_min", 0)
                 r_max = logic.get("repeat_max")
                 if len(section_payload) < r_min:
-                    errors.append({"field": var_name, "error": f"Minimum {r_min} entries required"})
+                    errors.append(
+                        {
+                            "field": var_name,
+                            "error": f"Minimum {r_min} entries required",
+                        }
+                    )
                 if r_max and len(section_payload) > r_max:
-                    errors.append({"field": var_name, "error": f"Maximum {r_max} entries allowed"})
+                    errors.append(
+                        {"field": var_name, "error": f"Maximum {r_max} entries allowed"}
+                    )
 
                 cleaned_repeats = []
                 for i, entry in enumerate(section_payload):
                     entry_cleaned = {}
                     # Create a sub-evaluator for this repeat entry context
                     # Current limitation: can't easily reference other repeat entries without global context
-                    entry_evaluator = ConditionEvaluator(entry, context={"global": payload, "index": i})
-                    
+                    entry_evaluator = ConditionEvaluator(
+                        entry, context={"global": payload, "index": i}
+                    )
+
                     FormValidationService._process_section_content(
-                        section, entry, entry_evaluator, entry_cleaned, errors, 
-                        calculated_values, visible_fields, calc_order, 
-                        parent_path=f"{var_name}[{i}]."
+                        section,
+                        entry,
+                        entry_evaluator,
+                        entry_cleaned,
+                        errors,
+                        calculated_values,
+                        visible_fields,
+                        calc_order,
+                        parent_path=f"{var_name}[{i}].",
                     )
                     cleaned_repeats.append(entry_cleaned)
-                
+
                 cleaned_data[var_name] = cleaned_repeats
             else:
                 # Normal Section
                 FormValidationService._process_section_content(
-                    section, payload, evaluator, cleaned_data, errors, 
-                    calculated_values, visible_fields, calc_order,
-                    parent_path=parent_path
+                    section,
+                    payload,
+                    evaluator,
+                    cleaned_data,
+                    errors,
+                    calculated_values,
+                    visible_fields,
+                    calc_order,
+                    parent_path=parent_path,
                 )
 
     @staticmethod
@@ -298,21 +343,34 @@ class FormValidationService:
         calculated_values: Dict[str, Any],
         visible_fields: Set[str],
         calc_order: List[str],
-        parent_path: str = ""
+        parent_path: str = "",
     ):
         # Process Questions
         for question in section.get("questions", []):
             FormValidationService._process_question(
-                question, payload, evaluator, cleaned_data, errors, 
-                calculated_values, visible_fields, calc_order, parent_path
+                question,
+                payload,
+                evaluator,
+                cleaned_data,
+                errors,
+                calculated_values,
+                visible_fields,
+                calc_order,
+                parent_path,
             )
-        
+
         # Recurse sub-sections
         if section.get("sections"):
             FormValidationService._process_sections(
-                section["sections"], payload, evaluator, cleaned_data, errors, 
-                calculated_values, visible_fields, calc_order,
-                parent_path=parent_path
+                section["sections"],
+                payload,
+                evaluator,
+                cleaned_data,
+                errors,
+                calculated_values,
+                visible_fields,
+                calc_order,
+                parent_path=parent_path,
             )
 
     @staticmethod
@@ -325,7 +383,7 @@ class FormValidationService:
         calculated_values: Dict[str, Any],
         visible_fields: Set[str],
         calc_order: List[str],
-        parent_path: str = ""
+        parent_path: str = "",
     ):
         var_name = question.get("variable_name")
         if not var_name:
@@ -337,7 +395,7 @@ class FormValidationService:
         is_visible = True
         if visibility_cond:
             is_visible = evaluator.evaluate(visibility_cond)
-            
+
         if not is_visible:
             return
 

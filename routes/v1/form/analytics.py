@@ -250,7 +250,11 @@ def get_full_analytics(form_id):
         if form.versions:
             latest = form.versions[-1]
             target_types = ["radio", "select", "checkbox", "rating", "boolean"]
-            sections = latest.resolved_snapshot.get("sections", []) if hasattr(latest, "resolved_snapshot") else []
+            sections = (
+                latest.resolved_snapshot.get("sections", [])
+                if hasattr(latest, "resolved_snapshot")
+                else []
+            )
 
             # Map qid -> label
             q_map = {}

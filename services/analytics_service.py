@@ -69,9 +69,11 @@ class AnalyticsService:
         return {
             "total_responses": summary["total"],
             "status_breakdown": dict(status_counts),
-            "last_submitted_at": summary["last_submitted_at"].isoformat()
-            if summary["last_submitted_at"]
-            else None,
+            "last_submitted_at": (
+                summary["last_submitted_at"].isoformat()
+                if summary["last_submitted_at"]
+                else None
+            ),
         }
 
     @staticmethod
@@ -142,7 +144,11 @@ class AnalyticsService:
             return {"distribution": []}
 
         latest_version = form.versions[-1]
-        sections = latest_version.resolved_snapshot.get("sections", []) if hasattr(latest_version, "resolved_snapshot") else []
+        sections = (
+            latest_version.resolved_snapshot.get("sections", [])
+            if hasattr(latest_version, "resolved_snapshot")
+            else []
+        )
         choice_questions = {}
         target_types = ["radio", "select", "checkbox", "rating", "boolean"]
 

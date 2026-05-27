@@ -14,7 +14,10 @@ def test_task_service_get_status_from_redis():
         "total": 10,
     }
 
-    with patch("services.task_observability_service.task_observability_service.get_task_status", return_value=mock_redis_status):
+    with patch(
+        "services.task_observability_service.task_observability_service.get_task_status",
+        return_value=mock_redis_status,
+    ):
         service = TaskService()
         status = service.get_status("test-task-123")
 
@@ -35,9 +38,11 @@ def test_task_service_get_status_fallback_to_celery():
     mock_celery_task.result = {"data": "done"}
     mock_celery_task.state = "SUCCESS"
 
-    with patch("services.task_observability_service.task_observability_service.get_task_status", return_value=None), \
-         patch("config.celery.celery_app.AsyncResult", return_value=mock_celery_task):
-        
+    with patch(
+        "services.task_observability_service.task_observability_service.get_task_status",
+        return_value=None,
+    ), patch("config.celery.celery_app.AsyncResult", return_value=mock_celery_task):
+
         service = TaskService()
         status = service.get_status("test-task-456")
 
@@ -50,7 +55,7 @@ def test_task_service_get_status_fallback_to_celery():
 def test_get_task_status_endpoint(app):
     """Test that the public GET /api/v1/tasks/<task_id> endpoint works and returns success."""
     from routes.v1.task_route import task_bp
-    
+
     # Register blueprint if not already registered on custom app
     try:
         app.register_blueprint(task_bp, url_prefix="/api/v1/tasks")
@@ -69,10 +74,13 @@ def test_get_task_status_endpoint(app):
     }
 
     # Use test client
-    with app.test_client() as client, \
-         patch("routes.v1.task_route.jwt_required", lambda x=None: lambda f: f), \
-         patch("flask_jwt_extended.view_decorators.verify_jwt_in_request") as mock_verify, \
-         patch("services.task_service.task_service.get_status", return_value=mock_status):
+    with app.test_client() as client, patch(
+        "routes.v1.task_route.jwt_required", lambda x=None: lambda f: f
+    ), patch(
+        "flask_jwt_extended.view_decorators.verify_jwt_in_request"
+    ) as mock_verify, patch(
+        "services.task_service.task_service.get_status", return_value=mock_status
+    ):
 
         response = client.get("/api/v1/tasks/test-123")
         assert response.status_code == 200
@@ -85,7 +93,7 @@ def test_get_task_status_endpoint(app):
 def test_get_admin_task_status_endpoint(app):
     """Test that the admin GET /api/v1/admin/tasks/<task_id> endpoint works for admins."""
     from routes.v1.admin.task_route import admin_task_bp
-    
+
     try:
         app.register_blueprint(admin_task_bp, url_prefix="/api/v1/admin/tasks")
     except AssertionError:
@@ -103,10 +111,13 @@ def test_get_admin_task_status_endpoint(app):
     }
 
     # We mock require_roles to allow access, bypass JWT check
-    with app.test_client() as client, \
-         patch("utils.security.verify_jwt_in_request") as mock_verify_jwt, \
-         patch("utils.security.get_jwt", return_value={"roles": ["admin"]}), \
-         patch("services.task_service.task_service.get_status", return_value=mock_status):
+    with app.test_client() as client, patch(
+        "utils.security.verify_jwt_in_request"
+    ) as mock_verify_jwt, patch(
+        "utils.security.get_jwt", return_value={"roles": ["admin"]}
+    ), patch(
+        "services.task_service.task_service.get_status", return_value=mock_status
+    ):
 
         response = client.get("/api/v1/admin/tasks/test-admin-123")
         assert response.status_code == 200

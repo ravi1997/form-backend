@@ -1,5 +1,6 @@
 from . import form_bp
 from flasgger import swag_from
+
 """
 NLP Search Routes
 
@@ -20,6 +21,8 @@ from flask import (
 from datetime import datetime
 import time
 import json
+from logger.unified_logger import app_logger, error_logger, audit_logger
+from mongoengine.errors import DoesNotExist
 
 from models import FormResponse
 from services.nlp_service import NLPSearchService
@@ -32,24 +35,15 @@ nlp_search_bp = Blueprint("nlp_search", __name__)
 
 
 @nlp_search_bp.route("/<form_id>/nlp-search", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def nlp_search(form_id: str):
     """
@@ -61,13 +55,14 @@ def nlp_search(form_id: str):
 
     from uuid import UUID
     from models import Form
+
     try:
         form_uuid = UUID(form_id)
         # Check permission/existence
         form = Form.objects(id=form_uuid, organization_id=user.organization_id).first()
         if not form:
-             app_logger.warning(f"Form not found: {form_id}")
-             return jsonify({"error": "Form not found"}), 404
+            app_logger.warning(f"Form not found: {form_id}")
+            return jsonify({"error": "Form not found"}), 404
     except ValueError:
         app_logger.warning(f"Invalid form ID format: {form_id}")
         return jsonify({"error": "Invalid form ID format"}), 400
@@ -192,8 +187,12 @@ def nlp_search(form_id: str):
                 )
             except (ConnectionError, TimeoutError):
                 # Fallback to keyword search
-                app_logger.warning("Semantic search failed, falling back to keyword search")
-                results = NLPSearchService._keyword_search(query, documents, max_results)
+                app_logger.warning(
+                    "Semantic search failed, falling back to keyword search"
+                )
+                results = NLPSearchService._keyword_search(
+                    query, documents, max_results
+                )
         else:
             results = NLPSearchService._keyword_search(query, documents, max_results)
 
@@ -232,32 +231,27 @@ def nlp_search(form_id: str):
             # Log error but don't fail the request
             app_logger.warning(f"Failed to save search history: {e}")
 
-        app_logger.info(f"Exiting nlp_search for form_id: {form_id} with {len(results)} results")
+        app_logger.info(
+            f"Exiting nlp_search for form_id: {form_id} with {len(results)} results"
+        )
         return jsonify(response)
     except Exception as e:
-        error_logger.error(f"Error in nlp_search for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error in nlp_search for form {form_id}: {str(e)}", exc_info=True
+        )
         return jsonify({"error": "Internal server error during search"}), 500
 
 
 @nlp_search_bp.route("/<form_id>/semantic-search", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def semantic_search(form_id: str):
     """
@@ -379,7 +373,9 @@ def semantic_search(form_id: str):
             # Log error but don't fail the request
             app_logger.warning(f"Failed to save search history: {e}")
 
-        app_logger.info(f"Exiting semantic_search for form_id: {form_id} with {len(results)} results")
+        app_logger.info(
+            f"Exiting semantic_search for form_id: {form_id} with {len(results)} results"
+        )
         return jsonify(
             {
                 "query": query,
@@ -403,29 +399,23 @@ def semantic_search(form_id: str):
             503,
         )
     except Exception as e:
-        error_logger.error(f"Unexpected error in semantic_search for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Unexpected error in semantic_search for form {form_id}: {str(e)}",
+            exc_info=True,
+        )
         return jsonify({"error": "Internal server error during semantic search"}), 500
 
 
 @nlp_search_bp.route("/<form_id>/semantic-search/stream", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def semantic_search_stream(form_id: str):
     """
@@ -549,11 +539,15 @@ def semantic_search_stream(form_id: str):
             }
 
             # Send final chunk with results
-            app_logger.info(f"Exiting semantic_search_stream for form_id: {form_id} with {len(results)} results")
+            app_logger.info(
+                f"Exiting semantic_search_stream for form_id: {form_id} with {len(results)} results"
+            )
             yield f"data: {json.dumps({'content': json.dumps(results_data), 'done': True, 'model_used': OllamaService.get_embedding_model(), 'results_count': len(results)})}\n\n"
 
         except (ConnectionError, TimeoutError) as e:
-            error_logger.error(f"Ollama service error in semantic_search_stream: {str(e)}")
+            error_logger.error(
+                f"Ollama service error in semantic_search_stream: {str(e)}"
+            )
             error_data = {
                 "content": "",
                 "done": True,
@@ -562,7 +556,10 @@ def semantic_search_stream(form_id: str):
             }
             yield f"data: {json.dumps(error_data)}\n\n"
         except Exception as e:
-            error_logger.error(f"Unexpected error in semantic_search_stream for form {form_id}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Unexpected error in semantic_search_stream for form {form_id}: {str(e)}",
+                exc_info=True,
+            )
             error_data = {
                 "content": "",
                 "done": True,
@@ -583,24 +580,15 @@ def semantic_search_stream(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-stats", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def search_stats(form_id: str):
     """
@@ -635,29 +623,22 @@ def search_stats(form_id: str):
             }
         )
     except Exception as e:
-        error_logger.error(f"Error in search_stats for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error in search_stats for form {form_id}: {str(e)}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
 @nlp_search_bp.route("/<form_id>/query-suggestions", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def query_suggestions(form_id: str):
     """
@@ -684,7 +665,9 @@ def query_suggestions(form_id: str):
             form_id=form_id, partial_query=partial_query, max_suggestions=limit
         )
 
-        app_logger.info(f"Exiting query_suggestions for form_id: {form_id} with {len(suggestions)} suggestions")
+        app_logger.info(
+            f"Exiting query_suggestions for form_id: {form_id} with {len(suggestions)} suggestions"
+        )
         return jsonify(
             {
                 "form_id": form_id,
@@ -700,16 +683,7 @@ def query_suggestions(form_id: str):
 
 
 @nlp_search_bp.route("/health", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    }
-})
+@swag_from({"tags": ["Nlp_Search"], "responses": {"200": {"description": "Success"}}})
 def health_check():
     """
     Health check for NLP search service.
@@ -732,24 +706,15 @@ def health_check():
 
 
 @nlp_search_bp.route("/<form_id>/search-history", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_search_history(form_id: str):
     """
@@ -793,7 +758,9 @@ def get_search_history(form_id: str):
         )
 
     except Exception as e:
-        error_logger.error(f"Error fetching search history for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error fetching search history for form {form_id}: {str(e)}", exc_info=True
+        )
         return (
             jsonify({"error": "Failed to fetch search history", "message": str(e)}),
             500,
@@ -801,24 +768,15 @@ def get_search_history(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-history", methods=["POST"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def save_search_history(form_id: str):
     """
@@ -851,15 +809,20 @@ def save_search_history(form_id: str):
         )
 
         if not search_id:
-            app_logger.error(f"Failed to save search history for user {user.id} and form {form_id}")
+            app_logger.error(
+                f"Failed to save search history for user {user.id} and form {form_id}"
+            )
             return jsonify({"error": "Failed to save search"}), 500
 
-        audit_logger.info(f"User {user.id} saved search history item {search_id} for form {form_id}", extra={
-            "user_id": str(user.id),
-            "form_id": form_id,
-            "search_id": str(search_id),
-            "action": "save_search_history"
-        })
+        audit_logger.info(
+            f"User {user.id} saved search history item {search_id} for form {form_id}",
+            extra={
+                "user_id": str(user.id),
+                "form_id": form_id,
+                "search_id": str(search_id),
+                "action": "save_search_history",
+            },
+        )
 
         app_logger.info(f"Exiting save_search_history for form_id: {form_id}")
         return (
@@ -875,29 +838,22 @@ def save_search_history(form_id: str):
         )
 
     except Exception as e:
-        error_logger.error(f"Error saving search history for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error saving search history for form {form_id}: {str(e)}", exc_info=True
+        )
         return jsonify({"error": "Failed to save search", "message": str(e)}), 500
 
 
 @nlp_search_bp.route("/<form_id>/search-history", methods=["DELETE"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def clear_search_history(form_id: str):
     """
@@ -915,22 +871,27 @@ def clear_search_history(form_id: str):
             deleted_count = NLPSearchService.clear_user_search_history(
                 user_id=str(user.id), form_id=None
             )
-            audit_logger.info(f"User {user.id} cleared all search history", extra={
-                "user_id": str(user.id),
-                "action": "clear_all_search_history"
-            })
+            audit_logger.info(
+                f"User {user.id} cleared all search history",
+                extra={"user_id": str(user.id), "action": "clear_all_search_history"},
+            )
         else:
             # Clear only for this form
             deleted_count = NLPSearchService.clear_user_search_history(
                 user_id=str(user.id), form_id=form_id
             )
-            audit_logger.info(f"User {user.id} cleared search history for form {form_id}", extra={
-                "user_id": str(user.id),
-                "form_id": form_id,
-                "action": "clear_form_search_history"
-            })
+            audit_logger.info(
+                f"User {user.id} cleared search history for form {form_id}",
+                extra={
+                    "user_id": str(user.id),
+                    "form_id": form_id,
+                    "action": "clear_form_search_history",
+                },
+            )
 
-        app_logger.info(f"Exiting clear_search_history for form_id: {form_id}, deleted {deleted_count} items")
+        app_logger.info(
+            f"Exiting clear_search_history for form_id: {form_id}, deleted {deleted_count} items"
+        )
         return jsonify(
             {
                 "deleted_count": deleted_count,
@@ -939,7 +900,9 @@ def clear_search_history(form_id: str):
         )
 
     except Exception as e:
-        error_logger.error(f"Error clearing search history for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error clearing search history for form {form_id}: {str(e)}", exc_info=True
+        )
         return (
             jsonify({"error": "Failed to clear search history", "message": str(e)}),
             500,
@@ -947,30 +910,16 @@ def clear_search_history(form_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/search-history/<search_id>", methods=["DELETE"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        },
-        {
-            "name": "search_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True},
+            {"name": "search_id", "in": "path", "type": "string", "required": True},
+        ],
+    }
+)
 @jwt_required()
 def delete_search_history_item(form_id: str, search_id: str):
     """
@@ -996,16 +945,23 @@ def delete_search_history_item(form_id: str, search_id: str):
         ).delete()
 
         if deleted_count == 0:
-            app_logger.warning(f"Search record {search_id} not found or unauthorized for user {user.id}")
+            app_logger.warning(
+                f"Search record {search_id} not found or unauthorized for user {user.id}"
+            )
             return jsonify({"error": "Search record not found"}), 404
 
-        audit_logger.info(f"User {user.id} deleted search history item {search_id}", extra={
-            "user_id": str(user.id),
-            "search_id": search_id,
-            "action": "delete_search_history_item"
-        })
+        audit_logger.info(
+            f"User {user.id} deleted search history item {search_id}",
+            extra={
+                "user_id": str(user.id),
+                "search_id": search_id,
+                "action": "delete_search_history_item",
+            },
+        )
 
-        app_logger.info(f"Exiting delete_search_history_item for search_id: {search_id}")
+        app_logger.info(
+            f"Exiting delete_search_history_item for search_id: {search_id}"
+        )
         return jsonify(
             {
                 "deleted_count": deleted_count,
@@ -1014,7 +970,9 @@ def delete_search_history_item(form_id: str, search_id: str):
         )
 
     except Exception as e:
-        error_logger.error(f"Error deleting search history item {search_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error deleting search history item {search_id}: {str(e)}", exc_info=True
+        )
         return (
             jsonify({"error": "Failed to delete search record", "message": str(e)}),
             500,
@@ -1022,24 +980,15 @@ def delete_search_history_item(form_id: str, search_id: str):
 
 
 @nlp_search_bp.route("/<form_id>/popular-queries", methods=["GET"])
-@swag_from({
-    "tags": [
-        "Nlp_Search"
-    ],
-    "responses": {
-        "200": {
-            "description": "Success"
-        }
-    },
-    "parameters": [
-        {
-            "name": "form_id",
-            "in": "path",
-            "type": "string",
-            "required": True
-        }
-    ]
-})
+@swag_from(
+    {
+        "tags": ["Nlp_Search"],
+        "responses": {"200": {"description": "Success"}},
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_popular_queries(form_id: str):
     """
@@ -1077,7 +1026,10 @@ def get_popular_queries(form_id: str):
         )
 
     except Exception as e:
-        error_logger.error(f"Error fetching popular queries for form {form_id}: {str(e)}", exc_info=True)
+        error_logger.error(
+            f"Error fetching popular queries for form {form_id}: {str(e)}",
+            exc_info=True,
+        )
         return (
             jsonify({"error": "Failed to fetch popular queries", "message": str(e)}),
             500,

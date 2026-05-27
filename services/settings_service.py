@@ -5,6 +5,7 @@ from models import SystemSettings
 from schemas.system_settings import SystemSettingsSchema
 from schemas.base import InboundPayloadSchema
 
+
 class SystemSettingsUpdateSchema(SystemSettingsSchema, InboundPayloadSchema):
     pass
 
@@ -23,7 +24,9 @@ class SystemSettingsService(BaseService):
             doc = SystemSettings.get_or_create_default()
             return self._to_schema(doc)
         except Exception as e:
-            error_logger.error(f"Failed to retrieve system settings: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Failed to retrieve system settings: {str(e)}", exc_info=True
+            )
             raise
 
     def update_settings(
@@ -51,12 +54,17 @@ class SystemSettingsService(BaseService):
             doc.updated_by = updated_by
             doc.save()
 
-            audit_logger.info(f"System settings updated by administrator: {updated_by}. Changed fields: {list(update_data.keys())}")
+            audit_logger.info(
+                f"System settings updated by administrator: {updated_by}. Changed fields: {list(update_data.keys())}"
+            )
             doc.reload()
             return self._to_schema(doc)
         except ValidationError as e:
             app_logger.warning(f"Validation error updating system settings: {str(e)}")
             raise
         except Exception as e:
-            error_logger.error(f"Failed to update system settings by {updated_by}: {str(e)}", exc_info=True)
+            error_logger.error(
+                f"Failed to update system settings by {updated_by}: {str(e)}",
+                exc_info=True,
+            )
             raise

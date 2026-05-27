@@ -4,13 +4,16 @@ Bootstrap script for form-backend.
 Creates MongoDB indexes for the forms_db database.
 Run inside the backend container: python scripts/bootstrap_resources.py
 """
+
 import os
 import sys
 import time
 
+
 def wait_for_mongo(uri: str, retries: int = 20, delay: int = 3):
     from pymongo import MongoClient
     from pymongo.errors import ConnectionFailure
+
     for i in range(retries):
         try:
             client = MongoClient(uri, serverSelectionTimeoutMS=3000)
@@ -22,6 +25,7 @@ def wait_for_mongo(uri: str, retries: int = 20, delay: int = 3):
             time.sleep(delay)
     print("❌ Could not connect to MongoDB after multiple retries.")
     sys.exit(1)
+
 
 def bootstrap():
     uri = os.environ.get("MONGODB_URI", "mongodb://shared-mongo:27017/forms_db")
@@ -60,6 +64,7 @@ def bootstrap():
 
     client.close()
     print(f"\n✅ Bootstrap complete for {db_name}.\n")
+
 
 if __name__ == "__main__":
     bootstrap()

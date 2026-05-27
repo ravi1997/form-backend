@@ -12,10 +12,12 @@ from mongoengine import QuerySet
 from flask import has_request_context
 from flask_jwt_extended import current_user
 
+
 class TenantIsolatedSoftDeleteQuerySet(QuerySet):
     """
     Automatically filters out deleted documents AND strictly enforces organization_id boundaries based on the active JWT user context.
     """
+
     def __call__(self, q_obj=None, **query):
         model = getattr(self, "_document", None)
         if model is None:
@@ -24,7 +26,7 @@ class TenantIsolatedSoftDeleteQuerySet(QuerySet):
         # 1. Enforce Soft Delete
         if "is_deleted" not in query and "is_deleted" in model._fields:
             query["is_deleted"] = False
-            
+
         # 2. Enforce Tenant Isolation Boundary
         if has_request_context() and current_user:
             if "organization_id" in model._fields:
@@ -32,8 +34,10 @@ class TenantIsolatedSoftDeleteQuerySet(QuerySet):
                 user_roles = getattr(current_user, "roles", []) or []
                 if "superadmin" not in user_roles:
                     # STRICT: Overwrite any attempted manual filter with the actual user org
-                    query["organization_id"] = getattr(current_user, "organization_id", None)
-                    
+                    query["organization_id"] = getattr(
+                        current_user, "organization_id", None
+                    )
+
         return super().__call__(q_obj, **query)
 
     def deleted(self):
@@ -93,11 +97,13 @@ class BaseDocument(Document, TimestampMixin):
 
     meta = {"abstract": True, "queryset_class": TenantIsolatedSoftDeleteQuerySet}
     id = UUIDField(primary_key=True, default=uuid.uuid4, binary=False)
-    organization_id = StringField(required=False, help_text="Global tenant partition key. Do not modify manually.")
+    organization_id = StringField(
+        required=False, help_text="Global tenant partition key. Do not modify manually."
+    )
 
     def save(self, *args, **kwargs):
         self.update_timestamp()
-        
+
         # Enforce tenancy isolation during write operations
         if has_request_context() and current_user:
             user_roles = getattr(current_user, "roles", []) or []
@@ -106,7 +112,7 @@ class BaseDocument(Document, TimestampMixin):
                 if user_org:
                     # Fail-safe protection: enforce user's organization on save
                     self.organization_id = user_org
-                    
+
         return super().save(*args, **kwargs)
 
     def to_dict(self):

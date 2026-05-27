@@ -8,7 +8,6 @@ from __future__ import annotations
 import ast
 from typing import Any, Dict
 
-
 _ALLOWED_NODES = (
     ast.Expression,
     ast.BoolOp,
@@ -51,7 +50,9 @@ def _assert_safe_ast(node: ast.AST) -> None:
 
 
 def execute_safe_script(
-    script: str, input_data: Dict[str, Any] | None = None, additional_globals: Dict[str, Any] | None = None
+    script: str,
+    input_data: Dict[str, Any] | None = None,
+    additional_globals: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
     Evaluates script payloads of the form `result = <expression>` safely.
@@ -63,7 +64,7 @@ def execute_safe_script(
 
     prefix = "result ="
     if statement.startswith(prefix):
-        expression = statement[len(prefix):].strip()
+        expression = statement[len(prefix) :].strip()
     else:
         expression = statement
 

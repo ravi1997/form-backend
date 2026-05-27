@@ -69,17 +69,23 @@ def print_expanded_form_response_rows():
     )
 
     try:
-        responses = FormResponse.objects(
-            __raw__={
-                "organization_id": "org_001",
-                "is_deleted": False,
-                "form": target_form_binary,
-                f"data.{target_question_id}": target_value,
-            }
-        ).order_by("submitted_at").limit(100)
+        responses = (
+            FormResponse.objects(
+                __raw__={
+                    "organization_id": "org_001",
+                    "is_deleted": False,
+                    "form": target_form_binary,
+                    f"data.{target_question_id}": target_value,
+                }
+            )
+            .order_by("submitted_at")
+            .limit(100)
+        )
         print("query done")
         for response in responses:
-            print(json_util.dumps(_stringify_uuids(_expand_response(response)), indent=2))
+            print(
+                json_util.dumps(_stringify_uuids(_expand_response(response)), indent=2)
+            )
             print("---")
     finally:
         mongoengine.disconnect()

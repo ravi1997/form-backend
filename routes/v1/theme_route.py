@@ -44,7 +44,9 @@ def create_theme():
     schema = ThemeCreateSchema(**data)
     theme = theme_service.create_theme(schema)
     audit_logger.info(f"Theme {theme.id} created by user {current_user.id}")
-    return success_response(data=theme.model_dump(), message="Theme created", status_code=201)
+    return success_response(
+        data=theme.model_dump(), message="Theme created", status_code=201
+    )
 
 
 @theme_bp.route("/<theme_id>", methods=["PUT"])
@@ -72,6 +74,8 @@ def update_theme(theme_id):
 def delete_theme(theme_id):
     """Delete a custom theme."""
     current_user = get_current_user()
-    theme_service.soft_delete_theme(theme_id, organization_id=current_user.organization_id)
+    theme_service.soft_delete_theme(
+        theme_id, organization_id=current_user.organization_id
+    )
     audit_logger.info(f"Theme {theme_id} deleted by user {current_user.id}")
     return success_response(message="Theme deleted")

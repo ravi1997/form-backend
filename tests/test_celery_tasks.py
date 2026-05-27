@@ -41,7 +41,9 @@ def test_process_single_trigger_webhook(mock_call_webhook):
 
     process_single_trigger(trigger_data, context_data)
 
-    mock_call_webhook.assert_called_once_with(trigger_data["action_config"], context_data)
+    mock_call_webhook.assert_called_once_with(
+        trigger_data["action_config"], context_data
+    )
 
 
 @patch("services.notification_service.NotificationService._call_webhook")

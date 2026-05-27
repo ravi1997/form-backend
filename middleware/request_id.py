@@ -39,7 +39,9 @@ def _pretty_body(body):
     return body
 
 
-def _pretty_block(kind, method=None, path=None, status=None, headers=None, body=None, request_id=None):
+def _pretty_block(
+    kind, method=None, path=None, status=None, headers=None, body=None, request_id=None
+):
     payload = {
         "kind": kind,
         "request_id": request_id,
@@ -64,9 +66,7 @@ def setup_request_id(app):
         if request.method not in {"GET", "HEAD"}:
             try:
                 if request.is_json:
-                    g.request_body_preview = _pretty_body(
-                        request.get_json(silent=True)
-                    )
+                    g.request_body_preview = _pretty_body(request.get_json(silent=True))
                 else:
                     g.request_body_preview = _safe_body_preview(
                         request.get_data(as_text=True)
@@ -85,7 +85,7 @@ def setup_request_id(app):
                 request_id=request_id,
             ),
         )
-        
+
     @app.after_request
     def log_request(response):
         # Optional: Add request ID to response headers

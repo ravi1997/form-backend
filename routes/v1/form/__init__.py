@@ -12,6 +12,7 @@ def pull_project_id(endpoint, values):
     if project_id is not None:
         g.project_id = project_id
 
+
 # Import routes to register them with the blueprint
 from . import (
     form,
@@ -32,5 +33,5 @@ from . import (
     permissions,
     summarization,
     translation,
-    validation
+    validation,
 )

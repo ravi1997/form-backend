@@ -1,9 +1,16 @@
 from utils.response_helper import error_response
-from utils.exceptions import ServiceError, NotFoundError, ValidationError, UnauthorizedError, ForbiddenError
+from utils.exceptions import (
+    ServiceError,
+    NotFoundError,
+    ValidationError,
+    UnauthorizedError,
+    ForbiddenError,
+)
 from mongoengine import DoesNotExist, ValidationError as MongoValidationError
 from logger.unified_logger import get_logger
 
 logger = get_logger(__name__)
+
 
 def register_error_handlers(app):
     @app.errorhandler(NotFoundError)
@@ -15,15 +22,20 @@ def register_error_handlers(app):
     @app.errorhandler(MongoValidationError)
     def handle_validation_error(e):
         details = getattr(e, "details", None)
-        return error_response(message=str(e) or "Validation failed", details=details, status_code=422)
+        return error_response(
+            message=str(e) or "Validation failed", details=details, status_code=422
+        )
 
     from pydantic import ValidationError as PydanticValidationError
+
     @app.errorhandler(PydanticValidationError)
     def handle_pydantic_validation_error(e):
         logger.warning(f"Pydantic validation error: {e}")
         # Parse Pydantic error details to return a clean client envelope
         details = e.errors(include_url=False, include_context=False)
-        return error_response(message="Validation failed", details=details, status_code=422)
+        return error_response(
+            message="Validation failed", details=details, status_code=422
+        )
 
     @app.errorhandler(UnauthorizedError)
     def handle_unauthorized_error(e):
@@ -56,5 +68,6 @@ def register_error_handlers(app):
         return error_response(message="Internal server error", status_code=500)
 
     from utils.security import handle_unauthorized, handle_forbidden
+
     app.register_error_handler(401, handle_unauthorized)
     app.register_error_handler(403, handle_forbidden)

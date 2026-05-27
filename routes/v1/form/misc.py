@@ -159,7 +159,9 @@ def submit_public_response(form_id):
         )
         return error_response(message=str(e), status_code=409, code="CONFLICT")
     except Exception as e:
-        error_logger.error(f"Error in submit_public_response for form {form_id}: {e}", exc_info=True)
+        error_logger.error(
+            f"Error in submit_public_response for form {form_id}: {e}", exc_info=True
+        )
         return error_response(message="Failed to submit response", status_code=400)
 
 
@@ -210,14 +212,18 @@ def form_submission_history(form_id):
             UUID(form_id),
             uuid_representation=UuidRepresentation.PYTHON_LEGACY,
         )
-        responses = FormResponse.objects(
-            __raw__={
-                "organization_id": current_user.organization_id,
-                "is_deleted": False,
-                "form": target_form_binary,
-                f"data.{question_id}": primary_value,
-            }
-        ).order_by("submitted_at").limit(100)
+        responses = (
+            FormResponse.objects(
+                __raw__={
+                    "organization_id": current_user.organization_id,
+                    "is_deleted": False,
+                    "form": target_form_binary,
+                    f"data.{question_id}": primary_value,
+                }
+            )
+            .order_by("submitted_at")
+            .limit(100)
+        )
 
         result = [
             {"_id": str(r.id), "submitted_at": r.submitted_at.isoformat()}
@@ -354,4 +360,6 @@ def check_next_action(form_id):
         error_logger.error(
             f"Error checking next action for {form_id}: {str(e)}", exc_info=True
         )
-        return error_response(message="Failed to evaluate next actions", status_code=400)
+        return error_response(
+            message="Failed to evaluate next actions", status_code=400
+        )

@@ -47,10 +47,10 @@ class WorkflowInstance(BaseDocument, SoftDeleteMixin):
     # State
     status = StringField(choices=WORKFLOW_STATUS_CHOICES, default="pending")
     current_step_order = IntField(default=1)
-    
+
     # Tracking for parallel steps
     # Maps step_order -> list of User IDs who approved
-    step_approvals = DictField() 
+    step_approvals = DictField()
     current_step_started_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     # Audit Trail

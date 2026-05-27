@@ -1,5 +1,6 @@
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
+
 class OllamaService:
     @staticmethod
     def health_check():
