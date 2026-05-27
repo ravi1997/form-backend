@@ -50,7 +50,7 @@ def create_theme():
         return success_response(data=theme.model_dump(), message="Theme created", status_code=201)
     except Exception as exc:
         error_logger.error(f"Failed to create theme: {exc}", exc_info=True)
-        return error_response(message=str(exc), status_code=400)
+        return error_response(message="Failed to create theme", status_code=400)
 
 
 @theme_bp.route("/<theme_id>", methods=["PUT"])
@@ -72,7 +72,7 @@ def update_theme(theme_id):
         return success_response(data=theme.model_dump(), message="Theme updated")
     except Exception as exc:
         error_logger.error(f"Failed to update theme {theme_id}: {exc}", exc_info=True)
-        return error_response(message=str(exc), status_code=400)
+        return error_response(message="Failed to update theme", status_code=400)
 
 
 @theme_bp.route("/<theme_id>", methods=["DELETE"])
@@ -86,4 +86,4 @@ def delete_theme(theme_id):
         return success_response(message="Theme deleted")
     except Exception as exc:
         error_logger.error(f"Failed to delete theme {theme_id}: {exc}", exc_info=True)
-        return error_response(message=str(exc), status_code=400)
+        return error_response(message="Failed to delete theme", status_code=400)
