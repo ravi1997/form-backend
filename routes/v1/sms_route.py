@@ -12,6 +12,7 @@ from services.external_sms_service import get_sms_service
 from utils.security import require_roles
 from extensions import limiter
 from logger.unified_logger import app_logger, error_logger, audit_logger
+from utils.response_helper import success_response, error_response
 
 sms_bp = Blueprint("sms", __name__)
 
@@ -62,7 +63,7 @@ def send_single_sms():
 
     except Exception as e:
         error_logger.exception(f"Unexpected error in single SMS delivery: {str(e)} (User: {current_user})")
-        return jsonify({"error": "Internal server error"}), 500
+        return error_response(message="Failed to send SMS", status_code=500)
 
 
 @sms_bp.route("/otp", methods=["POST"])
@@ -103,7 +104,7 @@ def send_otp():
 
     except Exception as e:
         error_logger.exception(f"Unexpected error in OTP delivery: {str(e)} (User: {current_user})")
-        return jsonify({"error": "Internal server error"}), 500
+        return error_response(message="Failed to send OTP", status_code=500)
 
 
 @sms_bp.route("/notify", methods=["POST"])
@@ -144,7 +145,7 @@ def send_notification():
 
     except Exception as e:
         error_logger.exception(f"Unexpected error in notification delivery: {str(e)} (User: {current_user})")
-        return jsonify({"error": "Internal server error"}), 500
+        return error_response(message="Failed to send notification", status_code=500)
 
 
 @sms_bp.route("/health", methods=["GET"])
@@ -166,11 +167,10 @@ def health_check():
         sms_service = get_sms_service()
         if sms_service.api_url and sms_service.api_token:
             app_logger.info("SMS service health check: healthy")
-            return jsonify({"status": "healthy", "service": "external_sms"}), 200
+            return success_response(data={"status": "healthy", "service": "external_sms"})
         
         app_logger.warning("SMS service health check: unhealthy (API not configured)")
-        return jsonify({"status": "unhealthy", "error": "API not configured"}), 503
+        return error_response(message="SMS service not configured", status_code=503)
     except Exception as e:
-        error_logger.error(f"SMS service health check failed: {str(e)}")
-        return jsonify({"status": "unhealthy", "error": str(e)}), 503
-
+        error_logger.error(f"SMS service health check failed: {str(e)}", exc_info=True)
+        return error_response(message="SMS service unhealthy", status_code=503)
