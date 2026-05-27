@@ -17,6 +17,14 @@ def register_error_handlers(app):
         details = getattr(e, "details", None)
         return error_response(message=str(e) or "Validation failed", details=details, status_code=422)
 
+    from pydantic import ValidationError as PydanticValidationError
+    @app.errorhandler(PydanticValidationError)
+    def handle_pydantic_validation_error(e):
+        logger.warning(f"Pydantic validation error: {e}")
+        # Parse Pydantic error details to return a clean client envelope
+        details = e.errors(include_url=False, include_context=False)
+        return error_response(message="Validation failed", details=details, status_code=422)
+
     @app.errorhandler(UnauthorizedError)
     def handle_unauthorized_error(e):
         return error_response(message=str(e) or "Unauthorized", status_code=401)
@@ -40,6 +48,11 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def internal_error(e):
         logger.error(f"Unhandled server error: {e}", exc_info=True)
+        return error_response(message="Internal server error", status_code=500)
+
+    @app.errorhandler(Exception)
+    def handle_generic_exception(e):
+        logger.error(f"Unhandled exception caught by middleware: {e}", exc_info=True)
         return error_response(message="Internal server error", status_code=500)
 
     from utils.security import handle_unauthorized, handle_forbidden
