@@ -124,7 +124,7 @@ def submit_response(form_id):
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error submitting response to form {form_id}: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return error_response(message="Failed to submit response", status_code=400)
 
 @form_bp.route("/<form_id>/responses", methods=["GET"])
 @swag_from({
@@ -240,4 +240,4 @@ def list_responses(form_id):
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
         app_logger.warning(f"Error listing responses for form {form_id}: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return error_response(message="Failed to list responses", status_code=400)
