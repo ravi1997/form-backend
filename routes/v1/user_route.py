@@ -58,7 +58,9 @@ def get_profile():
 @limiter.limit("3 per hour")
 def change_password():
     """Securely change current user's password."""
-    safe_log_info(app_logger, "User %s requesting password change", str(current_user.id))
+    safe_log_info(
+        app_logger, "User %s requesting password change", str(current_user.id)
+    )
     data = request.json or {}
     current_pw = data.get("current_password", "")
     new_pw = data.get("new_password", "")
@@ -247,7 +249,9 @@ def update_user_roles(user_id):
 
     user = User.objects(id=user_id).first()
     if not user:
-        app_logger.warning(f"Admin {admin_id} attempted to update roles for non-existent user {user_id}")
+        app_logger.warning(
+            f"Admin {admin_id} attempted to update roles for non-existent user {user_id}"
+        )
         raise NotFoundError("User not found")
 
     old_roles = user.roles
@@ -256,7 +260,9 @@ def update_user_roles(user_id):
         user.is_admin = True
     user.save()
 
-    audit_logger.info(f"Roles for user {user_id} updated from {old_roles} to {roles} by admin {admin_id}")
+    audit_logger.info(
+        f"Roles for user {user_id} updated from {old_roles} to {roles} by admin {admin_id}"
+    )
     return success_response(
         data=UserOut.model_validate(user.to_dict()).model_dump(),
         message="Roles updated",
@@ -289,7 +295,9 @@ def lock_user_account(user_id):
 
     user = User.objects(id=user_id).first()
     if not user:
-        app_logger.warning(f"Admin {admin_id} attempted to lock non-existent user {user_id}")
+        app_logger.warning(
+            f"Admin {admin_id} attempted to lock non-existent user {user_id}"
+        )
         raise NotFoundError("User not found")
 
     user.lock_account()
@@ -319,7 +327,9 @@ def unlock_user_account(user_id):
 
     user = User.objects(id=user_id).first()
     if not user:
-        app_logger.warning(f"Admin {admin_id} attempted to unlock non-existent user {user_id}")
+        app_logger.warning(
+            f"Admin {admin_id} attempted to unlock non-existent user {user_id}"
+        )
         raise NotFoundError("User not found")
 
     user.unlock_account()

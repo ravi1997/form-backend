@@ -39,8 +39,12 @@ def create_project():
     data["organization_id"] = current_user.organization_id
     schema = ProjectCreateSchema(**data)
     project = project_service.create(schema)
-    audit_logger.info(f"AUDIT: Project created with ID {project.id} by user {current_user.id}")
-    return success_response(data=project.model_dump(), message="Project created", status_code=201)
+    audit_logger.info(
+        f"AUDIT: Project created with ID {project.id} by user {current_user.id}"
+    )
+    return success_response(
+        data=project.model_dump(), message="Project created", status_code=201
+    )
 
 
 @project_bp.route("/", methods=["GET"])
@@ -48,7 +52,9 @@ def create_project():
 def list_projects():
     """List all projects for the current organization."""
     current_user = get_current_user()
-    result = project_service.list_paginated(organization_id=current_user.organization_id)
+    result = project_service.list_paginated(
+        organization_id=current_user.organization_id
+    )
     return success_response(data=result.to_dict())
 
 
@@ -57,7 +63,9 @@ def list_projects():
 def get_project(project_id):
     """Get a project by ID."""
     current_user = get_current_user()
-    project = project_service.get_by_id(project_id, organization_id=current_user.organization_id)
+    project = project_service.get_by_id(
+        project_id, organization_id=current_user.organization_id
+    )
     return success_response(data=project.model_dump())
 
 
@@ -68,8 +76,12 @@ def update_project(project_id):
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     schema = ProjectUpdateSchema(**data)
-    project = project_service.update(project_id, schema, organization_id=current_user.organization_id)
-    audit_logger.info(f"AUDIT: Project updated with ID {project_id} by user {current_user.id}")
+    project = project_service.update(
+        project_id, schema, organization_id=current_user.organization_id
+    )
+    audit_logger.info(
+        f"AUDIT: Project updated with ID {project_id} by user {current_user.id}"
+    )
     return success_response(data=project.model_dump(), message="Project updated")
 
 
@@ -79,7 +91,9 @@ def delete_project(project_id):
     """Soft-delete a project by ID."""
     current_user = get_current_user()
     project_service.delete(project_id, organization_id=current_user.organization_id)
-    audit_logger.info(f"AUDIT: Project deleted with ID {project_id} by user {current_user.id}")
+    audit_logger.info(
+        f"AUDIT: Project deleted with ID {project_id} by user {current_user.id}"
+    )
     return success_response(message="Project deleted")
 
 
@@ -99,13 +113,19 @@ def create_form_in_project(project_id):
         audit_logger.info(
             f"AUDIT: Unauthorized form creation attempt in project {project_id} by user {current_user.id}"
         )
-        return error_response(message="Unauthorized to manage this project", status_code=403)
+        return error_response(
+            message="Unauthorized to manage this project", status_code=403
+        )
 
     form = project_service.create_form_in_project(
         project_id, data, current_user.organization_id, current_user
     )
-    audit_logger.info(f"AUDIT: Form {form.id} created in project {project_id} by user {current_user.id}")
-    return success_response(data=form.model_dump(), message="Form created in project", status_code=201)
+    audit_logger.info(
+        f"AUDIT: Form {form.id} created in project {project_id} by user {current_user.id}"
+    )
+    return success_response(
+        data=form.model_dump(), message="Form created in project", status_code=201
+    )
 
 
 @project_bp.route("/<project_id>/forms", methods=["GET"])

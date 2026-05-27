@@ -52,3 +52,29 @@ def test_cors_allows_flutter_dev_origin(client):
 
     assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:51337"
     assert response.headers["Access-Control-Allow-Credentials"] == "true"
+
+
+def test_waf_tolerates_nested_hex_colors_but_blocks_sqli(client):
+    # 1. Legitimate nested hex color should be allowed (will hit 404 because form isn't real, but not 403 WAF block)
+    response = client.put(
+        "/mahasangraha/api/v1/projects/ba4aeb2c-83c2-4c84-b9b2-e7713d64f8eb/forms/c700ae23-44d3-4ce6-a804-2a2146cc3d99/draft",
+        json={"sections": [{"style": {"backgroundColor": "#FFFFFF"}}]},
+        headers={"X-Organization-ID": "org_001"},
+    )
+    # WAF did not block it with 403, so it processed past it (may fail with 401 auth or 404, but NOT 403)
+    assert response.status_code != 403
+
+    # 2. SQL Injection in a normal field should be blocked with 403
+    response = client.put(
+        "/mahasangraha/api/v1/projects/ba4aeb2c-83c2-4c84-b9b2-e7713d64f8eb/forms/c700ae23-44d3-4ce6-a804-2a2146cc3d99/draft",
+        json={
+            "sections": [
+                {
+                    "title": "Legit Title",
+                    "description": "normal text OR 1=1 -- SQLi test",
+                }
+            ]
+        },
+        headers={"X-Organization-ID": "org_001"},
+    )
+    assert response.status_code == 403

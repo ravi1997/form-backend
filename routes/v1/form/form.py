@@ -799,11 +799,15 @@ def _serialize_form_version(form_version):
         snapshot = form_version.resolved_snapshot or {}
     except Exception:
         snapshot = {}
+    try:
+        form_ref = form_version.to_mongo().get("form")
+    except Exception:
+        form_ref = getattr(form_version, "form", None)
 
     return BaseSerializer.clean_dict(
         {
             "id": str(form_version.id),
-            "form_id": str(getattr(form_version.form, "id", form_version.form)),
+            "form_id": str(getattr(form_ref, "id", form_ref)),
             "version": getattr(version_doc, "version_string", None),
             "major": getattr(version_doc, "major", None),
             "minor": getattr(version_doc, "minor", None),
@@ -870,21 +874,44 @@ def save_form_draft(form_id):
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     try:
+        from uuid import UUID
+
+        try:
+            search_id = UUID(form_id) if isinstance(form_id, str) else form_id
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
         form = Form.objects.get(
-            id=form_id,
-            project=getattr(g, "project_id", None),
+            id=search_id,
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
+        project_id = getattr(g, "project_id", None)
+        if project_id:
+            form_project_ref = form.to_mongo().get("project")
+            form_project_id = getattr(form_project_ref, "id", form_project_ref)
+            if str(form_project_id) != str(project_id):
+                raise DoesNotExist()
         if not has_form_permission(current_user, form, "edit"):
             return error_response(message="Unauthorized", status_code=403)
         form_service.sync_form_canvas(str(form.id), current_user.organization_id, data)
         form_version = form_service.sync_draft_version(
             str(form.id), current_user.organization_id
         )
-        audit_logger.info(f"Form draft {form_id} saved by user {current_user.id}")
+        version_str = "0.1.0"
+        try:
+            v_doc = form_version.version
+            if v_doc:
+                version_str = getattr(v_doc, "version_string", version_str)
+        except Exception:
+            pass
+
         return success_response(
-            data={"form_id": form_id, "version": _serialize_form_version(form_version)},
+            data={
+                "form_id": form_id,
+                "version_id": str(getattr(form_version, "id", "")),
+                "version": version_str,
+            },
             message="Draft saved",
         )
     except DoesNotExist:

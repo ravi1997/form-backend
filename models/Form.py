@@ -314,6 +314,9 @@ class Form(BaseDocument, SoftDeleteMixin):
     status = StringField(choices=STATUS_CHOICES, default="draft")
     ui_type = StringField(choices=UI_TYPE_CHOICES, default="flex")
     active_version = ReferenceField("Version")
+    head_commit_id = UUIDField(binary=False)
+    active_publish_commit_id = UUIDField(binary=False)
+    branches = DictField(default=dict)
 
     # Metadata & Distribution
     description = StringField()

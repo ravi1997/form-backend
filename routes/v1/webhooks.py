@@ -40,17 +40,29 @@ def deliver_webhook():
         app_logger.warning(
             f"Webhook delivery failed: missing required fields. URL: {url}, Webhook ID: {webhook_id}, Form ID: {form_id}"
         )
-        return error_response(message="url, webhook_id, form_id, and payload are required", status_code=400)
+        return error_response(
+            message="url, webhook_id, form_id, and payload are required",
+            status_code=400,
+        )
 
     schedule_for = None
     if schedule_for_str:
         try:
-            schedule_for = datetime.fromisoformat(schedule_for_str.replace("Z", "+00:00"))
+            schedule_for = datetime.fromisoformat(
+                schedule_for_str.replace("Z", "+00:00")
+            )
         except ValueError:
-            app_logger.warning(f"Webhook delivery failed: invalid schedule_for format: {schedule_for_str}")
-            return error_response(message="schedule_for must be a valid ISO-8601 datetime", status_code=400)
+            app_logger.warning(
+                f"Webhook delivery failed: invalid schedule_for format: {schedule_for_str}"
+            )
+            return error_response(
+                message="schedule_for must be a valid ISO-8601 datetime",
+                status_code=400,
+            )
 
-    app_logger.info(f"Triggering webhook delivery for form_id: {form_id}, webhook_id: {webhook_id} by user: {created_by}")
+    app_logger.info(
+        f"Triggering webhook delivery for form_id: {form_id}, webhook_id: {webhook_id} by user: {created_by}"
+    )
 
     result = WebhookService.send_webhook(
         url=url,
@@ -154,7 +166,9 @@ def get_webhook_history(delivery_id=None):
 def retry_webhook(delivery_id: str):
     """Admin only: Manually retry a failed delivery."""
     admin_id = get_jwt_identity()
-    app_logger.info(f"Retry webhook for delivery_id: {delivery_id} by admin: {admin_id}")
+    app_logger.info(
+        f"Retry webhook for delivery_id: {delivery_id} by admin: {admin_id}"
+    )
     data = request.get_json(silent=True) or {}
     reset_count = data.get("reset_count", False)
     result = WebhookService.retry_webhook(delivery_id, reset_count=reset_count)
@@ -181,10 +195,14 @@ def retry_webhook(delivery_id: str):
 def cancel_webhook(delivery_id: str):
     """Admin only: Cancel a pending/retrying delivery."""
     admin_id = get_jwt_identity()
-    app_logger.info(f"Cancel webhook for delivery_id: {delivery_id} by admin: {admin_id}")
+    app_logger.info(
+        f"Cancel webhook for delivery_id: {delivery_id} by admin: {admin_id}"
+    )
     result = WebhookService.cancel_webhook(delivery_id)
 
-    audit_logger.info(f"Webhook delivery cancelled. Delivery ID: {delivery_id}, Admin: {admin_id}")
+    audit_logger.info(
+        f"Webhook delivery cancelled. Delivery ID: {delivery_id}, Admin: {admin_id}"
+    )
     return success_response(data=result)
 
 
@@ -210,7 +228,9 @@ def test_webhook():
     payload = data.get("payload")
 
     if not url or not payload:
-        app_logger.warning(f"Test webhook failed: missing URL or payload by admin: {admin_id}")
+        app_logger.warning(
+            f"Test webhook failed: missing URL or payload by admin: {admin_id}"
+        )
         return error_response(message="url and payload are required", status_code=400)
 
     result = WebhookService.send_webhook(

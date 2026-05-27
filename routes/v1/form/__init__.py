@@ -34,4 +34,5 @@ from . import (
     summarization,
     translation,
     validation,
+    git,
 )

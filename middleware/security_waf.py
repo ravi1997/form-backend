@@ -3,6 +3,8 @@ import logging
 from flask import request, abort, g
 from logger.unified_logger import error_logger, audit_logger
 
+from werkzeug.exceptions import HTTPException
+
 # --- Security Patterns (OWASP Top 10 Protections) ---
 
 # SQL Injection patterns
@@ -155,6 +157,8 @@ class SecurityWAF:
                             client_ip,
                             request_id,
                         )
+                except HTTPException:
+                    raise
                 except Exception:
                     pass
 
@@ -220,8 +224,22 @@ class SecurityWAF:
             return
 
         if isinstance(value, str):
-            if path in SAFE_JSON_PATHS:
+            # Normalize path by removing array indices (e.g., "sections[0].style.backgroundColor" -> "sections.style.backgroundColor")
+            # and stripping any leading dot
+            normalized_path = re.sub(r"\[\d+\]", "", path).lstrip(".")
+
+            # Check if normalized_path or its suffix matches any safe path
+            is_safe = False
+            for safe_path in SAFE_JSON_PATHS:
+                if normalized_path == safe_path or normalized_path.endswith(
+                    "." + safe_path
+                ):
+                    is_safe = True
+                    break
+
+            if is_safe:
                 return
+
             self._check_value(
                 value, f"{source}.{path}" if path else source, client_ip, request_id
             )

@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
+from bson import DBRef
 from services.form_validation_service import FormValidationService
 from models.Form import Form, FormVersion
 
@@ -147,3 +148,40 @@ def test_cascading_selects():
         )
         assert valid
         assert cleaned["city"] == "Mumbai"
+
+
+def test_save_form_draft_uses_project_scoped_form_lookup(app):
+    from routes.v1.form.form import save_form_draft
+
+    mock_form = MagicMock()
+    mock_form.id = "form-1"
+    mock_form.organization_id = "org-1"
+    mock_form.to_mongo.return_value = {"project": DBRef("projects", "project-1")}
+
+    mock_form_version = MagicMock()
+    mock_form_version.model_dump.return_value = {"version": "1.0.0"}
+    mock_form_version.to_mongo.return_value = {"form": "form-1"}
+
+    with app.test_request_context(
+        "/mahasangraha/api/v1/projects/project-1/forms/form-1/draft",
+        method="PUT",
+        json={"sections": []},
+        headers={"X-Organization-ID": "org-1"},
+    ), patch("routes.v1.form.form.get_current_user") as mock_current_user, patch(
+        "routes.v1.form.form.Form.objects"
+    ) as mock_form_objects, patch(
+        "routes.v1.form.form.has_form_permission", return_value=True
+    ), patch(
+        "routes.v1.form.form.form_service.sync_form_canvas"
+    ) as mock_sync_canvas, patch(
+        "routes.v1.form.form.form_service.sync_draft_version",
+        return_value=mock_form_version,
+    ):
+        mock_current_user.return_value = MagicMock(id="user-1", organization_id="org-1")
+        mock_form_objects.get.return_value = mock_form
+
+        response, status = save_form_draft("form-1")
+
+        assert status == 200
+        assert response.get_json()["success"] is True
+        mock_sync_canvas.assert_called_once()

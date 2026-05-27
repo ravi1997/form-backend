@@ -7,6 +7,7 @@ from mongoengine import (
     BooleanField,
     IntField,
     BinaryField,
+    UUIDField,
 )
 from datetime import datetime, timezone
 from models.base import BaseDocument, SoftDeleteMixin
@@ -50,6 +51,8 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
     form = ReferenceField("Form", required=True)
     form_version = ReferenceField("FormVersion")
     version = StringField()
+    commit_id = UUIDField(binary=False)
+    detached_data = DictField(default=dict)
 
     # Payload - The source for dynamic views
     # Keys should match question variable_names

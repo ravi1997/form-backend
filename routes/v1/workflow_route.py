@@ -13,6 +13,7 @@ workflow_bp = Blueprint("workflow", __name__)
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
+
 def _frontend_step_to_backend(step_data):
     """Translate the frontend workflow step shape into the backend approval step shape."""
     step_name = step_data.get("name") or step_data.get("step_name") or "Step"
@@ -32,8 +33,10 @@ def _frontend_step_to_backend(step_data):
             "min_approvals_required",
             config.get("min_approvals_required", 1),
         ),
-        on_approve_script=config.get("on_approve_script") or step_data.get("on_approve_script"),
-        on_reject_script=config.get("on_reject_script") or step_data.get("on_reject_script"),
+        on_approve_script=config.get("on_approve_script")
+        or step_data.get("on_approve_script"),
+        on_reject_script=config.get("on_reject_script")
+        or step_data.get("on_reject_script"),
     )
 
 
@@ -68,8 +71,16 @@ def _serialize_workflow(workflow):
             for idx, step in enumerate(workflow.steps or [])
         ],
         "transitions": [],
-        "createdAt": workflow.created_at.isoformat() if getattr(workflow, "created_at", None) else None,
-        "updatedAt": workflow.updated_at.isoformat() if getattr(workflow, "updated_at", None) else None,
+        "createdAt": (
+            workflow.created_at.isoformat()
+            if getattr(workflow, "created_at", None)
+            else None
+        ),
+        "updatedAt": (
+            workflow.updated_at.isoformat()
+            if getattr(workflow, "updated_at", None)
+            else None
+        ),
         "createdBy": workflow.created_by,
         "initialStepId": None,
         "finalStepIds": [],
@@ -102,11 +113,16 @@ def _no_model():
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
+
 @workflow_bp.route("/", methods=["POST"])
-@swag_from({
-    "tags": ["Workflow"],
-    "responses": {"200": {"description": "Create a new multi-step approval workflow."}},
-})
+@swag_from(
+    {
+        "tags": ["Workflow"],
+        "responses": {
+            "200": {"description": "Create a new multi-step approval workflow."}
+        },
+    }
+)
 @jwt_required()
 def create_workflow():
     """Create a new multi-step approval workflow."""
@@ -123,7 +139,9 @@ def create_workflow():
 
     trigger_form_value = data.get("trigger_form_id") or data.get("formId")
     if not trigger_form_value:
-        return error_response("Missing required field: trigger_form_id", status_code=400)
+        return error_response(
+            "Missing required field: trigger_form_id", status_code=400
+        )
 
     trigger_form_uuid, err = _parse_uuid(trigger_form_value, "trigger_form_id")
     if err:
@@ -133,8 +151,12 @@ def create_workflow():
         id=trigger_form_uuid, organization_id=current_user.organization_id
     ).first()
     if not trigger_form:
-        app_logger.warning(f"create_workflow: trigger form {trigger_form_uuid} not found for org {current_user.organization_id}")
-        return error_response("Trigger form not found or access denied", status_code=404)
+        app_logger.warning(
+            f"create_workflow: trigger form {trigger_form_uuid} not found for org {current_user.organization_id}"
+        )
+        return error_response(
+            "Trigger form not found or access denied", status_code=404
+        )
 
     steps = [_frontend_step_to_backend(s) for s in data["steps"]]
     workflow = ApprovalWorkflow(
@@ -149,15 +171,25 @@ def create_workflow():
     )
     workflow.save()
 
-    audit_logger.info(f"Workflow created. ID: {workflow.id}, Org: {current_user.organization_id}, User: {current_user.id}")
-    return success_response(data=_serialize_workflow(workflow), message="Approval workflow created successfully", status_code=201)
+    audit_logger.info(
+        f"Workflow created. ID: {workflow.id}, Org: {current_user.organization_id}, User: {current_user.id}"
+    )
+    return success_response(
+        data=_serialize_workflow(workflow),
+        message="Approval workflow created successfully",
+        status_code=201,
+    )
 
 
 @workflow_bp.route("/", methods=["GET"])
-@swag_from({
-    "tags": ["Workflow"],
-    "responses": {"200": {"description": "List all workflows for the current organization."}},
-})
+@swag_from(
+    {
+        "tags": ["Workflow"],
+        "responses": {
+            "200": {"description": "List all workflows for the current organization."}
+        },
+    }
+)
 @jwt_required()
 def list_workflows():
     """List all workflows for the current organization."""
@@ -174,16 +206,22 @@ def list_workflows():
     workflows = ApprovalWorkflow.objects(**filters)
     result = [_serialize_workflow(w) for w in workflows]
 
-    app_logger.info(f"list_workflows: found {len(result)} workflows for org {current_user.organization_id}")
+    app_logger.info(
+        f"list_workflows: found {len(result)} workflows for org {current_user.organization_id}"
+    )
     return success_response(data={"items": result, "total": len(result)})
 
 
 @workflow_bp.route("/<workflow_id>", methods=["GET"])
-@swag_from({
-    "tags": ["Workflow"],
-    "responses": {"200": {"description": "Get detailed workflow definition."}},
-    "parameters": [{"name": "workflow_id", "in": "path", "type": "string", "required": True}],
-})
+@swag_from(
+    {
+        "tags": ["Workflow"],
+        "responses": {"200": {"description": "Get detailed workflow definition."}},
+        "parameters": [
+            {"name": "workflow_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def get_workflow(workflow_id):
     """Get detailed workflow definition."""
@@ -202,7 +240,9 @@ def get_workflow(workflow_id):
     ).first()
 
     if not workflow:
-        app_logger.warning(f"get_workflow: {workflow_uuid} not found for org {current_user.organization_id}")
+        app_logger.warning(
+            f"get_workflow: {workflow_uuid} not found for org {current_user.organization_id}"
+        )
         return error_response("Workflow not found", status_code=404)
 
     return success_response(data=_serialize_workflow(workflow))
@@ -220,16 +260,22 @@ def list_pending_approvals():
         user_id=str(current_user.id), organization_id=current_user.organization_id
     )
     pending_dicts = [p.model_dump() for p in pending]
-    app_logger.info(f"list_pending_approvals: found {len(pending_dicts)} pending for user {current_user.id}")
+    app_logger.info(
+        f"list_pending_approvals: found {len(pending_dicts)} pending for user {current_user.id}"
+    )
     return success_response(data={"items": pending_dicts, "total": len(pending_dicts)})
 
 
 @workflow_bp.route("/<workflow_id>", methods=["PUT"])
-@swag_from({
-    "tags": ["Workflow"],
-    "responses": {"200": {"description": "Update an existing workflow."}},
-    "parameters": [{"name": "workflow_id", "in": "path", "type": "string", "required": True}],
-})
+@swag_from(
+    {
+        "tags": ["Workflow"],
+        "responses": {"200": {"description": "Update an existing workflow."}},
+        "parameters": [
+            {"name": "workflow_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def update_workflow(workflow_id):
     """Update an existing workflow."""
@@ -250,7 +296,9 @@ def update_workflow(workflow_id):
     ).first()
 
     if not workflow:
-        app_logger.warning(f"update_workflow: {workflow_uuid} not found for org {current_user.organization_id}")
+        app_logger.warning(
+            f"update_workflow: {workflow_uuid} not found for org {current_user.organization_id}"
+        )
         return error_response("Workflow not found", status_code=404)
 
     if "name" in data:
@@ -263,16 +311,24 @@ def update_workflow(workflow_id):
         workflow.steps = [_frontend_step_to_backend(s) for s in data["steps"]]
 
     workflow.save()
-    audit_logger.info(f"Workflow updated. ID: {workflow.id}, Org: {current_user.organization_id}, User: {current_user.id}")
-    return success_response(data=_serialize_workflow(workflow), message="Workflow updated successfully")
+    audit_logger.info(
+        f"Workflow updated. ID: {workflow.id}, Org: {current_user.organization_id}, User: {current_user.id}"
+    )
+    return success_response(
+        data=_serialize_workflow(workflow), message="Workflow updated successfully"
+    )
 
 
 @workflow_bp.route("/<workflow_id>", methods=["DELETE"])
-@swag_from({
-    "tags": ["Workflow"],
-    "responses": {"200": {"description": "Soft-delete a workflow."}},
-    "parameters": [{"name": "workflow_id", "in": "path", "type": "string", "required": True}],
-})
+@swag_from(
+    {
+        "tags": ["Workflow"],
+        "responses": {"200": {"description": "Soft-delete a workflow."}},
+        "parameters": [
+            {"name": "workflow_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
 @jwt_required()
 def delete_workflow(workflow_id):
     """Soft-delete a workflow."""
@@ -291,11 +347,15 @@ def delete_workflow(workflow_id):
     ).first()
 
     if not workflow:
-        app_logger.warning(f"delete_workflow: {workflow_uuid} not found for org {current_user.organization_id}")
+        app_logger.warning(
+            f"delete_workflow: {workflow_uuid} not found for org {current_user.organization_id}"
+        )
         return error_response("Workflow not found", status_code=404)
 
     workflow.soft_delete()
-    audit_logger.info(f"Workflow soft-deleted. ID: {workflow_uuid}, Org: {current_user.organization_id}, User: {current_user.id}")
+    audit_logger.info(
+        f"Workflow soft-deleted. ID: {workflow_uuid}, Org: {current_user.organization_id}, User: {current_user.id}"
+    )
     return success_response(message="Workflow deleted successfully")
 
 
@@ -334,7 +394,9 @@ def create_form_workflow(form_id):
         id=trigger_form_uuid, organization_id=current_user.organization_id
     ).first()
     if not trigger_form:
-        return error_response("Trigger form not found or access denied", status_code=404)
+        return error_response(
+            "Trigger form not found or access denied", status_code=404
+        )
 
     steps = [_frontend_step_to_backend(s) for s in data["steps"]]
     workflow = ApprovalWorkflow(
@@ -348,5 +410,11 @@ def create_form_workflow(form_id):
         is_template=data.get("is_template", False),
     )
     workflow.save()
-    audit_logger.info(f"Form workflow created. ID: {workflow.id}, FormID: {form_id}, Org: {current_user.organization_id}, User: {current_user.id}")
-    return success_response(data=_serialize_workflow(workflow), message="Approval workflow created successfully", status_code=201)
+    audit_logger.info(
+        f"Form workflow created. ID: {workflow.id}, FormID: {form_id}, Org: {current_user.organization_id}, User: {current_user.id}"
+    )
+    return success_response(
+        data=_serialize_workflow(workflow),
+        message="Approval workflow created successfully",
+        status_code=201,
+    )
