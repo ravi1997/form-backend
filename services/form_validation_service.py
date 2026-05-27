@@ -167,6 +167,17 @@ class FormValidationService:
 
                 if calc_val is not None:
                     calculated_values[var_name] = calc_val
+                    
+                    # Strict Calculated Values validation
+                    # Option A: Mismatch rejection. Reject payload if client submitted an incorrect evaluation.
+                    client_val = payload.get(var_name)
+                    if client_val is not None and str(client_val) != str(calc_val):
+                        errors.append({
+                            "field": var_name,
+                            "error": f"Calculated value mismatch. Expected {calc_val}, got {client_val}."
+                        })
+                        continue
+
                     # Update both payload (for evaluator) and cleaned_data (for output)
                     payload[var_name] = calc_val
                     cleaned_data[var_name] = calc_val
