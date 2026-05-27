@@ -159,7 +159,7 @@ def create_workflow():
 
     except Exception as e:
         error_logger.error(f"Create Workflow error: {str(e)}", exc_info=True)
-        return error_response(str(e), status_code=500)
+        return error_response("Failed to create workflow", status_code=500)
 
 
 @workflow_bp.route("/", methods=["GET"])
@@ -197,7 +197,7 @@ def list_workflows():
         return success_response(data={"items": result, "total": len(result)})
     except Exception as e:
         error_logger.error(f"List Workflows error: {str(e)}", exc_info=True)
-        return error_response(str(e), status_code=500)
+        return error_response("Failed to list workflows", status_code=500)
 
 
 @workflow_bp.route("/<workflow_id>", methods=["GET"])
@@ -250,7 +250,7 @@ def get_workflow(workflow_id):
         return success_response(data=_serialize_workflow(workflow))
     except Exception as e:
         error_logger.error(f"Get Workflow error: {str(e)}", exc_info=True)
-        return error_response(str(e), status_code=500)
+        return error_response("Failed to retrieve workflow", status_code=500)
 
 
 @workflow_bp.route("/pending", methods=["GET"])
@@ -272,7 +272,7 @@ def list_pending_approvals():
         return success_response(data={"items": pending_dicts, "total": len(pending_dicts)})
     except Exception as e:
         error_logger.error(f"List Pending Approvals error: {str(e)}", exc_info=True)
-        return error_response(str(e), status_code=500)
+        return error_response("Failed to list pending approvals", status_code=500)
 
 
 @workflow_bp.route("/<workflow_id>", methods=["PUT"])
@@ -338,7 +338,7 @@ def update_workflow(workflow_id):
         return success_response(data=_serialize_workflow(workflow), message="Workflow updated successfully")
     except Exception as e:
         error_logger.error(f"Update Workflow error: {str(e)}", exc_info=True)
-        return error_response(str(e), status_code=500)
+        return error_response("Failed to update workflow", status_code=500)
 
 
 @workflow_bp.route("/<workflow_id>", methods=["DELETE"])
@@ -393,19 +393,23 @@ def delete_workflow(workflow_id):
         return success_response(message="Workflow deleted successfully")
     except Exception as e:
         error_logger.error(f"Delete Workflow error: {str(e)}", exc_info=True)
-        return error_response(str(e), status_code=500)
+        return error_response("Failed to delete workflow", status_code=500)
 
 
 @workflow_bp.route("/forms/<form_id>/workflows", methods=["GET"])
 @jwt_required()
 def list_form_workflows(form_id):
-    current_user = get_current_user()
-    workflows = ApprovalWorkflow.objects(
-        organization_id=current_user.organization_id,
-        trigger_form_id=form_id,
-        is_deleted=False,
-    )
-    return success_response(data=[_serialize_workflow(w) for w in workflows])
+    try:
+        current_user = get_current_user()
+        workflows = ApprovalWorkflow.objects(
+            organization_id=current_user.organization_id,
+            trigger_form_id=form_id,
+            is_deleted=False,
+        )
+        return success_response(data=[_serialize_workflow(w) for w in workflows])
+    except Exception as e:
+        error_logger.error(f"List Form Workflows error: {str(e)}", exc_info=True)
+        return error_response("Failed to list form workflows", status_code=500)
 
 
 @workflow_bp.route("/forms/<form_id>/workflows", methods=["POST"])
@@ -421,27 +425,31 @@ def create_form_workflow(form_id):
 
     from uuid import UUID
     try:
-        trigger_form_uuid = UUID(form_id)
-    except ValueError:
-        return error_response("Invalid trigger_form_id format", status_code=400)
+        try:
+            trigger_form_uuid = UUID(form_id)
+        except ValueError:
+            return error_response("Invalid trigger_form_id format", status_code=400)
 
-    trigger_form = Form.objects(id=trigger_form_uuid, organization_id=current_user.organization_id).first()
-    if not trigger_form:
-        return error_response("Trigger form not found or access denied", status_code=404)
+        trigger_form = Form.objects(id=trigger_form_uuid, organization_id=current_user.organization_id).first()
+        if not trigger_form:
+            return error_response("Trigger form not found or access denied", status_code=404)
 
-    steps = [_frontend_step_to_backend(s_data) for s_data in data["steps"]]
-    workflow = ApprovalWorkflow(
-        name=data.get("name", "Untitled Workflow"),
-        description=data.get("description"),
-        organization_id=current_user.organization_id,
-        trigger_form_id=str(trigger_form_uuid),
-        status=data.get("status", "active"),
-        steps=steps,
-        created_by=str(current_user.id),
-        is_template=data.get("is_template", False),
-    )
-    workflow.save()
-    audit_logger.info(
-        f"Workflow created. ID: {workflow.id}, Name: {workflow.name}, Org: {current_user.organization_id}, User: {current_user.id}"
-    )
-    return success_response(data=_serialize_workflow(workflow), message="Approval workflow created successfully", status_code=201)
+        steps = [_frontend_step_to_backend(s_data) for s_data in data["steps"]]
+        workflow = ApprovalWorkflow(
+            name=data.get("name", "Untitled Workflow"),
+            description=data.get("description"),
+            organization_id=current_user.organization_id,
+            trigger_form_id=str(trigger_form_uuid),
+            status=data.get("status", "active"),
+            steps=steps,
+            created_by=str(current_user.id),
+            is_template=data.get("is_template", False),
+        )
+        workflow.save()
+        audit_logger.info(
+            f"Workflow created. ID: {workflow.id}, Name: {workflow.name}, Org: {current_user.organization_id}, User: {current_user.id}"
+        )
+        return success_response(data=_serialize_workflow(workflow), message="Approval workflow created successfully", status_code=201)
+    except Exception as e:
+        error_logger.error(f"Create Form Workflow error: {str(e)}", exc_info=True)
+        return error_response("Failed to create form workflow", status_code=500)
