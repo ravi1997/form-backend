@@ -16,7 +16,7 @@ All major coding, planning, reviews, and test runs are delegated to specialized,
 Project MCP defaults are in `.mcp.json`. Use the smallest relevant tool set. Validate agent tooling with `.agents/check-agent-tools.sh`.
 
 ## Hard Invariants
-- API prefix: `/form/api/v1/`; Swagger UI: `/form/docs`; frontend source: `/home/ravi/workspace/frontend`.
+- API prefix: `/mahasangraha/api/v1/`; Swagger UI: `/mahasangraha/docs`; frontend source: `/home/ravi/workspace/frontend`.
 - Tenant-owned queries must include `organization_id`; `superadmin` is the only cross-org exception.
 - `get()`, `__raw__`, and aggregations bypass automatic tenant filtering; scope them explicitly.
 - Soft delete with `is_deleted=True`; hard delete only for documented exceptions.

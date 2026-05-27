@@ -116,12 +116,12 @@ def create_app():
     app.config["SWAGGER"] = {
         "title": settings.APP_NAME,
         "uiversion": 3,
-        "specs_route": "/form/docs",
-        "static_url_path": "/form/flasgger_static",
+        "specs_route": "/mahasangraha/docs",
+        "static_url_path": "/mahasangraha/flasgger_static",
         "specs": [
             {
                 "endpoint": "apispec_1",
-                "route": "/form/apispec_1.json",
+                "route": "/mahasangraha/apispec_1.json",
                 "rule_filter": lambda rule: True,
                 "model_filter": lambda tag: True,
             }

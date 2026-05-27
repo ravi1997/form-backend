@@ -24,23 +24,29 @@ from routes.v1.admin.system_route import system_bp
 from routes.v1.admin.task_route import admin_task_bp
 from routes.v1.task_route import task_bp
 from routes.v1.theme_route import theme_bp
-from routes.v1.builder_metadata_route import builder_metadata_bp
+from routes.v1.forms_misc_route import forms_misc_bp
+from routes.v1.files_route import files_bp
 from routes.health import health_bp
 
 
 def register_blueprints(app):
     # Base prefix for all routes to handle the gateway routing
-    base_prefix = "/form"
+    base_prefix = "/mahasangraha"
 
     # System health
     app.register_blueprint(health_bp, url_prefix=f"{base_prefix}/health")
 
-    # Core Form Management
+    # Core Form Management - fully project scoped
     app.register_blueprint(form_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
-    # Also mount at flat /forms/ path — used by frontend directly (without project scope)
-    app.register_blueprint(form_bp, url_prefix=f"{base_prefix}/api/v1/forms", name="form_bp_flat")
     app.register_blueprint(project_bp, url_prefix=f"{base_prefix}/api/v1/projects")
-    app.register_blueprint(translation_bp, url_prefix=f"{base_prefix}/api/v1/forms/translations")
+    
+    # New utility namespaces
+    app.register_blueprint(forms_misc_bp, url_prefix=f"{base_prefix}/api/v1/forms")
+    app.register_blueprint(files_bp, url_prefix=f"{base_prefix}/api/v1/files")
+    
+    # Translations mounted directly on translation prefix
+    app.register_blueprint(translation_bp, url_prefix=f"{base_prefix}/api/v1/translations")
+    
     app.register_blueprint(library_bp, url_prefix=f"{base_prefix}/api/v1/custom-fields")
     app.register_blueprint(
         library_bp, url_prefix=f"{base_prefix}/api/v1/templates", name="form_templates"
@@ -65,7 +71,9 @@ def register_blueprints(app):
     app.register_blueprint(webhooks_bp, url_prefix=f"{base_prefix}/api/v1/webhooks")
     app.register_blueprint(sms_bp, url_prefix=f"{base_prefix}/api/v1/sms")
     app.register_blueprint(external_api_bp, url_prefix=f"{base_prefix}/api/v1/external")
-    app.register_blueprint(advanced_responses_bp, url_prefix=f"{base_prefix}/api/v1/forms")
+    
+    # Mount advanced responses under project scope for project-bound operations
+    app.register_blueprint(advanced_responses_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
     
     # User & System Management
     app.register_blueprint(user_bp, url_prefix=f"{base_prefix}/api/v1/user")
@@ -82,6 +90,5 @@ def register_blueprints(app):
     )
     app.register_blueprint(task_bp, url_prefix=f"{base_prefix}/api/v1/tasks")
     app.register_blueprint(theme_bp, url_prefix=f"{base_prefix}/api/v1/themes")
-    app.register_blueprint(builder_metadata_bp, url_prefix=f"{base_prefix}/api/v1/forms")
     
     app.logger.info(f"All blueprints registered successfully with normalized {base_prefix}/api/v1/ prefix.")
