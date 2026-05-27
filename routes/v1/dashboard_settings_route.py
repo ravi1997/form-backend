@@ -74,7 +74,7 @@ def update_dashboard_settings():
         return success_response(data=settings.model_dump(), message="Settings updated")
     except Exception as e:
         error_logger.error(f"Error updating dashboard settings for user {user_id}: {e}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return error_response(message="Failed to update dashboard settings", status_code=400)
 
 
 @dashboard_settings_bp.route("/reset", methods=["POST"])
@@ -460,7 +460,7 @@ def update_layout():
 
     except ValueError as ve:
         error_logger.warning(f"Validation error updating layout for user {user_id}: {ve}")
-        return jsonify({"success": False, "error": str(ve)}), 400
+        return jsonify({"success": False, "error": "Invalid layout configuration"}), 400
     except Exception as e:
         error_logger.error(f"Error updating layout for user {user_id}: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Failed to update layout"}), 500
