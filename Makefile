@@ -80,7 +80,7 @@ bootstrap: ## Provision MongoDB indexes (runs a temporary container — no need 
 # Tests & Linting
 # ─────────────────────────────────────────────
 test: ## Run test suite
-	@docker compose run --rm backend pytest -v
+	@docker compose run --rm --build backend pytest -v
 
 test-cov: ## Run tests with coverage report
 	@docker compose run --rm backend pytest --cov=. --cov-report=term-missing
@@ -90,7 +90,7 @@ lint: ## Run flake8, black (check), and mypy
 	@docker run --rm forms-linter
 
 openapi: ## Export and validate Swagger/OpenAPI contract
-	@python scripts/export_openapi.py
+	@docker compose run --rm --build backend python3 scripts/export_openapi.py
 
 generate-dart-client: ## Generate Flutter Dart API client from the exported contract
 	@./scripts/generate_frontend_dart_client.sh
@@ -141,5 +141,5 @@ pre-commit-install: ## Install pre-commit hooks locally
 
 contract-test: ## Validate backend routes match frontend expectations
 	@echo "$(CYAN)Running contract tests...$(RESET)"
-	@docker compose run --rm backend python scripts/contract_test.py
+	@docker compose run --rm --build backend python scripts/contract_test.py
 	@echo "$(GREEN)✅ Contract validation complete.$(RESET)"

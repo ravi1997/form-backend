@@ -22,12 +22,13 @@ from middleware.idempotency import (
     IDEMPOTENCY_EXCLUDED_PATHS,
 )
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 class FakeRequest:
     """Minimal mock of Flask request object."""
-    def __init__(self, method="POST", path="/form/api/v1/forms/", headers=None):
+
+    def __init__(self, method="POST", path="/mahasangraha/api/v1/forms/", headers=None):
         self.method = method
         self.path = path
         self.headers = headers or {}
@@ -35,9 +36,10 @@ class FakeRequest:
 
 # ── _get_idempotency_key ──────────────────────────────────────────────────────
 
+
 def test_get_idempotency_key_present(app):
     with app.test_request_context(
-        "/form/api/v1/forms/",
+        "/mahasangraha/api/v1/forms/",
         method="POST",
         headers={"X-Idempotency-Key": "abc-123"},
     ):
@@ -46,7 +48,7 @@ def test_get_idempotency_key_present(app):
 
 
 def test_get_idempotency_key_missing(app):
-    with app.test_request_context("/form/api/v1/forms/", method="POST"):
+    with app.test_request_context("/mahasangraha/api/v1/forms/", method="POST"):
         key = _get_idempotency_key()
     assert key is None
 
@@ -54,7 +56,7 @@ def test_get_idempotency_key_missing(app):
 def test_get_idempotency_key_too_long(app):
     long_key = "x" * 200
     with app.test_request_context(
-        "/form/api/v1/forms/",
+        "/mahasangraha/api/v1/forms/",
         method="POST",
         headers={"X-Idempotency-Key": long_key},
     ):
@@ -63,6 +65,7 @@ def test_get_idempotency_key_too_long(app):
 
 
 # ── _cache_key ────────────────────────────────────────────────────────────────
+
 
 def test_cache_key_deterministic():
     k1 = _cache_key("org-123", "req-abc")
@@ -83,60 +86,65 @@ def test_cache_key_sha256_length():
 
 # ── _should_enforce ───────────────────────────────────────────────────────────
 
+
 def test_should_enforce_post_forms(app):
-    with app.test_request_context("/form/api/v1/forms/", method="POST"):
+    with app.test_request_context("/mahasangraha/api/v1/forms/", method="POST"):
         assert _should_enforce() is True
 
 
 def test_should_enforce_put_forms(app):
-    with app.test_request_context("/form/api/v1/forms/some-id", method="PUT"):
+    with app.test_request_context("/mahasangraha/api/v1/forms/some-id", method="PUT"):
         assert _should_enforce() is True
 
 
 def test_should_enforce_get_excluded(app):
-    with app.test_request_context("/form/api/v1/forms/", method="GET"):
+    with app.test_request_context("/mahasangraha/api/v1/forms/", method="GET"):
         assert _should_enforce() is False
 
 
 def test_should_enforce_auth_excluded(app):
-    with app.test_request_context("/form/api/v1/auth/login", method="POST"):
+    with app.test_request_context("/mahasangraha/api/v1/auth/login", method="POST"):
         assert _should_enforce() is False
 
 
 def test_should_enforce_refresh_excluded(app):
-    with app.test_request_context("/form/api/v1/auth/refresh", method="POST"):
+    with app.test_request_context("/mahasangraha/api/v1/auth/refresh", method="POST"):
         assert _should_enforce() is False
 
 
 def test_should_enforce_unrelated_path(app):
-    with app.test_request_context("/form/api/v1/user/profile", method="PUT"):
+    with app.test_request_context("/mahasangraha/api/v1/user/profile", method="PUT"):
         assert _should_enforce() is False  # not in IDEMPOTENCY_PATH_PREFIXES
 
 
 # ── Integration: replay on cached key ────────────────────────────────────────
 
+
 def test_replay_on_cached_key(app):
     """If Redis has a cached response for the key, the middleware replays it."""
-    cached_payload = json.dumps({
-        "body": '{"success": true, "data": {"response_id": "existing-id"}}',
-        "status": 201,
-        "cached_at": "2026-01-01T00:00:00+00:00",
-    })
+    cached_payload = json.dumps(
+        {
+            "body": '{"success": true, "data": {"response_id": "existing-id"}}',
+            "status": 201,
+            "cached_at": "2026-01-01T00:00:00+00:00",
+        }
+    )
 
     fake_redis = MagicMock()
     fake_redis.get.return_value = cached_payload
 
     with app.test_request_context(
-        "/form/api/v1/forms/test-form-id/responses",
+        "/mahasangraha/api/v1/forms/test-form-id/responses",
         method="POST",
         headers={"X-Idempotency-Key": "client-retry-key-001"},
     ):
         with patch("extensions.redis_client", fake_redis):
             from flask import g
+
             g.organization_id = "org-test-123"
             # Simulate before_request
             with app.test_request_context(
-                "/form/api/v1/forms/test-form-id/responses",
+                "/mahasangraha/api/v1/forms/test-form-id/responses",
                 method="POST",
                 headers={"X-Idempotency-Key": "client-retry-key-001"},
             ):
@@ -153,7 +161,7 @@ def test_no_crash_on_redis_failure(app):
     from middleware.idempotency import init_idempotency_middleware
 
     with app.test_request_context(
-        "/form/api/v1/forms/",
+        "/mahasangraha/api/v1/forms/",
         method="POST",
         headers={"X-Idempotency-Key": "test-key"},
     ):

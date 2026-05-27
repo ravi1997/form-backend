@@ -29,11 +29,11 @@ roles:
       - "form:view"
       - "response:create"
 protected_routes:
-  "POST /form/api/v1/projects/<project_id>/forms/<form_id>/publish":
+  "POST /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/publish":
     permission: "form:publish"
-  "POST /form/api/v1/projects/<project_id>/forms/<form_id>/clone":
+  "POST /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/clone":
     permission: "form:view"
-  "GET /form/api/v1/projects/<project_id>/forms/<form_id>/responses":
+  "GET /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/responses":
     permission: "response:view"
-  "GET /form/api/v1/projects/<project_id>/forms/<form_id>/export/<format>":
+  "GET /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/export/<format>":
     permission: "response:export"

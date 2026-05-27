@@ -7,14 +7,16 @@ from routes.v1.form import form_bp
 
 pytestmark = pytest.mark.usefixtures("db_connection")
 
+
 @pytest.fixture
 def client(app):
     return app.test_client()
 
+
 @pytest.fixture(autouse=True)
 def register_form_blueprint(app):
     try:
-        app.register_blueprint(form_bp, url_prefix="/form/api/v1/forms")
+        app.register_blueprint(form_bp, url_prefix="/mahasangraha/api/v1/forms")
     except AssertionError:
         pass
     yield
@@ -28,6 +30,7 @@ def _form_response_query(existing=None):
 
 def _headers(key="public-submit-key-1"):
     return {"Idempotency-Key": key}
+
 
 def test_public_submit_success(client):
     """Verify that a public, published, active form accepts submissions anonymously."""
@@ -45,12 +48,15 @@ def test_public_submit_success(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query()), \
-         patch("services.response_service.FormResponseService.create_submission", return_value=mock_response):
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects", _form_response_query()
+    ), patch(
+        "services.response_service.FormResponseService.create_submission",
+        return_value=mock_response,
+    ):
 
         response = client.post(
-            "/form/api/v1/forms/public-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/public-form-123/public-submit",
             json={"data": {"q-1": "answer"}},
             headers=_headers(),
         )
@@ -59,6 +65,7 @@ def test_public_submit_success(client):
         json_data = response.get_json()
         assert json_data["success"] is True
         assert json_data["data"]["response_id"] == "response-999"
+
 
 def test_public_submit_requires_idempotency_key(client):
     """Verify that public submit rejects missing idempotency headers."""
@@ -74,7 +81,7 @@ def test_public_submit_requires_idempotency_key(client):
 
     with patch("routes.v1.form.misc.Form.objects", mock_objects):
         response = client.post(
-            "/form/api/v1/forms/public-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/public-form-123/public-submit",
             json={"data": {"q-1": "answer"}},
         )
 
@@ -83,6 +90,7 @@ def test_public_submit_requires_idempotency_key(client):
         assert json_data["success"] is False
         assert json_data["error"]["code"] == "IDEMPOTENCY_KEY_REQUIRED"
         mock_objects.get.assert_not_called()
+
 
 def test_public_submit_replays_duplicate_submission(client):
     """Verify that a repeated idempotency key returns the existing response."""
@@ -105,12 +113,15 @@ def test_public_submit_replays_duplicate_submission(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query(existing_response)), \
-         patch("services.response_service.FormResponseService.create_submission") as create_submission:
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects",
+        _form_response_query(existing_response),
+    ), patch(
+        "services.response_service.FormResponseService.create_submission"
+    ) as create_submission:
 
         response = client.post(
-            "/form/api/v1/forms/public-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/public-form-123/public-submit",
             json={"data": {"q-1": "answer"}},
             headers=_headers("public-submit-key-duplicate"),
         )
@@ -120,6 +131,7 @@ def test_public_submit_replays_duplicate_submission(client):
         assert json_data["success"] is True
         assert json_data["data"]["response_id"] == "response-123"
         create_submission.assert_not_called()
+
 
 def test_public_submit_rejects_reused_key_with_different_body(client):
     """Verify that a reused idempotency key cannot be paired with a new payload."""
@@ -142,12 +154,15 @@ def test_public_submit_rejects_reused_key_with_different_body(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query(existing_response)), \
-         patch("services.response_service.FormResponseService.create_submission") as create_submission:
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects",
+        _form_response_query(existing_response),
+    ), patch(
+        "services.response_service.FormResponseService.create_submission"
+    ) as create_submission:
 
         response = client.post(
-            "/form/api/v1/forms/public-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/public-form-123/public-submit",
             json={"data": {"q-1": "answer-b"}},
             headers=_headers("public-submit-key-conflict"),
         )
@@ -157,6 +172,7 @@ def test_public_submit_rejects_reused_key_with_different_body(client):
         assert json_data["success"] is False
         assert json_data["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
         create_submission.assert_not_called()
+
 
 def test_public_submit_not_public(client):
     """Verify that a private (is_public=False) form rejects submissions."""
@@ -170,10 +186,11 @@ def test_public_submit_not_public(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query()):
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects", _form_response_query()
+    ):
         response = client.post(
-            "/form/api/v1/forms/private-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/private-form-123/public-submit",
             json={"data": {}},
             headers=_headers(),
         )
@@ -181,6 +198,7 @@ def test_public_submit_not_public(client):
         json_data = response.get_json()
         assert json_data["success"] is False
         assert "not public" in json_data["error"]["message"].lower()
+
 
 def test_public_submit_not_published(client):
     """Verify that a draft form rejects submissions."""
@@ -194,10 +212,11 @@ def test_public_submit_not_published(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query()):
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects", _form_response_query()
+    ):
         response = client.post(
-            "/form/api/v1/forms/draft-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/draft-form-123/public-submit",
             json={"data": {}},
             headers=_headers(),
         )
@@ -205,6 +224,7 @@ def test_public_submit_not_published(client):
         json_data = response.get_json()
         assert json_data["success"] is False
         assert "not accepting submissions" in json_data["error"]["message"].lower()
+
 
 def test_public_submit_expired(client):
     """Verify that an expired form rejects submissions."""
@@ -218,10 +238,11 @@ def test_public_submit_expired(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query()):
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects", _form_response_query()
+    ):
         response = client.post(
-            "/form/api/v1/forms/expired-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/expired-form-123/public-submit",
             json={"data": {}},
             headers=_headers(),
         )
@@ -229,6 +250,7 @@ def test_public_submit_expired(client):
         json_data = response.get_json()
         assert json_data["success"] is False
         assert "expired" in json_data["error"]["message"].lower()
+
 
 def test_public_submit_scheduled_future(client):
     """Verify that a future-scheduled form rejects submissions."""
@@ -242,10 +264,11 @@ def test_public_submit_scheduled_future(client):
     mock_objects = MagicMock()
     mock_objects.get.return_value = mock_form
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query()):
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects", _form_response_query()
+    ):
         response = client.post(
-            "/form/api/v1/forms/future-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/future-form-123/public-submit",
             json={"data": {}},
             headers=_headers(),
         )
@@ -254,15 +277,17 @@ def test_public_submit_scheduled_future(client):
         assert json_data["success"] is False
         assert "not yet available" in json_data["error"]["message"].lower()
 
+
 def test_public_submit_form_not_found(client):
     """Verify that looking up a non-existent form returns 404."""
     mock_objects = MagicMock()
     mock_objects.get.side_effect = DoesNotExist
 
-    with patch("routes.v1.form.misc.Form.objects", mock_objects), \
-         patch("routes.v1.form.misc.FormResponse.objects", _form_response_query()):
+    with patch("routes.v1.form.misc.Form.objects", mock_objects), patch(
+        "routes.v1.form.misc.FormResponse.objects", _form_response_query()
+    ):
         response = client.post(
-            "/form/api/v1/forms/missing-form-123/public-submit",
+            "/mahasangraha/api/v1/forms/missing-form-123/public-submit",
             json={"data": {}},
             headers=_headers(),
         )

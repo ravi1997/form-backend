@@ -34,8 +34,8 @@ def create_app():
         DEBUG=settings.DEBUG,
         # Securing JWT Cookies
         JWT_TOKEN_LOCATION=["headers", "cookies"],
-        JWT_ACCESS_COOKIE_PATH="/form/api/",
-        JWT_REFRESH_COOKIE_PATH="/form/api/v1/auth/refresh",
+        JWT_ACCESS_COOKIE_PATH="/mahasangraha/api/",
+        JWT_REFRESH_COOKIE_PATH="/mahasangraha/api/v1/auth/refresh",
         JWT_COOKIE_SECURE=not settings.DEBUG,
         JWT_COOKIE_HTTPONLY=True,
         JWT_COOKIE_SAMESITE="Lax",

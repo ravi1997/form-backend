@@ -20,46 +20,47 @@ from app import create_app
 # Update this list whenever frontend api_endpoints.dart is changed.
 REQUIRED_ROUTES = [
     # Auth
-    ("POST", "/form/api/v1/auth/register"),
-    ("POST", "/form/api/v1/auth/login"),
-    ("POST", "/form/api/v1/auth/request-otp"),
-    ("POST", "/form/api/v1/auth/otp/request"),   # alias
-    ("POST", "/form/api/v1/auth/otp/verify"),     # alias
-    ("POST", "/form/api/v1/auth/refresh"),
-    ("POST", "/form/api/v1/auth/logout"),
-    ("POST", "/form/api/v1/auth/revoke-all"),
+    ("POST", "/mahasangraha/api/v1/auth/register"),
+    ("POST", "/mahasangraha/api/v1/auth/login"),
+    ("POST", "/mahasangraha/api/v1/auth/request-otp"),
+    ("POST", "/mahasangraha/api/v1/auth/otp/request"),  # alias
+    ("POST", "/mahasangraha/api/v1/auth/otp/verify"),  # alias
+    ("POST", "/mahasangraha/api/v1/auth/refresh"),
+    ("POST", "/mahasangraha/api/v1/auth/logout"),
+    ("POST", "/mahasangraha/api/v1/auth/revoke-all"),
     # Users
-    ("GET",  "/form/api/v1/user/profile"),
-    ("PUT",  "/form/api/v1/user/profile"),
-    ("POST", "/form/api/v1/user/change-password"),
-    ("GET",  "/form/api/v1/user/users"),
+    ("GET", "/mahasangraha/api/v1/user/profile"),
+    ("PUT", "/mahasangraha/api/v1/user/profile"),
+    ("POST", "/mahasangraha/api/v1/user/change-password"),
+    ("GET", "/mahasangraha/api/v1/user/users"),
     # Forms
-    ("GET",  "/form/api/v1/forms/"),
-    ("POST", "/form/api/v1/forms/"),
-    ("GET",  "/form/api/v1/forms/<id>"),
-    ("PUT",  "/form/api/v1/forms/<id>"),
-    ("DELETE", "/form/api/v1/forms/<id>"),
-    ("POST", "/form/api/v1/forms/<id>/publish"),
-    ("POST", "/form/api/v1/forms/<id>/clone"),
+    ("GET", "/mahasangraha/api/v1/forms/"),
+    ("POST", "/mahasangraha/api/v1/forms/"),
+    ("GET", "/mahasangraha/api/v1/forms/<id>"),
+    ("PUT", "/mahasangraha/api/v1/forms/<id>"),
+    ("DELETE", "/mahasangraha/api/v1/forms/<id>"),
+    ("POST", "/mahasangraha/api/v1/forms/<id>/publish"),
+    ("POST", "/mahasangraha/api/v1/forms/<id>/clone"),
     # Responses
-    ("GET",  "/form/api/v1/forms/<id>/responses"),
-    ("POST", "/form/api/v1/forms/<id>/responses"),
+    ("GET", "/mahasangraha/api/v1/forms/<id>/responses"),
+    ("POST", "/mahasangraha/api/v1/forms/<id>/responses"),
     # Dashboard
-    ("GET",  "/form/api/v1/dashboards/<slug>"),
-    ("POST", "/form/api/v1/dashboards/"),
+    ("GET", "/mahasangraha/api/v1/dashboards/<slug>"),
+    ("POST", "/mahasangraha/api/v1/dashboards/"),
     # Analytics
-    ("GET",  "/form/api/v1/forms/<id>/analytics/summary"),
+    ("GET", "/mahasangraha/api/v1/forms/<id>/analytics/summary"),
     # SMS
-    ("POST", "/form/api/v1/sms/single"),
-    ("GET",  "/form/api/v1/sms/health"),
+    ("POST", "/mahasangraha/api/v1/sms/single"),
+    ("GET", "/mahasangraha/api/v1/sms/health"),
     # Health
-    ("GET",  "/form/health"),
+    ("GET", "/mahasangraha/health"),
 ]
 
 
 def normalise(rule: str) -> str:
     """Replace Flask variable segments with <id> for comparison."""
     import re
+
     return re.sub(r"<[^>]+>", "<id>", rule)
 
 

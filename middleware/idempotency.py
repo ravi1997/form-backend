@@ -25,15 +25,18 @@ IDEMPOTENCY_TTL = 86400
 IDEMPOTENCY_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 # Only enforce on paths containing these prefixes (skip health, auth refresh, etc.)
-IDEMPOTENCY_PATH_PREFIXES = ("/form/api/v1/forms/", "/form/api/v1/dashboards/")
+IDEMPOTENCY_PATH_PREFIXES = (
+    "/mahasangraha/api/v1/forms/",
+    "/mahasangraha/api/v1/dashboards/",
+)
 
 # Paths that are excluded even if they match a prefix
 IDEMPOTENCY_EXCLUDED_PATHS = {
-    "/form/api/v1/auth/login",
-    "/form/api/v1/auth/refresh",
-    "/form/api/v1/auth/logout",
-    "/form/api/v1/auth/request-otp",
-    "/form/api/v1/auth/otp/request",
+    "/mahasangraha/api/v1/auth/login",
+    "/mahasangraha/api/v1/auth/refresh",
+    "/mahasangraha/api/v1/auth/logout",
+    "/mahasangraha/api/v1/auth/request-otp",
+    "/mahasangraha/api/v1/auth/otp/request",
 }
 
 
@@ -79,15 +82,19 @@ def init_idempotency_middleware(app):
 
         try:
             from extensions import redis_client
+
             cached = redis_client.get(redis_key)
             if cached:
                 import flask
+
                 data = json.loads(cached)
                 response = flask.Response(
                     response=data["body"],
                     status=data["status"],
-                    headers={"Content-Type": "application/json",
-                             "X-Idempotency-Replayed": "true"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Idempotency-Replayed": "true",
+                    },
                 )
                 return response
             # Mark as in-flight
@@ -113,11 +120,14 @@ def init_idempotency_middleware(app):
         if 200 <= response.status_code < 300:
             try:
                 from extensions import redis_client
-                payload = json.dumps({
-                    "body": response.get_data(as_text=True),
-                    "status": response.status_code,
-                    "cached_at": datetime.now(timezone.utc).isoformat(),
-                })
+
+                payload = json.dumps(
+                    {
+                        "body": response.get_data(as_text=True),
+                        "status": response.status_code,
+                        "cached_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
                 redis_client.setex(redis_key, IDEMPOTENCY_TTL, payload)
             except Exception:
                 pass  # best-effort

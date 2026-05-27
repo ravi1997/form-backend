@@ -14,7 +14,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
+OUTPUT_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs"
+)
 
 
 def run():
@@ -40,6 +42,7 @@ def run():
     # Write YAML
     try:
         import yaml
+
         yaml_path = os.path.join(OUTPUT_DIR, "openapi.yaml")
         with open(yaml_path, "w") as f:
             yaml.dump(spec, f, default_flow_style=False, allow_unicode=True)
@@ -56,11 +59,10 @@ def run():
     # Contract check
     missing = []
     for path in [
-        "/form/api/v1/auth/login",
-        "/form/api/v1/auth/request-otp",
-        "/form/api/v1/auth/otp/request",
-        "/form/api/v1/forms/",
-        "/form/api/v1/user/profile",
+        "/mahasangraha/api/v1/auth/login",
+        "/mahasangraha/api/v1/auth/request-otp",
+        "/mahasangraha/api/v1/projects/{project_id}/forms/",
+        "/mahasangraha/api/v1/user/profile",
     ]:
         if path not in paths:
             missing.append(path)

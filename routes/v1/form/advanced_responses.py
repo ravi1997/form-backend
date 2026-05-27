@@ -21,7 +21,9 @@ form_service = FormService()
 @swag_from(
     {
         "tags": ["Advanced_Responses"],
-        "responses": {"200": {"description": "List forms for the current organization"}},
+        "responses": {
+            "200": {"description": "List forms for the current organization"}
+        },
     }
 )
 @jwt_required()
@@ -29,7 +31,7 @@ def list_forms():
     """
     Compatibility endpoint for the dashboard client.
 
-    The Flutter dashboard expects GET /form/api/v1/forms/, so we expose a
+    The Flutter dashboard expects GET /mahasangraha/api/v1/forms/, so we expose a
     tenant-scoped listing here that mirrors the newer form listing behavior.
     """
     current_user = get_current_user()
@@ -103,7 +105,11 @@ def fetch_external_form_data():
         or_conditions = []
         if form.versions:
             latest = form.versions[-1]
-            sections = latest.resolved_snapshot.get("sections", []) if hasattr(latest, "resolved_snapshot") else []
+            sections = (
+                latest.resolved_snapshot.get("sections", [])
+                if hasattr(latest, "resolved_snapshot")
+                else []
+            )
             for section in sections:
                 section_id_str = NoSQLInjector.sanitize_key(str(section.get("id")))
                 or_conditions.append(
@@ -180,7 +186,11 @@ def fetch_same_form_data(form_id):
                 "$or": (
                     [
                         {f"data.{section.get('id')}.{question_id}": value}
-                        for section in (form.versions[-1].resolved_snapshot.get("sections", []) if form.versions else [])
+                        for section in (
+                            form.versions[-1].resolved_snapshot.get("sections", [])
+                            if form.versions
+                            else []
+                        )
                     ]
                     if form.versions
                     else []
@@ -628,9 +638,7 @@ def filter_responses(form_id):
         qs = FormResponse.objects(__raw__=mongo_query)
         total = qs.count()
         items = (
-            qs.order_by("-submitted_at")
-            .skip((page - 1) * page_size)
-            .limit(page_size)
+            qs.order_by("-submitted_at").skip((page - 1) * page_size).limit(page_size)
         )
 
         payload = [r.to_mongo().to_dict() for r in items]
