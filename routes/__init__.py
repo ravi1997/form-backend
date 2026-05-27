@@ -26,6 +26,7 @@ from routes.v1.task_route import task_bp
 from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
 from routes.v1.files_route import files_bp
+from routes.v1.report_route import report_bp
 from routes.health import health_bp
 
 
@@ -65,6 +66,7 @@ def register_blueprints(app):
     app.register_blueprint(analytics_bp, url_prefix=f"{base_prefix}/api/v1/analytics")
     app.register_blueprint(anomaly_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/forms")
     app.register_blueprint(analysis_board_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/analysis-boards")
+    app.register_blueprint(report_bp, url_prefix=f"{base_prefix}/api/v1/projects/<project_id>/reports")
 
     # Workflows & Integrations
     app.register_blueprint(workflow_bp, url_prefix=f"{base_prefix}/api/v1/workflows")

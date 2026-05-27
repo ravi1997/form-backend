@@ -34,6 +34,27 @@ def handle_form_submitted(payload: dict):
             if triggers_data:
                 process_notification_triggers.delay(triggers_data, payload)
                 app_logger.info(f"Delegated {len(triggers_data)} triggers to Celery for {response_id}")
+
+        # Check project-bound automated reports threshold triggers
+        if form and form.project:
+            try:
+                from models.Form import Project
+                from tasks.report_tasks import async_generate_report
+                proj = Project.objects(id=str(form.project.id), is_deleted=False).first()
+                if proj and proj.report_configs:
+                    updated = False
+                    for cfg in proj.report_configs:
+                        if cfg.trigger_type == "threshold" and cfg.threshold_limit:
+                            cfg.current_threshold_counter += 1
+                            updated = True
+                            if cfg.current_threshold_counter >= cfg.threshold_limit:
+                                app_logger.info(f"Report Config threshold hit ({cfg.threshold_limit}) for config {cfg.id}!")
+                                async_generate_report.delay(str(proj.id), str(cfg.id), f"Threshold Hit ({cfg.threshold_limit})")
+                                cfg.current_threshold_counter = 0
+                    if updated:
+                        proj.save()
+            except Exception as report_trigger_err:
+                error_logger.error(f"Failed to process automated report threshold trigger: {report_trigger_err}")
         
         audit_logger.info(f"Event 'form.submitted' processed for response_id={response_id}")
         app_logger.info(f"Exiting handle_form_submitted: {response_id}")

@@ -1,0 +1,67 @@
+# Specialized Browser Agent Instructions & Evaluation Rubric
+
+**Role Persona**: Gen Z Product Designer & Modern End-User (Aesthetic-first, zero tolerance for slow performance, values glassmorphism, smooth animations, and clean, intuitive typography)  
+**Assigned Auditor**: Veteran QA Specialist & Systems Architect with 20+ Years of Experience (Looks for data safety, validation loopholes, responsiveness, security boundaries, and edge cases)
+
+---
+
+## 🚀 MISSION OVERVIEW
+Your task is to spin up an interactive browser session, navigate through the **RIDP Form Platform** local workspace, and execute a comprehensive end-to-end audit. You will evaluate the user experience through a modern, hyper-designed Gen Z lens while simultaneously verifying the structural integrity of the application under strict senior QA rules.
+
+Navigate to the frontend port (typically `http://localhost:8051` or your active local development port) and audit the following three core systems:
+
+---
+
+## 🧪 SYSTEM AUDIT CHECKS
+
+### 1. System 1: Form Builder & Submission Engine
+*   **Gen Z Aesthetic Check**:
+    *   Open the Form Builder canvas. Are the grid lines subtle and premium, or do they look like a legacy spreadsheet?
+    *   Test the **Smart Grid Layout Canvas**. Drag fields and resize them. Do they adjust with smooth micro-animations, or does the UI jump awkwardly? Does the spacing feel balanced and clean (following Google Fonts Inter spacing)?
+*   **20+ Year QA Hardening Check**:
+    *   Create a form with a **Calculated Field** (e.g. `Score = FieldA * FieldB`) and some cascading dropdown selections.
+    *   Submit a response. Intercept the payload or verify in the network tab: Does the submission process safely validation-check these rules? Try submitting an illegal calculated value to see if the server rejects it as expected.
+    *   Double-click the submit button rapidly. Verify that the **Idempotency-Key** middleware halts duplicate requests.
+
+### 2. System 2: Dashboard Builder & Advanced Filter Dialog
+*   **Gen Z Aesthetic Check**:
+    *   Open the response grid list and click **"Filter"** to open the compound visual filter dialog.
+    *   Does the dialog feature a premium glassmorphic overlay? 
+    *   Add a rule row. Does the selector drop down cleanly, and do new rules slide in with an elegant fade/transition?
+    *   Apply filters. Do the pills/chips look modern (indigo accent `#6366F1`) and feature a clean, crisp deletion target `×`?
+*   **20+ Year QA Hardening Check**:
+    *   Test boundary inputs in the filter fields. Input special characters (e.g., `$`, `.`, or SQL fragments) into the filter rule value. Verify that the system handles these gracefully without crashing or letting NoSQL queries leak.
+    *   Filter by **Submission Date** using the `Between` operator. Ensure the date range picker handles timezone boundaries perfectly.
+
+### 3. System 3: Analysis Board Builder
+*   **Gen Z Aesthetic Check**:
+    *   Open the Analysis Board builder canvas.
+    *   Audit the visual node layout. Can you easily map and link statistical blocks? Do the calculation outputs render with a smooth, premium numerical ticker animation when values update?
+*   **20+ Year QA Hardening Check**:
+    *   Build a board linking a **Pearson Correlation ($r$)** block or **Standard Deviation** block.
+    *   Set up a division-by-zero boundary scenario (e.g., calculating a ratio where the count of responses in the denominator segment is `0`). Verify that the node returns a graceful, clean `null` or `"N/A"` state without breaking the dashboard UI.
+
+---
+
+## 📊 OUTPUT REPORT STRUCTURE
+Provide your audit results in a polished Markdown report structured exactly as follows:
+
+```markdown
+# 🌟 RIDP Platform UX/QA Dual Audit Report
+
+## 1. Gen Z Client Aesthetic Evaluation
+> Detailed critique of the visual hierarchies, harmonized color palettes, micro-interactions, responsive grid layouts, and typography. Highlight what wowed you and what feels dated.
+
+## 2. Senior Test Engineer Hardening Audit
+> Exhaustive analysis of the APIs, network safety boundaries, NoSQL validation sanitizations, idempotency caching, and tenancy security.
+
+## 3. Comprehensive Component Scorecard
+| Component System | Client UX Score (1-10) | QA Safety Rating (A-F) | Key Observations & Performance Metrics |
+| :--- | :---: | :---: | :--- |
+| **System 1: Canvas Builder & Idempotency** | | | |
+| **System 2: Response List & Filter Dialog** | | | |
+| **System 3: Analysis Node & Math Engine** | | | |
+
+## 4. Final Release Recommendation
+> Clear UX/QA assessment on production readiness, including a list of prioritized recommendations for release.
+```

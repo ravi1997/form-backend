@@ -9,7 +9,9 @@ from mongoengine import (
     DateTimeField,
     BinaryField,
     ValidationError,
+    UUIDField,
 )
+import uuid
 from datetime import datetime, timezone
 
 from models.enumerations import (
@@ -358,6 +360,23 @@ class Form(BaseDocument, SoftDeleteMixin):
                 raise ValidationError("publish_at cannot be after expires_at.")
 
 
+class ReportConfig(BaseEmbeddedDocument):
+    """
+    Automated Custom branded Report Configuration.
+    Saved inside parent Project container for lightweight reads.
+    """
+    id = UUIDField(required=True, default=uuid.uuid4)
+    name = StringField(required=True, trim=True)
+    trigger_type = StringField(required=True, choices=["schedule", "threshold"], default="schedule")
+    cron_expression = StringField()  # e.g., "0 9 * * 1"
+    threshold_limit = IntField()  # e.g. 100
+    current_threshold_counter = IntField(default=0)
+    blocks = ListField(DictField(), default=list)  # Drag-and-drop structural blocks list
+    recipients = ListField(StringField(), default=list)  # Target email addresses
+    channels = ListField(StringField(), default=lambda: ["storage", "email"])  # active distribution channels
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+
 class Project(BaseDocument, SoftDeleteMixin):
     """Container for related Forms and Sub-projects."""
 
@@ -376,6 +395,9 @@ class Project(BaseDocument, SoftDeleteMixin):
     active_version = ReferenceField("Version")
     tags = ListField(StringField())
     triggers = ListField(EmbeddedDocumentField(Trigger))
+
+    # Embedded configurations for custom PDF/HTML reports
+    report_configs = ListField(EmbeddedDocumentField(ReportConfig), default=list)
 
     @property
     def active_version_id(self):

@@ -21,6 +21,7 @@ celery_app = Celery(
         "tasks.services",
         "tasks.form_tasks",
         "tasks.ai_tasks",
+        "tasks.report_tasks",
     ],
 )
 
