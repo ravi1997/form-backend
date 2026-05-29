@@ -10,7 +10,7 @@ from werkzeug.exceptions import HTTPException
 # SQL Injection patterns
 SQLI_PATTERNS = [
     # More specific SQLi patterns instead of just blocking any single quote
-    re.compile(r"(\%27)|(\-\-)|(\%23)|(#)", re.IGNORECASE),
+    re.compile(r"(\%27)|(\-\-)|(\%23)", re.IGNORECASE),
     re.compile(r"((\%3D)|(=))[^\n]*((%27)|(\')|(\-\-)|(%3B)|(;))", re.IGNORECASE),
     re.compile(
         r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))", re.IGNORECASE
