@@ -9,6 +9,7 @@ from .components import (
     UIComponentSchema,
     TriggerSchema,
 )
+from .taxonomy import TaxonomyItemSchema
 
 
 class OptionSchema(BaseEmbeddedSchema):
@@ -174,6 +175,8 @@ class FormVersionSchema(BaseSchema):
     translations: Optional[Dict[str, Any]] = None
     access_policy: Optional[Dict[str, Any]] = None
     status: Literal["draft", "published", "archived"] = "draft"
+    classification_enabled: bool = False
+    classification_taxonomy: List[TaxonomyItemSchema] = Field(default_factory=list)
 
 
 class ProjectVersionSchema(BaseSchema):
@@ -226,6 +229,8 @@ class FormSchema(SoftDeleteBaseSchema):
         default_factory=list,
         description="Optional canvas-sync section tree. Form-wide layout remains `ui_type`.",
     )
+    classification_enabled: bool = False
+    classification_taxonomy: List[TaxonomyItemSchema] = Field(default_factory=list)
 
 
 class ProjectSchema(SoftDeleteBaseSchema):

@@ -132,3 +132,132 @@ def async_export_to_olap(self, event_payload):
     except Exception as e:
         error_logger.error(f"OLAP Export Task failed: {str(e)}", exc_info=True)
         raise self.retry(exc=e)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+def async_classify_response_tags(self, response_id: str, organization_id: str):
+    """
+    Background Celery task to classify a form submission against the form's taxonomy
+    and auto-apply categories/tags to the FormResponse document.
+    """
+    from models.Response import FormResponse
+    from models.Form import Form, FormVersion
+    from services.ai_service import ai_service
+
+    app_logger.info(f"Entering async_classify_response_tags for response {response_id}")
+    try:
+        response = FormResponse.objects(
+            id=response_id, organization_id=organization_id, is_deleted=False
+        ).first()
+
+        if not response:
+            error_logger.error(
+                f"Response {response_id} not found during classification"
+            )
+            return {"status": "error", "reason": "not_found"}
+
+        # Fetch form configurations
+        raw_form_ref = response._data.get("form")
+        form_id = getattr(raw_form_ref, "id", raw_form_ref) if raw_form_ref else None
+        form_doc = Form.objects(
+            id=form_id, organization_id=organization_id, is_deleted=False
+        ).first()
+
+        if not form_doc:
+            app_logger.warning(f"Form not found for response {response_id}")
+            return {"status": "skipped", "reason": "form_not_found"}
+
+        # Check if classification is enabled and taxonomy exists
+        classification_enabled = getattr(form_doc, "classification_enabled", False)
+        classification_taxonomy = getattr(form_doc, "classification_taxonomy", [])
+
+        # If not enabled on form, try retrieving from FormVersion snapshot
+        raw_ver_ref = response._data.get("form_version")
+        if not classification_enabled and raw_ver_ref:
+            ver_id = getattr(raw_ver_ref, "id", raw_ver_ref)
+            ver_doc = FormVersion.objects(id=ver_id).first()
+            if ver_doc:
+                classification_enabled = getattr(
+                    ver_doc, "classification_enabled", False
+                )
+                classification_taxonomy = getattr(
+                    ver_doc, "classification_taxonomy", []
+                )
+
+        if not classification_enabled or not classification_taxonomy:
+            app_logger.info(
+                f"AI classification not enabled or taxonomy empty for form {form_doc.id}"
+            )
+            return {"status": "skipped", "reason": "disabled_or_empty_taxonomy"}
+
+        # Gather all text data securely, ignoring nested dicts, and skipping sensitive fields
+        text_elements = []
+
+        # 1. Standard text fields from response data
+        for var_name, value in response.data.items():
+            if isinstance(value, str) and value.strip():
+                # Skip sensitive fields if defined in form snapshot
+                # In the codebase, FLE moves sensitive fields to response.encrypted_data,
+                # meaning response.data contains only non-sensitive content.
+                text_elements.append(value.strip())
+
+        if not text_elements:
+            app_logger.info(f"No textual content in response {response_id} to classify")
+            return {"status": "skipped", "reason": "no_text_content"}
+
+        combined_text = "\n".join(text_elements)
+
+        # Perform AI classification
+        taxonomy_payload = []
+        for item in classification_taxonomy:
+            taxonomy_payload.append(
+                {
+                    "category_name": item.category_name,
+                    "description": item.description,
+                    "keywords": item.keywords,
+                }
+            )
+
+        app_logger.info(
+            f"AI Task: Classifying text (len={len(combined_text)}) for response {response_id}"
+        )
+        ai_res = ai_service.classify_taxonomy(combined_text, taxonomy_payload)
+
+        matched_tags = ai_res.get("tags", [])
+
+        # Update response model directly
+        if matched_tags:
+            # Preserve existing user-defined or pipeline tags and combine with matched tags uniquely
+            existing_tags = set(response.tags or [])
+            updated_tags = list(existing_tags.union(matched_tags))
+            response.tags = updated_tags
+
+            # Save classification payload to ai_results
+            response.ai_results = response.ai_results or {}
+            response.ai_results["classification"] = {
+                "tags": matched_tags,
+                "scores": ai_res.get("scores", {}),
+                "provider": ai_res.get("provider", "unknown"),
+                "classified_at": datetime.now(timezone.utc).isoformat(),
+            }
+            response.save()
+
+            audit_logger.info(
+                f"AUDIT: AI Classification: Applied tags {matched_tags} to response {response_id}"
+            )
+            app_logger.info(
+                f"AI auto-tagging successfully completed for response {response_id}"
+            )
+            return {"status": "success", "tags_applied": matched_tags}
+        else:
+            app_logger.info(
+                f"AI classification completed for {response_id} with no matching tags"
+            )
+            return {"status": "success", "tags_applied": []}
+
+    except Exception as e:
+        error_logger.error(
+            f"AI classification task failed for response {response_id}: {str(e)}",
+            exc_info=True,
+        )
+        raise self.retry(exc=e)

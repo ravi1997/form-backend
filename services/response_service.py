@@ -307,13 +307,19 @@ class FormResponseService(BaseService):
 
             # Trigger background tasks
             try:
-                from tasks.ai_tasks import async_index_response_vector
+                from tasks.ai_tasks import (
+                    async_index_response_vector,
+                    async_classify_response_tags,
+                )
 
                 async_index_response_vector.delay(
                     str(response.id), data.organization_id
                 )
+                async_classify_response_tags.delay(
+                    str(response.id), data.organization_id
+                )
             except Exception as e:
-                error_logger.warning(f"Failed to enqueue vector indexing: {e}")
+                error_logger.warning(f"Failed to enqueue background tasks: {e}")
 
             # Publish Domain Event to decouple notification and webhook routing
             try:

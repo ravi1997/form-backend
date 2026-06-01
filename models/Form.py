@@ -23,6 +23,7 @@ from models.enumerations import (
 )
 from models.base import BaseDocument, BaseEmbeddedDocument, SoftDeleteMixin
 from models.components import Condition, Trigger, LogicComponent, UIComponent
+from models.Taxonomy import TaxonomyItem
 
 # --- Question Specific Components ---
 
@@ -342,6 +343,10 @@ class Form(BaseDocument, SoftDeleteMixin):
     response_templates = ListField(EmbeddedDocumentField(ResponseTemplate))
     triggers = ListField(EmbeddedDocumentField(Trigger))
 
+    # AI Auto-Classification & Tagging Taxonomy Config
+    classification_enabled = BooleanField(default=False)
+    classification_taxonomy = ListField(EmbeddedDocumentField(TaxonomyItem))
+
     @property
     def versions(self):
         """Returns all versions associated with this form, sorted by creation time."""
@@ -516,6 +521,8 @@ class FormVersion(BaseDocument):
     translations = DictField()
     access_policy = DictField()
     status = StringField(choices=STATUS_CHOICES, default="draft")
+    classification_enabled = BooleanField(default=False)
+    classification_taxonomy = ListField(EmbeddedDocumentField(TaxonomyItem))
 
     @property
     def resolved_snapshot(self) -> dict:

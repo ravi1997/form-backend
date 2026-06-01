@@ -1,6 +1,7 @@
 from services.ai_provider import LocalHeuristicProvider, OllamaProvider
 from config.settings import settings
 from logger.unified_logger import app_logger, error_logger
+from typing import Any
 
 
 class AIService:
@@ -81,6 +82,21 @@ class AIService:
             )
             raise
 
+    def classify_taxonomy(
+        self, text: str, taxonomy: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Classify text against predefined taxonomy using active provider."""
+        app_logger.info("AIService: Classifying text against taxonomy")
+        try:
+            result = self.provider.classify_taxonomy(text, taxonomy)
+            app_logger.info("AIService: Successfully completed taxonomy classification")
+            return result
+        except Exception as e:
+            error_logger.error(
+                f"AIService: Taxonomy classification failed: {str(e)}", exc_info=True
+            )
+            raise
+
     def generate_embeddings(self, text: str) -> list[float]:
         """Vectorizes text using the active AI provider."""
         app_logger.info("AIService: Generating embeddings for text")
@@ -94,5 +110,7 @@ class AIService:
             )
             raise
 
+
+from typing import Any
 
 ai_service = AIService()

@@ -2503,3 +2503,134 @@ def clear_form_cache(form_id: str) -> Tuple[Any, int]:
     except Exception as e:
         error_logger.error(f"Clear Cache Error for form {form_id}: {str(e)}")
         return jsonify({"error": str(e)}), 400
+
+
+@ai_bp.route("/<form_id>/responses/<response_id>/classify", methods=["POST"])
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {
+            "202": {"description": "Auto-classification task scheduled successfully"},
+            "403": {"description": "Unauthorized access"},
+            "404": {"description": "Form or response not found"},
+        },
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True},
+            {"name": "response_id", "in": "path", "type": "string", "required": True},
+        ],
+    }
+)
+@jwt_required()
+def trigger_response_classification(form_id: str, response_id: str) -> Tuple[Any, int]:
+    """
+    Manually triggers AI auto-tagging and classification for a specific response.
+    Returns 202 with scheduled task ID.
+    """
+    app_logger.info(
+        f"Manual classification trigger requested for response {response_id} in form {form_id}"
+    )
+    try:
+        current_user = get_current_user()
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
+        if not has_form_permission(current_user, form, "edit"):
+            error_logger.warning(
+                f"Unauthorized manual tag classification trigger attempt by user {current_user.id} for form {form_id}"
+            )
+            return jsonify({"error": "Unauthorized"}), 403
+
+        # Verify response existence
+        from models.Response import FormResponse
+
+        response = FormResponse.objects(
+            id=response_id,
+            form=form_id,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        ).first()
+
+        if not response:
+            error_logger.warning(
+                f"Response {response_id} not found for manual classification trigger"
+            )
+            return jsonify({"error": "Response not found"}), 404
+
+        # Enqueue Celery task
+        from tasks.ai_tasks import async_classify_response_tags
+
+        task = async_classify_response_tags.delay(
+            response_id, current_user.organization_id
+        )
+
+        audit_logger.info(
+            f"AUDIT: AI Task scheduled manually: Classify response {response_id} for form {form_id} by user {current_user.id}"
+        )
+        return jsonify({"task_id": task.id, "status": "scheduled"}), 202
+
+    except Form.DoesNotExist:
+        return jsonify({"error": "Form not found"}), 404
+    except Exception as e:
+        error_logger.error(f"Manual classification trigger failed: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@ai_bp.route("/<form_id>/taxonomy", methods=["GET"])
+@swag_from(
+    {
+        "tags": ["Ai"],
+        "responses": {
+            "200": {"description": "Retrieved form taxonomy config successfully"},
+            "403": {"description": "Unauthorized access"},
+            "404": {"description": "Form not found"},
+        },
+        "parameters": [
+            {"name": "form_id", "in": "path", "type": "string", "required": True}
+        ],
+    }
+)
+@jwt_required()
+def get_form_classification_taxonomy(form_id: str) -> Tuple[Any, int]:
+    """
+    Retrieve classification configuration details (enabled status and taxonomy list) for a form.
+    """
+    app_logger.info(f"Retrieving classification taxonomy config for form {form_id}")
+    try:
+        current_user = get_current_user()
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id
+        )
+        if not has_form_permission(current_user, form, "view"):
+            error_logger.warning(
+                f"Unauthorized taxonomy config fetch attempt by user {current_user.id} for form {form_id}"
+            )
+            return jsonify({"error": "Unauthorized"}), 403
+
+        taxonomy_list = []
+        for item in getattr(form, "classification_taxonomy", []):
+            taxonomy_list.append(
+                {
+                    "category_name": item.category_name,
+                    "description": item.description,
+                    "keywords": item.keywords,
+                }
+            )
+
+        return (
+            jsonify(
+                {
+                    "form_id": form_id,
+                    "classification_enabled": getattr(
+                        form, "classification_enabled", False
+                    ),
+                    "classification_taxonomy": taxonomy_list,
+                }
+            ),
+            200,
+        )
+
+    except Form.DoesNotExist:
+        return jsonify({"error": "Form not found"}), 404
+    except Exception as e:
+        error_logger.error(f"Retrieve form taxonomy configuration failed: {str(e)}")
+        return jsonify({"error": str(e)}), 500

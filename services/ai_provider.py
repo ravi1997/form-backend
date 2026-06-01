@@ -37,6 +37,12 @@ class BaseAIProvider(ABC):
         pass
 
     @abstractmethod
+    def classify_taxonomy(
+        self, text: str, taxonomy: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
     def generate_embeddings(self, text: str) -> List[float]:
         pass
 
@@ -84,6 +90,34 @@ class LocalHeuristicProvider(BaseAIProvider):
             f"LocalHeuristicProvider: Sentiment classified as {result['sentiment']}"
         )
         return result
+
+    def classify_taxonomy(
+        self, text: str, taxonomy: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        app_logger.debug("LocalHeuristicProvider: Classifying taxonomy via heuristics")
+        text_lower = text.lower()
+        matched_tags = []
+        scores = {}
+        for item in taxonomy:
+            cat = item.get("category_name")
+            desc = item.get("description", "").lower()
+            kws = item.get("keywords", [])
+            match_count = 0
+            # Match keywords
+            for kw in kws:
+                if kw.lower() in text_lower:
+                    match_count += 2
+            # Match category name
+            if cat.lower() in text_lower:
+                match_count += 3
+            # Match description key terms
+            for term in desc.split():
+                if len(term) > 3 and term in text_lower:
+                    match_count += 0.5
+            if match_count > 0:
+                matched_tags.append(cat)
+                scores[cat] = min(1.0, match_count / 5.0)
+        return {"tags": matched_tags, "scores": scores, "provider": "heuristic"}
 
     def generate_embeddings(self, text: str) -> List[float]:
         app_logger.debug("LocalHeuristicProvider: Generating embeddings")
@@ -170,6 +204,77 @@ class OllamaProvider(BaseAIProvider):
                 exc_info=True,
             )
             return {"sentiment": "neutral", "score": 0.5, "provider": "ollama"}
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(requests.RequestException),
+    )
+    def classify_taxonomy(
+        self, text: str, taxonomy: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        app_logger.info("OllamaProvider: Classifying text against taxonomy")
+        try:
+            safe_text = self.sanitize_prompt(text)
+            tax_desc = []
+            valid_categories = []
+            for item in taxonomy:
+                cat = item.get("category_name")
+                desc = item.get("description", "")
+                kws = ", ".join(item.get("keywords", []))
+                tax_desc.append(
+                    f"- Category: {cat}\n  Description: {desc}\n  Keywords: {kws}"
+                )
+                valid_categories.append(cat.lower())
+
+            taxonomy_str = "\n".join(tax_desc)
+            categories_str = ", ".join(valid_categories)
+
+            prompt = (
+                f"Analyze the following response text and match it against the taxonomy below.\n\n"
+                f'Response Text:\n"""\n{safe_text}\n"""\n\n'
+                f"Available Taxonomy:\n{taxonomy_str}\n\n"
+                f"Instructions:\n"
+                f"Output a comma-separated list containing ONLY the category names that match the text. "
+                f"Valid categories to pick from: [{categories_str}]. "
+                f"If none of them match, output 'none'. "
+                f"Do NOT output any markdown, explanations, or introductory text. Just the comma-separated list."
+            )
+
+            payload = {
+                "model": "llama3",
+                "prompt": prompt,
+                "stream": False,
+            }
+            resp = requests.post(
+                f"{self.base_url}/api/generate", json=payload, timeout=20
+            )
+            resp.raise_for_status()
+            raw_response = resp.json().get("response", "").strip()
+
+            matched_tags = []
+            scores = {}
+            if raw_response.lower() != "none" and raw_response:
+                # Parse comma separated tags
+                candidates = [c.strip().lower() for c in raw_response.split(",")]
+                for item in taxonomy:
+                    cat = item.get("category_name")
+                    if cat.lower() in candidates:
+                        matched_tags.append(cat)
+                        scores[cat] = (
+                            0.9  # Default confidence score for model classifications
+                        )
+
+            app_logger.info(f"OllamaProvider: Matched tags: {matched_tags}")
+            return {"tags": matched_tags, "scores": scores, "provider": "ollama"}
+        except Exception as e:
+            error_logger.error(
+                f"OllamaProvider: Taxonomy classification failed: {str(e)}",
+                exc_info=True,
+            )
+            # Fallback to local heuristic classifier if HTTP/Ollama fails
+            fallback = LocalHeuristicProvider()
+            return fallback.classify_taxonomy(text, taxonomy)
 
     @retry(
         wait=wait_exponential(multiplier=1, min=2, max=10),
