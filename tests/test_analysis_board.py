@@ -92,7 +92,7 @@ def test_execute_aspect_nodes(analysis_service):
     assert res is None
 
 
-def test_crud_endpoints(app):
+def test_crud_endpoints(app, db_connection):
     """
     Tests CRUD routing endpoints on /api/v1/projects/<project_id>/analysis-boards
     """

@@ -57,6 +57,8 @@ def _pretty_block(
 def setup_request_id(app):
     @app.before_request
     def add_request_id():
+        import time
+        g.start_time = time.perf_counter()
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         g.request_id = request_id
         g.log_sequence = 1
@@ -88,6 +90,7 @@ def setup_request_id(app):
 
     @app.after_request
     def log_request(response):
+        import time
         # Optional: Add request ID to response headers
         request_id = getattr(g, "request_id", "unknown")
         response.headers["X-Request-ID"] = request_id
@@ -114,4 +117,19 @@ def setup_request_id(app):
                 request_id=request_id,
             ),
         )
+
+        # Record metrics in Redis
+        latency_ms = 0.0
+        if hasattr(g, "start_time"):
+            latency_ms = (time.perf_counter() - g.start_time) * 1000.0
+        
+        from utils.metrics import RedisMetricsCollector
+        if not request.path.startswith("/mahasangraha/api/v1/admin/metrics"):
+            RedisMetricsCollector.record_request(
+                path=request.path,
+                method=request.method,
+                status_code=response.status_code,
+                latency_ms=latency_ms
+            )
+
         return response

@@ -19,17 +19,21 @@ class TenantConnectionRouter:
         """
         Determines the current active database connection alias.
         """
+        from flask import g, has_request_context
+        
+        if has_request_context() and hasattr(g, "tenant_db_alias") and g.tenant_db_alias:
+            return g.tenant_db_alias
+
         org_id = organization_id
         if not org_id and has_request_context() and current_user:
             org_id = getattr(current_user, "organization_id", None)
 
-        if not org_id:
-            return mongoengine.DEFAULT_CONNECTION_NAME
+        if org_id:
+            connection_alias = f"conn_{org_id}"
+            from mongoengine.connection import _connections
+            if connection_alias in _connections:
+                return connection_alias
 
-        # In a real deployed Multi-DB scenario:
-        # 1. Fetch Tenant metadata from a centralized Registry DB
-        # 2. Return their specific isolated DB alias
-        # For now, safely fall back to the unified default replica set.
         return mongoengine.DEFAULT_CONNECTION_NAME
 
     @classmethod

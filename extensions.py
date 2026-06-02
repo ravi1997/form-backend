@@ -5,7 +5,7 @@ from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flasgger import Swagger
 from flask import request
-import os
+from config.settings import settings
 
 
 def tenant_aware_key_func():
@@ -33,10 +33,12 @@ def tenant_aware_key_func():
 jwt = JWTManager()
 cors = CORS()
 
-# Construct storage URI for Limiter
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = os.getenv("REDIS_PORT", "6379")
-limiter_storage = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+# Limiter uses dedicated DB (REDIS_DB_RATE_LIMITER = 3) to avoid collisions.
+_redis_pass = f":{settings.REDIS_PASSWORD}@" if settings.REDIS_PASSWORD else ""
+limiter_storage = (
+    f"redis://{_redis_pass}{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+    f"/{settings.REDIS_DB_RATE_LIMITER}"
+)
 
 limiter = Limiter(
     key_func=tenant_aware_key_func,
@@ -45,16 +47,18 @@ limiter = Limiter(
 )
 talisman = Talisman()
 
-# ── Shared Redis client (cache DB) ────────────────────────────────────────────
-# Used by idempotency middleware, rate limiter, and other modules that need a
-# simple get/set/setex interface without going through the full RedisService.
+# ── Shared Redis client (app cache DB) ───────────────────────────────────────
+# Used by idempotency middleware and other modules needing a simple
+# get/set/setex interface without the full RedisService overhead.
+# DB allocation: settings.REDIS_DB_APP_CACHE (default 0).
 try:
     import redis as _redis
 
     redis_client = _redis.Redis(
-        host=REDIS_HOST,
-        port=int(REDIS_PORT),
-        db=0,
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB_APP_CACHE,
+        password=settings.REDIS_PASSWORD,
         decode_responses=True,
         socket_connect_timeout=2,
         socket_timeout=2,

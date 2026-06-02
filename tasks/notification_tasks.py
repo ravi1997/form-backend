@@ -33,12 +33,20 @@ def process_single_trigger(self, trigger_data, context_data):
     Background task to process a SINGLE notification trigger.
     Includes robust retry with exponential backoff.
     """
+    from services.notification_service import NotificationObservability
+
     trigger_name = trigger_data.get("name", "unnamed")
-    action_type = trigger_data.get("action_type")
+    action_type = trigger_data.get("action_type", "unknown")
 
     app_logger.info(
         f"Entering process_single_trigger: name={trigger_name}, type={action_type}"
     )
+
+    retries = self.request.retries or 0
+    if retries > 0:
+        NotificationObservability.increment_retry(action_type)
+    else:
+        NotificationObservability.increment_attempt(action_type)
 
     try:
         from services.notification_service import NotificationService
@@ -59,14 +67,17 @@ def process_single_trigger(self, trigger_data, context_data):
         else:
             app_logger.warning(f"Unknown action type: {action_type}")
 
+        NotificationObservability.increment_success(action_type)
         audit_logger.info(
             f"Notification trigger {trigger_name} (type: {action_type}) processed successfully"
         )
         app_logger.info(f"Exiting process_single_trigger: {trigger_name} processed")
     except Exception as e:
+        NotificationObservability.increment_failure(action_type)
         error_logger.error(f"Trigger {trigger_name} failed: {str(e)}")
         # Re-raise to trigger Celery retry
         raise e
+
 
 
 @celery_app.task
@@ -82,3 +93,16 @@ def long_running_computation(data):
     time.sleep(2)
     app_logger.info("Exiting long_running_computation")
     return {"status": "completed", "result": result}
+
+
+@celery_app.task(bind=True)
+def process_outbox_events_task(self, max_retries=5):
+    """
+    Background task/worker loop to publish failed/pending outbox events.
+    """
+    from services.outbox_service import outbox_service
+    app_logger.info("Entering process_outbox_events_task")
+    result = outbox_service.process_pending_outbox_events(max_retries=max_retries)
+    app_logger.info(f"Exiting process_outbox_events_task with result: {result}")
+    return result
+

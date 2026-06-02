@@ -152,22 +152,27 @@ def test_cascading_selects():
 
 def test_save_form_draft_uses_project_scoped_form_lookup(app):
     from routes.v1.form.form import save_form_draft
+    from uuid import UUID
 
+    valid_uuid_str = "12345678-1234-5678-1234-567812345678"
     mock_form = MagicMock()
-    mock_form.id = "form-1"
+    mock_form.id = UUID(valid_uuid_str)
     mock_form.organization_id = "org-1"
     mock_form.to_mongo.return_value = {"project": DBRef("projects", "project-1")}
 
     mock_form_version = MagicMock()
+    mock_form_version.version = None
     mock_form_version.model_dump.return_value = {"version": "1.0.0"}
-    mock_form_version.to_mongo.return_value = {"form": "form-1"}
+    # Mock to_mongo().to_dict() returning a dictionary
+    mock_dict = {"form": valid_uuid_str}
+    mock_form_version.to_mongo.return_value.to_dict.return_value = mock_dict
 
     with app.test_request_context(
-        "/mahasangraha/api/v1/projects/project-1/forms/form-1/draft",
+        f"/mahasangraha/api/v1/projects/project-1/forms/{valid_uuid_str}/draft",
         method="PUT",
         json={"sections": []},
         headers={"X-Organization-ID": "org-1"},
-    ), patch("routes.v1.form.form.get_current_user") as mock_current_user, patch(
+    ), patch("flask_jwt_extended.view_decorators.verify_jwt_in_request") as mock_verify_jwt, patch("routes.v1.form.form.get_current_user") as mock_current_user, patch(
         "routes.v1.form.form.Form.objects"
     ) as mock_form_objects, patch(
         "routes.v1.form.form.has_form_permission", return_value=True
@@ -180,7 +185,7 @@ def test_save_form_draft_uses_project_scoped_form_lookup(app):
         mock_current_user.return_value = MagicMock(id="user-1", organization_id="org-1")
         mock_form_objects.get.return_value = mock_form
 
-        response, status = save_form_draft("form-1")
+        response, status = save_form_draft(valid_uuid_str)
 
         assert status == 200
         assert response.get_json()["success"] is True

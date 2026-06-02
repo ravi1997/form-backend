@@ -83,3 +83,58 @@ class NotificationService:
         app_logger.warning("Attempted custom script execution")
         error_logger.error("Custom script execution blocked for security reasons.")
         raise NotImplementedError("Custom scripts are disabled for security reasons.")
+
+
+class NotificationObservability:
+    @staticmethod
+    def increment_attempt(action_type: str):
+        try:
+            from extensions import redis_client
+            redis_client.incr("notification:metrics:total_attempts")
+            redis_client.incr(f"notification:metrics:attempts:{action_type}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def increment_success(action_type: str):
+        try:
+            from extensions import redis_client
+            redis_client.incr("notification:metrics:success")
+            redis_client.incr(f"notification:metrics:success:{action_type}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def increment_failure(action_type: str):
+        try:
+            from extensions import redis_client
+            redis_client.incr("notification:metrics:failed")
+            redis_client.incr(f"notification:metrics:failed:{action_type}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def increment_retry(action_type: str):
+        try:
+            from extensions import redis_client
+            redis_client.incr("notification:metrics:retries")
+            redis_client.incr(f"notification:metrics:retries:{action_type}")
+        except Exception:
+            pass
+
+    @staticmethod
+    def get_metrics() -> dict:
+        try:
+            from extensions import redis_client
+            keys = [
+                "notification:metrics:total_attempts",
+                "notification:metrics:success",
+                "notification:metrics:failed",
+                "notification:metrics:retries"
+            ]
+            vals = redis_client.mget(keys)
+            metrics = {keys[i].split(":")[-1]: int(v) if v else 0 for i, v in enumerate(vals)}
+            return metrics
+        except Exception:
+            return {}
+

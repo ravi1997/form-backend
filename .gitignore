@@ -309,3 +309,20 @@ debug.log
 # Session files
 *.session
 *.session-journal
+
+# ------------------------------------------------------------------------------
+# DuckDB (local analytics database — do not commit binary files)
+# ------------------------------------------------------------------------------
+*.duckdb
+*.duckdb.wal
+
+# ------------------------------------------------------------------------------
+# Celery Beat scheduler state (auto-generated on first run)
+# ------------------------------------------------------------------------------
+celerybeat-schedule
+celerybeat.pid
+
+# ------------------------------------------------------------------------------
+# Local Postman collections (large JSON artifacts — use version control sparingly)
+# ------------------------------------------------------------------------------
+postman_collection_merged.json

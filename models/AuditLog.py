@@ -39,4 +39,7 @@ class AuditLog(BaseDocument, SoftDeleteMixin):
 
     timestamp = DateTimeField(default=lambda: datetime.now(timezone.utc))
     ip_address = StringField()
+    user_agent = StringField()
+    request_id = StringField()
     metadata = DictField()
+

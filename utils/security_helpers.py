@@ -173,36 +173,3 @@ def require_org_match(model_class):
 
     return decorator
 
-
-def require_org_match(model_class):
-    """
-    Decorator to ensure the requested resource belongs to the user's organization.
-    """
-
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            verify_jwt_in_request()
-            user = get_current_user()
-
-            # Extract ID from kwargs (form_id, user_id, etc.)
-            resource_id = None
-            for key in ["id", "form_id", "user_id", "project_id"]:
-                if key in kwargs:
-                    resource_id = kwargs[key]
-                    break
-
-            if resource_id:
-                resource = model_class.objects(
-                    id=resource_id, organization_id=user.organization_id
-                ).first()
-                if not resource:
-                    raise NotFoundError(
-                        f"{model_class.__name__} not found in your organization"
-                    )
-
-            return fn(*args, **kwargs)
-
-        return wrapper
-
-    return decorator

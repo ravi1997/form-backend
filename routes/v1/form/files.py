@@ -90,13 +90,28 @@ def get_file(form_id, question_id, filename):
             )
             return jsonify({"error": "File access denied"}), 403
 
-        # Build file path and verify it exists
+        # Prevent directory traversal
+        if any(part in {"..", "/", "\\"} or not part for part in [form_id, question_id, filename]):
+            app_logger.warning(f"Directory traversal attempt blocked: {form_id}/{question_id}/{filename}")
+            return jsonify({"error": "Invalid path components"}), 400
+
+        # Build tenant-isolated file path
         file_path = os.path.join(
             current_app.config.get("UPLOAD_FOLDER", "uploads"),
+            str(form.organization_id),
             str(form_id),
             str(question_id),
             filename,
         )
+
+        # Fallback to legacy path for backward compatibility
+        if not os.path.exists(file_path):
+            file_path = os.path.join(
+                current_app.config.get("UPLOAD_FOLDER", "uploads"),
+                str(form_id),
+                str(question_id),
+                filename,
+            )
 
         if not os.path.exists(file_path):
             app_logger.warning(f"File not found on disk: {file_path}")

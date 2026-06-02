@@ -489,3 +489,49 @@ class AccessControlService:
                                 return True
 
         return False
+
+    @staticmethod
+    def apply_row_filtering(queryset, user: User):
+        """
+        Row-level filtering foundation. Filters documents based on user roles and visibility access.
+        """
+        user_roles = getattr(user, "roles", []) or []
+        if "superadmin" in user_roles or "admin" in user_roles:
+            return queryset
+        
+        # Non-admins: only return documents that are public or created by the user,
+        # or where the user is listed in editors/viewers.
+        from mongoengine import Q
+        return queryset.filter(
+            Q(is_public=True) | 
+            Q(created_by=str(user.id)) | 
+            Q(viewers__in=[str(user.id)]) | 
+            Q(editors__in=[str(user.id)])
+        )
+
+    @staticmethod
+    def apply_field_masking(data: dict, user: User, sensitive_fields: List[str] = None) -> dict:
+        """
+        Field-level masking foundation. Masks sensitive fields (e.g. email, phone, PII) 
+        if the user lacks the permission to view sensitive data.
+        """
+        if not data:
+            return data
+        
+        user_roles = getattr(user, "roles", []) or []
+        
+        # If user has the permission to view sensitive data, return unmasked
+        if "superadmin" in user_roles or "admin" in user_roles or "manager" in user_roles:
+            return data
+            
+        masked_data = data.copy()
+        fields_to_mask = sensitive_fields or ["email", "mobile", "phone", "ssn", "national_id"]
+        for field in fields_to_mask:
+            if field in masked_data and masked_data[field]:
+                val = str(masked_data[field])
+                if len(val) > 4:
+                    masked_data[field] = val[:2] + "****" + val[-2:]
+                else:
+                    masked_data[field] = "****"
+        return masked_data
+

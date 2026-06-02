@@ -77,6 +77,25 @@ class RequestSequenceFilter(logging.Filter):
             record.log_sequence = "-"
         return True
 
+class JsonFormatter(logging.Formatter):
+    """
+    Standardizes log records to a structured JSON format.
+    """
+    def format(self, record):
+        import json
+        log_entry = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", "no-request"),
+            "step": getattr(record, "log_sequence", "-"),
+            "file": f"{record.filename}:{record.lineno}",
+        }
+        if record.exc_info:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
 
 CONSOLE_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | req=%(request_id)s | step=%(log_sequence)s | %(message)s"
 FILE_FORMAT = (
@@ -108,6 +127,10 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "format": "%(asctime)s | PERF | req=%(request_id)s | %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
+        "json": {
+            "()": JsonFormatter,
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
     },
     "filters": {
         "sensitive_filter": {
@@ -133,7 +156,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
         "error_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "ERROR",
-            "formatter": "detailed",
+            "formatter": "json",
             "filename": os.path.join(LOG_DIR, "error.log"),
             "maxBytes": 10485760,  # 10MB
             "backupCount": 10,
@@ -143,7 +166,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
         "audit_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
-            "formatter": "audit",
+            "formatter": "json",
             "filename": os.path.join(LOG_DIR, "audit.log"),
             "maxBytes": 10485760,
             "backupCount": 10,
@@ -153,7 +176,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
         "performance_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
-            "formatter": "performance",
+            "formatter": "json",
             "filename": os.path.join(LOG_DIR, "performance.log"),
             "maxBytes": 10485760,
             "backupCount": 10,
@@ -163,7 +186,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
         "access_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
-            "formatter": "access",
+            "formatter": "json",
             "filename": os.path.join(LOG_DIR, "access.log"),
             "maxBytes": 10485760,
             "backupCount": 10,
@@ -173,7 +196,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
         "app_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "level": "INFO",
-            "formatter": "standard",
+            "formatter": "json",
             "filename": os.path.join(LOG_DIR, "application.log"),
             "maxBytes": 10485760,
             "backupCount": 10,

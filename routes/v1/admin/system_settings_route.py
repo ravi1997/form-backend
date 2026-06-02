@@ -82,3 +82,17 @@ def update_system_settings():
     except Exception as e:
         error_logger.error(f"Failed to update system settings: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
+
+
+@system_settings_bp.route("/metrics", methods=["GET"])
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
+def get_system_metrics():
+    """Retrieve runtime request latency and count metrics from Redis."""
+    try:
+        from utils.metrics import RedisMetricsCollector
+        data = RedisMetricsCollector.get_metrics()
+        return success_response(data=data, message="System metrics retrieved successfully")
+    except Exception as e:
+        error_logger.error(f"Failed to fetch system metrics: {e}", exc_info=True)
+        return error_response(message="Failed to retrieve metrics", status_code=500)
+

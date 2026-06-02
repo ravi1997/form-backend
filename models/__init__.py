@@ -17,3 +17,5 @@ from .Theme import *  # noqa: F401,F403
 from .Idempotency import *  # noqa: F401,F403
 from .AnalysisBoard import *  # noqa: F401,F403
 from .Taxonomy import *  # noqa: F401,F403
+from .OutboxEvent import *  # noqa: F401,F403
+from .DeadLetterTask import *  # noqa: F401,F403

@@ -31,3 +31,5 @@ opentelemetry-instrumentation-celery
 opentelemetry-exporter-otlp
 python-magic==0.4.27
 watchfiles==0.24.0
+mongomock==4.1.2
+

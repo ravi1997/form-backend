@@ -31,9 +31,28 @@ class Settings(BaseSettings):
     CACHE_ENABLED: bool = True
     RESPONSE_CACHE_TTL: int = 3600  # 1 hour default
 
+    # ── Redis DB allocation (canonical — do not use raw integers elsewhere) ──
+    # DB 0 — Application cache (idempotency, shared redis_client in extensions)
+    # DB 1 — Celery task results
+    # DB 2 — Analytics cache (AnalyticsCache service)
+    # DB 3 — Rate limiter (Flask-Limiter storage)
+    # DB 4 — Celery broker (task queue)
+    REDIS_DB_APP_CACHE: int = 0
+    REDIS_DB_CELERY_RESULTS: int = 1
+    REDIS_DB_ANALYTICS_CACHE: int = 2
+    REDIS_DB_RATE_LIMITER: int = 3
+    REDIS_DB_CELERY_BROKER: int = 4
+
     # ── Celery ───────────────────────────────────────────────────────────────
-    CELERY_BROKER_DB: int = 0
-    CELERY_RESULT_DB: int = 1
+    # These use the canonical DB constants above. DB 4 for broker avoids
+    # collision with app cache (DB 0) that was present in older versions.
+    @property
+    def CELERY_BROKER_DB(self) -> int:
+        return self.REDIS_DB_CELERY_BROKER
+
+    @property
+    def CELERY_RESULT_DB(self) -> int:
+        return self.REDIS_DB_CELERY_RESULTS
 
     # ── Security ──────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = "super-secret-key-change-me"

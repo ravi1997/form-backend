@@ -29,6 +29,29 @@ roles:
       - "form:view"
       - "response:create"
 protected_routes:
+  # Projects
+  "POST /mahasangraha/api/v1/projects":
+    permission: "project:create"
+  "GET /mahasangraha/api/v1/projects":
+    permission: "project:view"
+  "GET /mahasangraha/api/v1/projects/<project_id>":
+    permission: "project:view"
+  "PUT /mahasangraha/api/v1/projects/<project_id>":
+    permission: "project:edit"
+  "DELETE /mahasangraha/api/v1/projects/<project_id>":
+    permission: "project:edit"
+
+  # Forms
+  "POST /mahasangraha/api/v1/projects/<project_id>/forms":
+    permission: "form:create"
+  "GET /mahasangraha/api/v1/projects/<project_id>/forms":
+    permission: "form:view"
+  "GET /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>":
+    permission: "form:view"
+  "PUT /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>":
+    permission: "form:edit"
+  "DELETE /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>":
+    permission: "form:edit"
   "POST /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/publish":
     permission: "form:publish"
   "POST /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/clone":
@@ -37,3 +60,39 @@ protected_routes:
     permission: "response:view"
   "GET /mahasangraha/api/v1/projects/<project_id>/forms/<form_id>/export/<format>":
     permission: "response:export"
+
+  # Webhooks
+  "POST /mahasangraha/api/v1/webhooks":
+    permission: "webhook:manage"
+  "GET /mahasangraha/api/v1/webhooks":
+    permission: "webhook:manage"
+  "PUT /mahasangraha/api/v1/webhooks/<id>":
+    permission: "webhook:manage"
+  "DELETE /mahasangraha/api/v1/webhooks/<id>":
+    permission: "webhook:manage"
+
+  # Users Management
+  "POST /mahasangraha/api/v1/users":
+    permission: "user:manage"
+  "GET /mahasangraha/api/v1/users":
+    permission: "user:manage"
+  "GET /mahasangraha/api/v1/users/<id>":
+    permission: "user:manage"
+  "PUT /mahasangraha/api/v1/users/<id>":
+    permission: "user:manage"
+  "DELETE /mahasangraha/api/v1/users/<id>":
+    permission: "user:manage"
+
+  # Admin / System Config
+  "GET /mahasangraha/api/v1/admin/system-settings":
+    permission: "system:manage"
+  "PUT /mahasangraha/api/v1/admin/system-settings":
+    permission: "system:manage"
+  "GET /mahasangraha/api/v1/admin/system-settings/metrics":
+    permission: "system:manage"
+  "GET /mahasangraha/api/v1/admin/env-config":
+    permission: "system:manage"
+  "GET /mahasangraha/api/v1/admin/tasks":
+    permission: "system:manage"
+
+

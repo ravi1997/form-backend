@@ -101,3 +101,69 @@ def _normalize_response(response):
     if isinstance(response, tuple):
         return response[0], response[1]
     return response, getattr(response, "status_code", 200)
+
+
+def celery_idempotent(ttl_seconds=86400):
+    """
+    Decorator for Celery tasks to ensure idempotency.
+    Checks Redis for an idempotency key (passed as 'idempotency_key' in kwargs).
+    If the key is found and completed, skips execution and returns the cached result.
+    If the key is found and processing, skips duplicate concurrent execution.
+    Stores the result of the task execution upon success.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            from extensions import redis_client
+            from logger.unified_logger import app_logger, error_logger
+
+            key = kwargs.get("idempotency_key")
+            if not key:
+                # If no key is explicitly passed, construct a stable hash of task name + args + kwargs
+                import hashlib
+                import json
+                raw_args = json.dumps({"args": args, "kwargs": {k: v for k, v in kwargs.items() if k != "idempotency_key"}}, sort_keys=True, default=str)
+                key_hash = hashlib.sha256(raw_args.encode("utf-8")).hexdigest()
+                key = f"celery:{func.__name__}:{key_hash}"
+            else:
+                key = f"celery:{func.__name__}:{key}"
+
+            redis_key = f"idempotency:{key}"
+            
+            try:
+                state = redis_client.get(redis_key)
+                if state:
+                    state_val = json.loads(state)
+                    if state_val.get("status") == "processing":
+                        app_logger.info(f"Task {func.__name__} with key {key} is already processing. Skipping duplicate execution.")
+                        return {"status": "skipped", "reason": "already_processing"}
+                    elif state_val.get("status") == "completed":
+                        app_logger.info(f"Task {func.__name__} with key {key} already completed. Replaying cached result.")
+                        return state_val.get("result")
+                
+                # Mark as processing
+                redis_client.setex(redis_key, 3600, json.dumps({"status": "processing"}))
+            except Exception as e:
+                error_logger.warning(f"Failed to check/set Celery idempotency key {redis_key}: {e}")
+
+            try:
+                result = func(self, *args, **kwargs)
+                
+                try:
+                    redis_client.setex(
+                        redis_key,
+                        ttl_seconds,
+                        json.dumps({"status": "completed", "result": result, "completed_at": datetime.now(timezone.utc).isoformat()})
+                    )
+                except Exception as e:
+                    error_logger.warning(f"Failed to cache Celery task completion for key {redis_key}: {e}")
+                
+                return result
+            except Exception as e:
+                try:
+                    redis_client.delete(redis_key)
+                except Exception as del_err:
+                    error_logger.warning(f"Failed to clear Celery idempotency key on failure {redis_key}: {del_err}")
+                raise e
+        return wrapper
+    return decorator

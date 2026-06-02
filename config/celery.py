@@ -125,12 +125,90 @@ def get_flask_app():
     return _flask_app
 
 
-class FlaskContextTask(celery_app.Task):
+class ReliabilityTask(celery_app.Task):
     abstract = True
 
     def __call__(self, *args, **kwargs):
         with get_flask_app().app_context():
             return super().__call__(*args, **kwargs)
 
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        super().on_failure(exc, task_id, args, kwargs, einfo)
+        retries = self.request.retries if self.request.retries is not None else 0
+        max_retries = self.max_retries if self.max_retries is not None else 0
+        if retries >= max_retries:
+            from logger.unified_logger import error_logger, audit_logger
+            error_logger.error(
+                f"Task {self.name} [{task_id}] failed permanently after {retries} retries: {exc}",
+                exc_info=True
+            )
+            try:
+                from models.DeadLetterTask import DeadLetterTask
+                import json
+                try:
+                    s_args = json.loads(json.dumps(args, default=str))
+                    s_kwargs = json.loads(json.dumps(kwargs, default=str))
+                except Exception:
+                    s_args = {"raw": str(args)}
+                    s_kwargs = {"raw": str(kwargs)}
 
-celery_app.Task = FlaskContextTask
+                org_id = kwargs.get("organization_id") if isinstance(kwargs, dict) else None
+                if not org_id and self.request.headers:
+                    org_id = self.request.headers.get("organization_id")
+
+                dlq = DeadLetterTask(
+                    task_id=task_id,
+                    task_name=self.name,
+                    args=s_args,
+                    kwargs=s_kwargs,
+                    exception=str(exc),
+                    traceback=str(einfo),
+                    organization_id=org_id or "system"
+                )
+                dlq.save()
+                audit_logger.info(f"Task {self.name} [{task_id}] routed to dead-letter storage.")
+            except Exception as dlq_err:
+                error_logger.critical(f"Failed to save DeadLetterTask for task {task_id}: {dlq_err}", exc_info=True)
+
+
+celery_app.Task = ReliabilityTask
+
+
+
+# ── Context and Tracing Propagation Signals ─────────────────────────────
+from celery.signals import before_task_publish, task_prerun
+from flask_jwt_extended import current_user
+
+
+@before_task_publish.connect
+def before_task_publish_handler(headers=None, body=None, **kwargs):
+    from flask import g, has_request_context
+    if has_request_context():
+        # Propagate request correlation ID
+        req_id = getattr(g, "request_id", None)
+        if req_id and headers:
+            headers["request_id"] = req_id
+
+        # Propagate tenant context organization_id
+        org_id = None
+        try:
+            if current_user:
+                org_id = getattr(current_user, "organization_id", None)
+        except Exception:
+            pass
+        if org_id and headers:
+            headers["organization_id"] = org_id
+
+
+@task_prerun.connect
+def task_prerun_handler(task, **kwargs):
+    from flask import g
+    request = task.request
+    req_id = request.headers.get("request_id") if request.headers else None
+    org_id = request.headers.get("organization_id") if request.headers else None
+
+    if req_id:
+        g.request_id = req_id
+    if org_id:
+        g.tenant_db_alias = f"conn_{org_id}"
+

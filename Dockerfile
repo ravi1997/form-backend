@@ -1,36 +1,33 @@
-# Use the full Python image which includes build tools (gcc, make, etc.) by default.
-# This avoids the need to run apt-get update/install for build-essential,
-# which was failing due to network/DNS issues in the slim image.
-FROM python:3.10-bookworm
+# Multi-stage-ready slim base — ~750MB smaller than full bookworm image.
+# libmagic1 is available in slim images (no build-essential needed).
+FROM python:3.10-slim-bookworm
 
-# Set environment variables
+# Reproducible builds: write no .pyc files; flush stdout/stderr immediately.
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies for python-magic
+# System dependencies — only what the runtime needs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
-# No need for apt-get install build-essential/python3-dev as they are
-# already included in the full python:3.10-bookworm image.
-# This bypasses failing apt-get update calls due to network/DNS issues.
-
-# Install dependencies
+# Install Python dependencies before copying source (layer-cache friendly).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire project content into the container
+# Copy application source.
 COPY . /app/
 
-# Ensure logs directory exists
+# Ensure logs directory exists.
 RUN mkdir -p /app/logs
 
-# Expose the API port
+# Run as a non-root user (security best practice).
+RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 6000
 
 # Default command: Runs the production server
