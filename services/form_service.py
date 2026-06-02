@@ -35,6 +35,15 @@ class FormService(BaseService):
     def __init__(self):
         super().__init__(model=Form, schema=FormSchema)
 
+    def delete(
+        self, doc_id: str, organization_id: str = None, hard_delete: bool = False
+    ) -> None:
+        super().delete(doc_id, organization_id, hard_delete)
+        if organization_id:
+            from services.tenant_service import TenantService
+            TenantService().recalculate_usage(organization_id)
+
+
     def sync_form_canvas(
         self, form_id: str, organization_id: str, canvas_data: Dict[str, Any]
     ) -> Form:
@@ -372,10 +381,20 @@ class FormService(BaseService):
             f"Entering FormService.create with title: {create_schema.title}"
         )
         try:
+            if create_schema.organization_id:
+                from services.tenant_service import TenantService
+                tenant_service = TenantService()
+                tenant_service.check_form_quota(create_schema.organization_id)
+
             data = create_schema.model_dump(exclude_unset=True, exclude={"sections"})
             form_doc = self.model(**data)
             form_doc.save()
+
+            if form_doc.organization_id:
+                tenant_service.recalculate_usage(form_doc.organization_id)
+
             self.sync_draft_version(str(form_doc.id), form_doc.organization_id)
+
             form = self._to_schema(form_doc)
             event_bus.publish("form.indexed", form.model_dump())
             audit_logger.info(

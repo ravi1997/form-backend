@@ -19,3 +19,11 @@ from .AnalysisBoard import *  # noqa: F401,F403
 from .Taxonomy import *  # noqa: F401,F403
 from .OutboxEvent import *  # noqa: F401,F403
 from .DeadLetterTask import *  # noqa: F401,F403
+from .OidcUserMapping import *  # noqa: F401,F403
+from .LegalHold import *  # noqa: F401,F403
+from .EvidenceLog import *  # noqa: F401,F403
+from .TenantSettings import *  # noqa: F401,F403
+
+
+
+

@@ -68,7 +68,7 @@ def create_dashboard():
         return error_response(message=str(e), status_code=400)
 
 
-def resolve_widget_data(widget: WidgetSchema, org_id: str):
+def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None):
     """
     Resolves widget data using high-performance MongoDB Aggregation pipelines.
     """
@@ -91,6 +91,11 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str):
         for key, val in widget.filters.items():
             match_query[f"data.{key}"] = val
 
+    # Merge runtime filters (e.g., from request query parameters)
+    if runtime_filters:
+        for key, val in runtime_filters.items():
+            match_query[f"data.{key}"] = val
+
     pipeline = [{"$match": match_query}]
 
     try:
@@ -105,8 +110,6 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str):
                     "data": {"error": "Missing group_by_field"},
                 }
 
-            # Flatten/Unwind may be needed if data is nested,
-            # but assume standard data.{field} access for now.
             group_id = f"$data.{group_by}"
 
             if agg_field:
@@ -136,7 +139,6 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str):
             res_data = FormResponse.objects(**match_query).count()
 
         elif widget.type in ["table", "list_view"]:
-            # Efficient Projection and Limit
             limit = widget.config.get("limit", 10)
             results = (
                 FormResponse.objects(**match_query)
@@ -188,8 +190,15 @@ def get_dashboard(slug):
     try:
         dashboard = dashboard_service.get_by_slug(slug, organization_id=org_id)
 
+        # Extract runtime filters from query parameters (starting with filter_)
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                real_key = key[7:]
+                runtime_filters[real_key] = val
+
         # Resolve Widget Data
-        widgets_data = [resolve_widget_data(w, org_id) for w in dashboard.widgets]
+        widgets_data = [resolve_widget_data(w, org_id, runtime_filters) for w in dashboard.widgets]
 
         result = dashboard.model_dump()
         result["widgets"] = widgets_data
@@ -209,6 +218,7 @@ def get_dashboard(slug):
             exc_info=True,
         )
         return error_response(message="Failed to load dashboard data", status_code=500)
+
 
 
 @dashboard_bp.route("/<dashboard_id>", methods=["PUT"])
@@ -258,3 +268,192 @@ def update_dashboard(dashboard_id):
             exc_info=True,
         )
         return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/share", methods=["POST"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def share_dashboard(dashboard_id):
+    """Generate a public share token for a dashboard."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    try:
+        from models.Dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            id=dashboard_id, organization_id=org_id, is_deleted=False
+        )
+        if not dashboard.share_token:
+            dashboard.share_token = str(uuid.uuid4())
+        dashboard.is_shared = True
+        dashboard.save()
+        audit_logger.info(f"AUDIT: Dashboard {dashboard_id} shared by user {user_id}")
+        return success_response(
+            data={"share_token": dashboard.share_token, "is_shared": dashboard.is_shared},
+            message="Dashboard shared successfully"
+        )
+    except Dashboard.DoesNotExist:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/unshare", methods=["POST"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def unshare_dashboard(dashboard_id):
+    """Disable public sharing for a dashboard."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    try:
+        from models.Dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            id=dashboard_id, organization_id=org_id, is_deleted=False
+        )
+        dashboard.is_shared = False
+        dashboard.save()
+        audit_logger.info(f"AUDIT: Dashboard {dashboard_id} unshared by user {user_id}")
+        return success_response(
+            data={"is_shared": dashboard.is_shared},
+            message="Dashboard unshared successfully"
+        )
+    except Dashboard.DoesNotExist:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/shared/<share_token>", methods=["GET"])
+def get_shared_dashboard(share_token):
+    """Get shared dashboard details and widget data publicly."""
+    try:
+        from models.Dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            share_token=share_token, is_shared=True, is_deleted=False
+        )
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                real_key = key[7:]
+                runtime_filters[real_key] = val
+
+        widgets_data = []
+        for w in dashboard.widgets:
+            widget_dict = {
+                "id": str(w.id),
+                "title": w.title,
+                "type": w.type,
+                "form_id": str(w.form_ref.id) if w.form_ref else None,
+                "group_by_field": w.group_by_field,
+                "aggregate_field": w.aggregate_field,
+                "calculation_type": w.calculation_type,
+                "filters": w.filters or {},
+                "size": w.size,
+                "color_scheme": w.color_scheme,
+                "position_x": w.position_x,
+                "position_y": w.position_y,
+                "width": w.width,
+                "height": w.height,
+                "display_columns": w.display_columns or [],
+                "config": w.config or {},
+            }
+            widget_schema = WidgetSchema(**widget_dict)
+            widgets_data.append(resolve_widget_data(widget_schema, dashboard.organization_id, runtime_filters))
+
+        result = {
+            "title": dashboard.title,
+            "description": dashboard.description,
+            "layout": dashboard.layout,
+            "widgets": widgets_data
+        }
+        return success_response(data=result)
+    except Dashboard.DoesNotExist:
+        return error_response(message="Shared dashboard not found or inactive", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Error fetching shared dashboard: {e}", exc_info=True)
+        return error_response(message="Failed to load shared dashboard", status_code=500)
+
+
+@dashboard_bp.route("/<dashboard_id>/export", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def export_dashboard(dashboard_id):
+    """Export dashboard details and aggregated widget data."""
+    org_id = get_jwt().get("org_id")
+    export_format = request.args.get("format", "json").lower()
+    try:
+        from models.Dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            id=dashboard_id, organization_id=org_id, is_deleted=False
+        )
+        
+        widgets_data = []
+        for w in dashboard.widgets:
+            widget_dict = {
+                "id": str(w.id),
+                "title": w.title,
+                "type": w.type,
+                "form_id": str(w.form_ref.id) if w.form_ref else None,
+                "group_by_field": w.group_by_field,
+                "aggregate_field": w.aggregate_field,
+                "calculation_type": w.calculation_type,
+                "filters": w.filters or {},
+                "size": w.size,
+                "color_scheme": w.color_scheme,
+                "position_x": w.position_x,
+                "position_y": w.position_y,
+                "width": w.width,
+                "height": w.height,
+                "display_columns": w.display_columns or [],
+                "config": w.config or {},
+            }
+            widget_schema = WidgetSchema(**widget_dict)
+            widgets_data.append(resolve_widget_data(widget_schema, org_id))
+
+        if export_format == "csv":
+            import io
+            import csv
+            from flask import Response
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            writer.writerow(["Dashboard Title", dashboard.title])
+            writer.writerow(["Description", dashboard.description])
+            writer.writerow([])
+            
+            for wd in widgets_data:
+                writer.writerow(["Widget Title", wd["title"]])
+                writer.writerow(["Widget Type", wd["type"]])
+                data_val = wd.get("data")
+                if isinstance(data_val, dict) and "labels" in data_val:
+                    writer.writerow(["Label", "Value"])
+                    for lbl, val in zip(data_val["labels"], data_val["values"]):
+                        writer.writerow([lbl, val])
+                elif isinstance(data_val, (int, float)):
+                    writer.writerow(["KPI Value", data_val])
+                elif isinstance(data_val, list):
+                    if data_val:
+                        keys = list(data_val[0].keys())
+                        writer.writerow(keys)
+                        for row in data_val:
+                            writer.writerow([row.get(k) for k in keys])
+                writer.writerow([])
+            
+            return Response(
+                output.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-disposition": f"attachment; filename=dashboard_export_{dashboard_id}.csv"}
+            )
+            
+        export_data = {
+            "title": dashboard.title,
+            "description": dashboard.description,
+            "widgets": widgets_data
+        }
+        return success_response(data=export_data)
+    except Dashboard.DoesNotExist:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Export dashboard error: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+

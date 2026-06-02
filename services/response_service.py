@@ -101,6 +101,15 @@ class FormResponseService(BaseService):
             from services.redis_service import redis_service
             from config.settings import settings
 
+            # Invalidate analytics cache before updating
+            response_doc = self.model.objects(id=doc_id).first()
+            if response_doc and response_doc.form:
+                try:
+                    from services.analytics_cache import analytics_cache
+                    analytics_cache.invalidate_form(str(response_doc.form.id))
+                except Exception as cache_err:
+                    app_logger.warning(f"Failed to invalidate analytics cache on update: {cache_err}")
+
             result = super().update(doc_id, update_schema, organization_id)
 
             if settings.CACHE_ENABLED:
@@ -132,7 +141,21 @@ class FormResponseService(BaseService):
             from services.redis_service import redis_service
             from config.settings import settings
 
+            # Invalidate analytics cache before deleting
+            response_doc = self.model.objects(id=doc_id).first()
+            if response_doc and response_doc.form:
+                try:
+                    from services.analytics_cache import analytics_cache
+                    analytics_cache.invalidate_form(str(response_doc.form.id))
+                except Exception as cache_err:
+                    app_logger.warning(f"Failed to invalidate analytics cache on delete: {cache_err}")
+
             super().delete(doc_id, organization_id, hard_delete)
+
+            if organization_id:
+                from services.tenant_service import TenantService
+                TenantService().recalculate_usage(organization_id)
+
 
             if settings.CACHE_ENABLED:
                 keys_to_delete = [f"decrypted_response:{doc_id}"]
@@ -182,7 +205,11 @@ class FormResponseService(BaseService):
         """Securely ingest a form submission executing payload validation first, wrapping with Idempotency."""
         app_logger.info(f"Entering create_submission for Form ID {data.form}")
         try:
+            from services.tenant_service import TenantService
+            TenantService().check_submission_quota(data.organization_id)
+
             idempotency_key = data.idempotency_key or data.data.get("idempotency_key")
+
             if idempotency_key:
                 data.idempotency_key = idempotency_key
                 if "idempotency_key" in data.data:
@@ -281,6 +308,8 @@ class FormResponseService(BaseService):
             # Create the response document
             try:
                 response = self.create(data)
+                TenantService().recalculate_usage(data.organization_id)
+
             except ConflictError:
                 if idempotency_key:
                     existing = FormResponse.objects(
@@ -339,6 +368,15 @@ class FormResponseService(BaseService):
                 error_logger.error(
                     f"Failed to publish domain event for response {response.id}: {str(e)}",
                     exc_info=True,
+                )
+
+            # Invalidate analytics cache
+            try:
+                from services.analytics_cache import analytics_cache
+                analytics_cache.invalidate_form(str(data.form))
+            except Exception as cache_err:
+                error_logger.warning(
+                    f"Failed to invalidate analytics cache on create: {cache_err}"
                 )
 
             audit_logger.info(

@@ -75,6 +75,53 @@ def handle_form_submitted(payload: dict):
                     f"Failed to process automated report threshold trigger: {report_trigger_err}"
                 )
 
+        # Check and trigger ApprovalWorkflows
+        if form_id and organization_id and response_id:
+            try:
+                from models.Workflow import ApprovalWorkflow
+                from models.WorkflowInstance import WorkflowInstance
+                
+                active_wf = ApprovalWorkflow.objects(
+                    trigger_form_id=str(form_id),
+                    organization_id=organization_id,
+                    status="active",
+                    is_deleted=False
+                ).first()
+                
+                if active_wf:
+                    existing_wf_instance = WorkflowInstance.objects(
+                        resource_type="form_response",
+                        resource_id=str(response_id),
+                        organization_id=organization_id,
+                        is_deleted=False
+                    ).first()
+                    
+                    if not existing_wf_instance:
+                        wf_instance = WorkflowInstance(
+                            organization_id=organization_id,
+                            workflow_definition=active_wf,
+                            resource_type="form_response",
+                            resource_id=str(response_id),
+                            status="pending",
+                            current_step_order=1,
+                            step_approvals={}
+                        )
+                        wf_instance.save()
+                        
+                        from models.Response import FormResponse
+                        response = FormResponse.objects(id=response_id).first()
+                        if response:
+                            response.review_status = "pending"
+                            response.save()
+                            
+                        app_logger.info(
+                            f"Automatically started workflow instance {wf_instance.id} for response {response_id}"
+                        )
+            except Exception as wf_trigger_err:
+                error_logger.error(
+                    f"Failed to auto-trigger workflow instance: {wf_trigger_err}"
+                )
+
         audit_logger.info(
             f"Event 'form.submitted' processed for response_id={response_id}"
         )

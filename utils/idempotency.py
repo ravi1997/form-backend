@@ -121,7 +121,6 @@ def celery_idempotent(ttl_seconds=86400):
             if not key:
                 # If no key is explicitly passed, construct a stable hash of task name + args + kwargs
                 import hashlib
-                import json
                 raw_args = json.dumps({"args": args, "kwargs": {k: v for k, v in kwargs.items() if k != "idempotency_key"}}, sort_keys=True, default=str)
                 key_hash = hashlib.sha256(raw_args.encode("utf-8")).hexdigest()
                 key = f"celery:{func.__name__}:{key_hash}"
@@ -146,8 +145,11 @@ def celery_idempotent(ttl_seconds=86400):
             except Exception as e:
                 error_logger.warning(f"Failed to check/set Celery idempotency key {redis_key}: {e}")
 
+            # Remove idempotency_key from kwargs before calling the function
+            kwargs_clean = kwargs.copy()
+            kwargs_clean.pop("idempotency_key", None)
             try:
-                result = func(self, *args, **kwargs)
+                result = func(self, *args, **kwargs_clean)
                 
                 try:
                     redis_client.setex(

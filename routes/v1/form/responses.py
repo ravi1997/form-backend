@@ -262,3 +262,150 @@ def list_responses(form_id):
             f"Error listing responses for form {form_id}: {str(e)}", exc_info=True
         )
         return error_response(message="Failed to list responses", status_code=400)
+
+
+@form_bp.route("/<form_id>/responses/sync", methods=["POST"])
+@jwt_required()
+def sync_responses(form_id):
+    """
+    Sync offline submissions.
+    Supports conflict resolution ('server_wins' or 'client_wins').
+    """
+    app_logger.info(f"Entering sync_responses for form_id: {form_id}")
+    current_user = get_current_user()
+    payload_data = request.get_json() or {}
+    submissions = payload_data.get("submissions", [])
+    conflict_resolution = payload_data.get("conflict_resolution", "server_wins")
+
+    if not isinstance(submissions, list):
+        return error_response(message="Submissions must be a list", status_code=400)
+
+    try:
+        from uuid import UUID
+        try:
+            form_uuid = UUID(form_id)
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
+        form = Form.objects.get(
+            id=form_uuid,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
+        )
+
+        if not has_form_permission(current_user, form, "submit"):
+            return error_response(
+                message="You do not have permission to submit to this form",
+                status_code=403,
+            )
+
+        results = []
+        for sub in submissions:
+            sub_data = sub.get("data", {})
+            idempotency_key = sub.get("idempotency_key") or sub_data.get("idempotency_key")
+            
+            if not idempotency_key:
+                results.append({
+                    "status": "failed",
+                    "error": "idempotency_key is required for offline sync to prevent duplicates"
+                })
+                continue
+
+            existing = FormResponse.objects(
+                form=form.id,
+                organization_id=current_user.organization_id,
+                idempotency_key=idempotency_key,
+                is_deleted=False,
+            ).first()
+
+            if existing:
+                if conflict_resolution == "client_wins":
+                    try:
+                        is_valid, cleaned_data, errors, calculated_values = response_service.validate_payload(
+                            form_id=str(form.id),
+                            payload_data=sub_data,
+                            organization_id=current_user.organization_id
+                        )
+                        existing.data = cleaned_data or sub_data
+                        if calculated_values:
+                            if not existing.meta_data:
+                                existing.meta_data = {}
+                            existing.meta_data["calculated_values"] = calculated_values
+                        existing.updated_at = datetime.now(timezone.utc)
+                        existing.save()
+                        
+                        from services.redis_service import redis_service
+                        from config.settings import settings
+                        if settings.CACHE_ENABLED:
+                            redis_service.cache.delete(
+                                f"decrypted_response:{existing.id}",
+                                f"decrypted_response:{current_user.organization_id}:{existing.id}"
+                            )
+
+                        # Invalidate analytics cache
+                        try:
+                            from services.analytics_cache import analytics_cache
+                            analytics_cache.invalidate_form(str(form.id))
+                        except Exception as cache_err:
+                            app_logger.warning(f"Failed to invalidate analytics cache in sync: {cache_err}")
+
+                        results.append({
+                            "idempotency_key": idempotency_key,
+                            "status": "conflict_resolved_client",
+                            "response_id": str(existing.id)
+                        })
+                        audit_logger.info(f"AUDIT: Offline sync updated response {existing.id} (client_wins)")
+                    except Exception as val_err:
+                        results.append({
+                            "idempotency_key": idempotency_key,
+                            "status": "validation_failed",
+                            "error": str(val_err)
+                        })
+                else:
+                    results.append({
+                        "idempotency_key": idempotency_key,
+                        "status": "conflict_resolved_server",
+                        "response_id": str(existing.id)
+                    })
+            else:
+                submission_data = {
+                    "form": str(form.id),
+                    "organization_id": current_user.organization_id,
+                    "data": sub_data,
+                    "submitted_by": str(current_user.id),
+                    "ip_address": request.remote_addr,
+                    "user_agent": request.user_agent.string,
+                    "idempotency_key": idempotency_key,
+                }
+                
+                form_project = form._data.get("project")
+                if isinstance(form_project, DBRef):
+                    submission_data["project"] = str(form_project.id)
+                elif hasattr(form_project, "id"):
+                    submission_data["project"] = str(form_project.id)
+                elif form_project:
+                    submission_data["project"] = str(form_project)
+
+                try:
+                    create_schema = FormResponseCreateSchema(**submission_data)
+                    new_resp = response_service.create_submission(create_schema)
+                    results.append({
+                        "idempotency_key": idempotency_key,
+                        "status": "created",
+                        "response_id": str(new_resp.id)
+                    })
+                except Exception as e:
+                    results.append({
+                        "idempotency_key": idempotency_key,
+                        "status": "failed",
+                        "error": str(e)
+                    })
+
+        return success_response(data={"results": results})
+
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Error syncing responses: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+

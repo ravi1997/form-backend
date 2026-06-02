@@ -1,0 +1,162 @@
+"""
+services/compliance_service.py
+Handles compliance requirements including legal holds, retention policy execution, and evidence tracking.
+"""
+
+from datetime import datetime, timedelta, timezone
+from mongoengine import Q
+from logger.unified_logger import app_logger, error_logger, audit_logger
+from services.base import BaseService
+from models.LegalHold import LegalHold
+from models.EvidenceLog import EvidenceLog
+from models.Response import FormResponse
+from models.TenantSettings import TenantSettings
+from utils.exceptions import ValidationError
+
+class ComplianceService(BaseService):
+    def __init__(self):
+        super().__init__(model=LegalHold, schema=None)
+
+    def is_held(self, target_type: str, target_id: str) -> bool:
+        """
+        Check if a form or response is currently under an active legal hold.
+        """
+        hold = LegalHold.objects(
+            target_type=target_type,
+            target_id=str(target_id),
+            is_active=True,
+            is_deleted=False
+        ).first()
+        return hold is not None
+
+    def apply_legal_hold(self, organization_id: str, target_type: str, target_id: str, reason: str, held_by: str) -> LegalHold:
+        """
+        Applies a legal hold to a form or a response.
+        """
+        # Check if already held
+        existing = LegalHold.objects(
+            organization_id=organization_id,
+            target_type=target_type,
+            target_id=str(target_id),
+            is_active=True
+        ).first()
+        if existing:
+            return existing
+
+        hold = LegalHold(
+            organization_id=organization_id,
+            target_type=target_type,
+            target_id=str(target_id),
+            reason=reason,
+            held_by=held_by,
+            is_active=True
+        )
+        hold.save()
+
+        # Write evidence log
+        EvidenceLog(
+            organization_id=organization_id,
+            event_type="legal_hold_created",
+            actor_id=held_by,
+            details={
+                "target_type": target_type,
+                "target_id": str(target_id),
+                "reason": reason,
+                "hold_id": str(hold.id)
+            }
+        ).save()
+
+        audit_logger.info(f"AUDIT: Legal hold applied on {target_type} {target_id} by {held_by}")
+        return hold
+
+    def release_legal_hold(self, organization_id: str, target_type: str, target_id: str, released_by: str) -> bool:
+        """
+        Releases an active legal hold on a form or response.
+        """
+        holds = LegalHold.objects(
+            organization_id=organization_id,
+            target_type=target_type,
+            target_id=str(target_id),
+            is_active=True
+        )
+        if not holds:
+            return False
+
+        for hold in holds:
+            hold.is_active = False
+            hold.save()
+
+            # Write evidence log
+            EvidenceLog(
+                organization_id=organization_id,
+                event_type="legal_hold_released",
+                actor_id=released_by,
+                details={
+                    "target_type": target_type,
+                    "target_id": str(target_id),
+                    "hold_id": str(hold.id)
+                }
+            ).save()
+
+        audit_logger.info(f"AUDIT: Legal holds released on {target_type} {target_id} by {released_by}")
+        return True
+
+    def execute_retention_policy(self, organization_id: str, actor_id: str) -> dict:
+        """
+        Finds and deletes expired responses based on tenant's retention policy.
+        Bypasses soft delete and deletes permanently, but strictly blocks if legal hold is active.
+        """
+        settings = TenantSettings.get_or_create(organization_id)
+        retention_days = settings.retention_days
+        if not retention_days or retention_days <= 0:
+            return {"pruned_count": 0, "held_count": 0}
+
+        threshold_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+        # Query all responses for this organization submitted before the threshold
+        # We use __raw__ or all_with_deleted/objects to make sure we query correct items
+        expired_responses = FormResponse.objects(
+            organization_id=organization_id,
+            submitted_at__lt=threshold_date,
+            is_deleted=False
+        )
+
+        pruned_count = 0
+        held_count = 0
+        pruned_ids = []
+
+        for resp in expired_responses:
+            # Check legal hold on the response itself or its form
+            if self.is_held("response", resp.id) or self.is_held("form", resp.form.id):
+                held_count += 1
+                app_logger.info(f"Skipping expired response {resp.id} due to active legal hold")
+                continue
+
+            resp_id_str = str(resp.id)
+            form_id_str = str(resp.form.id)
+
+            # Hard delete the response
+            resp.delete()
+            pruned_count += 1
+            pruned_ids.append(resp_id_str)
+
+            # Log evidence
+            EvidenceLog(
+                organization_id=organization_id,
+                event_type="retention_prune",
+                actor_id=actor_id,
+                details={
+                    "response_id": resp_id_str,
+                    "form_id": form_id_str,
+                    "submitted_at": resp.submitted_at.isoformat()
+                }
+            ).save()
+
+        # Update tenant usage submissions count
+        if pruned_count > 0:
+            total_active_submissions = FormResponse.objects(organization_id=organization_id, is_deleted=False).count()
+            settings.usage_submissions_count = total_active_submissions
+            settings.save()
+
+        audit_logger.info(f"AUDIT: Executed retention policy for tenant {organization_id}. Pruned: {pruned_count}, Held: {held_count}")
+        return {"pruned_count": pruned_count, "held_count": held_count, "pruned_ids": pruned_ids}

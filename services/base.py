@@ -269,9 +269,18 @@ class BaseService:
             f"Entering delete for {self.model.__name__} {doc_id} (org: {organization_id}, hard: {hard_delete})"
         )
         try:
+            from services.compliance_service import ComplianceService
+            compliance_service = ComplianceService()
+            target_type = self.model.__name__.lower()
+            if target_type == "formresponse":
+                target_type = "response"
+            if compliance_service.is_held(target_type, doc_id):
+                raise ValidationError("Resource has an active legal hold and cannot be deleted.")
+
             filters = {"id": doc_id}
             if organization_id:
                 filters["organization_id"] = organization_id
+
 
             document = self.model.objects(**filters).get()
             if hasattr(document, "soft_delete") and not hard_delete:

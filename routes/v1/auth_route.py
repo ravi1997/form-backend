@@ -377,3 +377,66 @@ def otp_verify_alias():
     Frontend-compatible paths: /auth/otp/verify and /auth/otp/login.
     """
     return login()
+
+
+# -------------------- OIDC / OAUTH2 --------------------
+
+@auth_bp.route("/oidc/login", methods=["GET", "POST"])
+def oidc_login():
+    """Initiates OIDC login flow by returning the provider auth URL."""
+    data = request.get_json(silent=True) or {}
+    organization_id = request.args.get("organization_id") or data.get("organization_id")
+    provider = request.args.get("provider", "google")
+    
+    if not organization_id:
+        return error_response("Missing organization_id", 400)
+        
+    from services.oidc_service import OidcService
+    oidc_service = OidcService()
+    url = oidc_service.get_oidc_auth_url(organization_id, provider)
+    return success_response(data={"auth_url": url}, message="OIDC authorization URL generated")
+
+
+@auth_bp.route("/oidc/callback", methods=["GET", "POST"])
+def oidc_callback():
+    """Callback endpoint for OIDC provider to exchange code and issue JWT."""
+    data = request.get_json(silent=True) or {}
+    code = request.args.get("code") or data.get("code")
+    state = request.args.get("state") or data.get("state")
+    mock_claims = data.get("mock_claims") if request.is_json else None
+    
+    if not code:
+        return error_response("Missing authorization code", 400)
+        
+    organization_id = "default"
+    provider = "google"
+    if state:
+        parts = state.split(":")
+        if len(parts) >= 2:
+            organization_id = parts[0]
+            provider = parts[1]
+            
+    from services.oidc_service import OidcService
+    oidc_service = OidcService()
+    try:
+        user = oidc_service.handle_oidc_callback(organization_id, provider, code, mock_claims=mock_claims)
+        token_data = auth_service.generate_tokens(user)
+        
+        data = {
+            "access_token": token_data.access_token,
+            "refresh_token": token_data.refresh_token,
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "username": user.username,
+                "organization_id": user.organization_id,
+                "roles": user.roles
+            }
+        }
+        resp, status_code = success_response(data=data, message="OIDC Login successful")
+        set_access_cookies(resp, token_data.access_token)
+        set_refresh_cookies(resp, token_data.refresh_token)
+        return resp, status_code
+    except Exception as e:
+        return error_response(f"OIDC authentication failed: {str(e)}", 400)
+

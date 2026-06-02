@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from mongoengine import DateTimeField, DictField, StringField
+from mongoengine import DateTimeField, DictField, StringField, ListField
 from .base import BaseDocument
 
 
@@ -18,7 +18,7 @@ class DeadLetterTask(BaseDocument):
 
     task_id = StringField(required=True, unique=True)
     task_name = StringField(required=True)
-    args = DictField()
+    args = ListField()
     kwargs = DictField()
     exception = StringField()
     traceback = StringField()

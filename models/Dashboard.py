@@ -8,6 +8,7 @@ from mongoengine import (
     EmbeddedDocumentField,
     UUIDField,
     DateTimeField,
+    BooleanField,
 )
 import uuid
 from datetime import datetime, timezone
@@ -36,7 +37,7 @@ class DashboardWidget(EmbeddedDocument):
 class Dashboard(BaseDocument, SoftDeleteMixin):
     meta = {
         "collection": "dashboards",
-        "indexes": ["slug", "organization_id"],
+        "indexes": ["slug", "organization_id", "share_token"],
         "index_background": True,
     }
     title = StringField(required=True)
@@ -47,6 +48,9 @@ class Dashboard(BaseDocument, SoftDeleteMixin):
     layout = StringField(default="grid")
     widgets = ListField(EmbeddedDocumentField(DashboardWidget))
     created_by = StringField(required=True)
+    is_shared = BooleanField(default=False)
+    share_token = StringField()
+
 
 
 class UserDashboardSettings(BaseDocument):
