@@ -127,13 +127,15 @@ class ComplianceService(BaseService):
 
         for resp in expired_responses:
             # Check legal hold on the response itself or its form
-            if self.is_held("response", resp.id) or self.is_held("form", resp.form.id):
+            form_ref = resp._data.get("form") if hasattr(resp, "_data") else None
+            form_id_str = str(form_ref.id) if hasattr(form_ref, "id") else str(form_ref) if form_ref else None
+
+            if self.is_held("response", resp.id) or (form_id_str and self.is_held("form", form_id_str)):
                 held_count += 1
                 app_logger.info(f"Skipping expired response {resp.id} due to active legal hold")
                 continue
 
             resp_id_str = str(resp.id)
-            form_id_str = str(resp.form.id)
 
             # Hard delete the response
             resp.delete()
@@ -147,7 +149,7 @@ class ComplianceService(BaseService):
                 actor_id=actor_id,
                 details={
                     "response_id": resp_id_str,
-                    "form_id": form_id_str,
+                    "form_id": form_id_str or "",
                     "submitted_at": resp.submitted_at.isoformat()
                 }
             ).save()

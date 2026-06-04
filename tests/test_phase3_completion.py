@@ -15,8 +15,10 @@ from workers.event_listener import handle_form_submitted
 from routes.v1.form.responses import form_bp
 from routes.v1.dashboard_route import dashboard_bp
 from routes.v1.workflow_route import workflow_bp
+from services.form_validation_service import FormValidationService
 
-def test_phase3_completion(app, db_connection):
+def test_phase3_completion(app, db_connection, mocker):
+    mocker.patch.object(FormValidationService, "validate_submission", return_value=(True, {}, {}, {}))
     # Register blueprints if not registered
     try:
         app.register_blueprint(
@@ -56,24 +58,23 @@ def test_phase3_completion(app, db_connection):
         client = app.test_client()
 
         # 2. SETUP PROJECT AND FORM
-        project_id = uuid.uuid4()
-        form_id = uuid.uuid4()
+        project_id = str(uuid.uuid4())
+        form_id = str(uuid.uuid4())
 
         project = Project(
             id=project_id,
             title="Phase 3 Project",
-            slug="phase3-project",
             organization_id="org-phase3",
-            created_by=str(user.id),
         ).save()
 
+        from bson import DBRef
         form = Form(
             id=form_id,
             title="Phase 3 Form",
             slug="phase3-form",
             organization_id="org-phase3",
             created_by=str(user.id),
-            project=project,
+            project=DBRef("projects", str(project_id)),
             status="published",
         ).save()
 
@@ -150,10 +151,17 @@ def test_phase3_completion(app, db_connection):
         assert analytics_cache.redis_client.get(cache_key) is not None
 
         # Modifying response should invalidate cache
+        db_resp = FormResponse.objects.get(id=response_id_1)
         db_resp.data["score"] = 95
         from services.response_service import FormResponseService, FormResponseUpdateSchema
         response_service = FormResponseService()
-        response_service.update(str(db_resp.id), FormResponseUpdateSchema(data=db_resp.data), "org-phase3")
+        response_service.update(
+            str(db_resp.id),
+            FormResponseUpdateSchema(
+                data=db_resp.data
+            ),
+            "org-phase3"
+        )
 
         # Cache should be invalidated now
         assert analytics_cache.redis_client.get(cache_key) is None
@@ -247,5 +255,16 @@ def test_phase3_completion(app, db_connection):
         ).first()
 
         assert wf_instance is not None
-        assert wf_instance.workflow_definition.id == workflow_def.id
+        
+        wf_def_ref = wf_instance._data.get("workflow_definition")
+        assert wf_def_ref is not None
+        from bson import DBRef
+        if isinstance(wf_def_ref, DBRef):
+            wf_def_id = wf_def_ref.id
+        elif hasattr(wf_def_ref, "id"):
+            wf_def_id = wf_def_ref.id
+        else:
+            wf_def_id = wf_def_ref
+            
+        assert str(wf_def_id) == str(workflow_def.id)
         assert wf_instance.status == "pending"

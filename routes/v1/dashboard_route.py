@@ -79,9 +79,25 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
     if not widget.form_id:
         return {**widget.model_dump(), "data": None}
 
-    # Base Match: Form + Non-deleted + Organization Isolation
-    match_query = {
-        "form": widget.form_id,
+    import uuid
+    from bson import DBRef
+    form_ref_val = widget.form_id
+    try:
+        val_uuid = uuid.UUID(widget.form_id)
+        form_ref_val = DBRef("forms", val_uuid)
+    except (ValueError, TypeError):
+        pass
+
+    # MongoEngine query uses __ for nested dict fields
+    mongo_query = {
+        "form": form_ref_val,
+        "is_deleted": False,
+        "organization_id": org_id,
+    }
+
+    # Raw PyMongo query for aggregations uses dot notation for nested dict fields
+    raw_query = {
+        "form": form_ref_val,
         "is_deleted": False,
         "organization_id": org_id,
     }
@@ -89,14 +105,16 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
     # Add optional filters from widget config
     if widget.filters:
         for key, val in widget.filters.items():
-            match_query[f"data.{key}"] = val
+            mongo_query[f"data__{key}"] = val
+            raw_query[f"data.{key}"] = val
 
     # Merge runtime filters (e.g., from request query parameters)
     if runtime_filters:
         for key, val in runtime_filters.items():
-            match_query[f"data.{key}"] = val
+            mongo_query[f"data__{key}"] = val
+            raw_query[f"data.{key}"] = val
 
-    pipeline = [{"$match": match_query}]
+    pipeline = [{"$match": raw_query}]
 
     try:
         if widget.type in ["chart_bar", "chart_pie", "chart_line"]:
@@ -136,12 +154,12 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             res_data = {"labels": labels, "values": values}
 
         elif widget.type in ["counter", "kpi"]:
-            res_data = FormResponse.objects(**match_query).count()
+            res_data = FormResponse.objects(**mongo_query).count()
 
         elif widget.type in ["table", "list_view"]:
             limit = widget.config.get("limit", 10)
             results = (
-                FormResponse.objects(**match_query)
+                FormResponse.objects(**mongo_query)
                 .order_by("-submitted_at")
                 .limit(limit)
                 .only("id", "data", "submitted_at")
@@ -338,11 +356,21 @@ def get_shared_dashboard(share_token):
 
         widgets_data = []
         for w in dashboard.widgets:
+            from bson import DBRef
+            raw_form_ref = w._data.get("form_ref") if hasattr(w, "_data") else None
+            form_id_str = None
+            if raw_form_ref:
+                if isinstance(raw_form_ref, DBRef):
+                    form_id_str = str(raw_form_ref.id)
+                elif hasattr(raw_form_ref, "id"):
+                    form_id_str = str(raw_form_ref.id)
+                else:
+                    form_id_str = str(raw_form_ref)
             widget_dict = {
                 "id": str(w.id),
                 "title": w.title,
                 "type": w.type,
-                "form_id": str(w.form_ref.id) if w.form_ref else None,
+                "form_id": form_id_str,
                 "group_by_field": w.group_by_field,
                 "aggregate_field": w.aggregate_field,
                 "calculation_type": w.calculation_type,
@@ -388,11 +416,21 @@ def export_dashboard(dashboard_id):
         
         widgets_data = []
         for w in dashboard.widgets:
+            from bson import DBRef
+            raw_form_ref = w._data.get("form_ref") if hasattr(w, "_data") else None
+            form_id_str = None
+            if raw_form_ref:
+                if isinstance(raw_form_ref, DBRef):
+                    form_id_str = str(raw_form_ref.id)
+                elif hasattr(raw_form_ref, "id"):
+                    form_id_str = str(raw_form_ref.id)
+                else:
+                    form_id_str = str(raw_form_ref)
             widget_dict = {
                 "id": str(w.id),
                 "title": w.title,
                 "type": w.type,
-                "form_id": str(w.form_ref.id) if w.form_ref else None,
+                "form_id": form_id_str,
                 "group_by_field": w.group_by_field,
                 "aggregate_field": w.aggregate_field,
                 "calculation_type": w.calculation_type,

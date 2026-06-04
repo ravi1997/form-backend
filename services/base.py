@@ -37,14 +37,18 @@ class BaseService:
             if "_id" in doc_dict and "id" not in doc_dict:
                 doc_dict["id"] = str(doc_dict.pop("_id"))
 
+            from bson import DBRef
             def normalize(value):
                 if isinstance(value, UUID):
                     return str(value)
+                if isinstance(value, DBRef):
+                    return str(value.id)
                 if isinstance(value, dict):
                     return {k: normalize(v) for k, v in value.items()}
                 if isinstance(value, list):
                     return [normalize(v) for v in value]
                 return value
+
 
             doc_dict = normalize(doc_dict)
             return self.schema.model_validate(doc_dict)
@@ -209,7 +213,29 @@ class BaseService:
                     details={"type": str(type(update_schema))},
                 )
             if update_data:
-                document.update(**{f"set__{k}": v for k, v in update_data.items()})
+                # Convert string references to DBRefs to prevent MongoEngine validation errors on update
+                from mongoengine import ReferenceField
+                from bson import DBRef
+                processed_update = {}
+                for k, v in update_data.items():
+                    if k in self.model._fields and isinstance(self.model._fields[k], ReferenceField) and isinstance(v, str):
+                        ref_field = self.model._fields[k]
+                        target_col = ref_field.document_type_obj._meta.get('collection')
+                        import uuid
+                        try:
+                            val_uuid = uuid.UUID(v)
+                            processed_update[f"set__{k}"] = DBRef(target_col, val_uuid)
+                        except ValueError:
+                            processed_update[f"set__{k}"] = DBRef(target_col, v)
+                    else:
+                        processed_update[f"set__{k}"] = v
+
+                app_logger.info(f"Processed update: {processed_update}")
+                document.update(**processed_update)
+
+
+
+
                 try:
                     document.reload()
                 except DoesNotExist as reload_error:
@@ -250,10 +276,11 @@ class BaseService:
             )
         except MongoValidationError as e:
             app_logger.warning(
-                f"Database validation failed on update for {self.model.__name__} {doc_id}: {str(e)}"
+                f"Database validation failed on update for {self.model.__name__} {doc_id}: {str(e)}",
+                exc_info=True
             )
             raise ValidationError(
-                f"Database validation failed on update", details={"error": str(e)}
+                f"Database validation failed on update: {str(e)}", details={"error": str(e)}
             )
         except Exception as e:
             error_logger.error(
@@ -269,20 +296,27 @@ class BaseService:
             f"Entering delete for {self.model.__name__} {doc_id} (org: {organization_id}, hard: {hard_delete})"
         )
         try:
+            filters = {"id": doc_id}
+            if organization_id:
+                filters["organization_id"] = organization_id
+
+            document = self.model.objects(**filters).get()
+
             from services.compliance_service import ComplianceService
             compliance_service = ComplianceService()
             target_type = self.model.__name__.lower()
             if target_type == "formresponse":
                 target_type = "response"
+
             if compliance_service.is_held(target_type, doc_id):
                 raise ValidationError("Resource has an active legal hold and cannot be deleted.")
 
-            filters = {"id": doc_id}
-            if organization_id:
-                filters["organization_id"] = organization_id
-
-
-            document = self.model.objects(**filters).get()
+            if target_type == "response" and hasattr(document, "_data") and "form" in document._data:
+                form_ref = document._data.get("form")
+                if form_ref:
+                    form_id = str(form_ref.id) if hasattr(form_ref, "id") else str(form_ref)
+                    if compliance_service.is_held("form", form_id):
+                        raise ValidationError("Resource has an active legal hold on its parent form and cannot be deleted.")
             if hasattr(document, "soft_delete") and not hard_delete:
                 document.soft_delete()
                 app_logger.info(

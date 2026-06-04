@@ -44,10 +44,12 @@ class TenantSettings(BaseDocument, SoftDeleteMixin):
         if doc:
             return doc
 
+        import uuid
         try:
             cls._get_collection().update_one(
                 {"organization_id": organization_id},
                 {"$setOnInsert": {
+                    "_id": str(uuid.uuid4()),
                     "organization_id": organization_id,
                     "is_active": True,
                     "max_forms": 100,
@@ -57,6 +59,7 @@ class TenantSettings(BaseDocument, SoftDeleteMixin):
                     "usage_forms_count": 0,
                     "usage_submissions_count": 0,
                     "usage_storage_bytes": 0,
+                    "is_deleted": False,
                 }},
                 upsert=True,
             )

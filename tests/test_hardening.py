@@ -9,8 +9,8 @@ pytestmark = pytest.mark.usefixtures("db_connection")
 def test_cross_tenant_denial():
     mock_form = MagicMock(id="form1", organization_id="org1")
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
         mock_form_objs.return_value.first.return_value = mock_form
         mock_version_objs.return_value.first.return_value = None
@@ -43,8 +43,8 @@ def test_repeatable_section_validation():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -92,8 +92,8 @@ def test_repeatable_question_validation():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -147,8 +147,8 @@ def test_complex_calculation_order():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -189,8 +189,8 @@ def test_circular_dependency_detection():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -236,8 +236,8 @@ def test_option_level_visibility():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form

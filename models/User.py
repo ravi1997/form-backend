@@ -59,6 +59,8 @@ class User(BaseDocument, SoftDeleteMixin):
     mobile = StringField(max_length=15, trim=True)
     department = StringField(trim=True)
     organization_id = StringField(trim=True)  # Multi-tenant support
+    sso_provider = StringField(trim=True)
+    sso_id = StringField(trim=True)
 
     user_type = StringField(required=True, choices=USER_TYPE_CHOICES, default="general")
     password_hash = StringField(max_length=255)

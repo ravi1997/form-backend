@@ -32,8 +32,8 @@ def test_unified_validation_simple():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -76,8 +76,8 @@ def test_calculated_fields():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -121,8 +121,8 @@ def test_cascading_selects():
         ]
     }
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form

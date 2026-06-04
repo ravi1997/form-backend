@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Tuple, Optional
+from pydantic import BaseModel, ConfigDict
+from typing import List, Dict, Any, Tuple, Optional, Literal
 from logger.unified_logger import (
     app_logger,
     error_logger,
@@ -16,12 +17,29 @@ from schemas.base import InboundPayloadSchema
 logger = get_logger(__name__)
 
 
+
 class FormResponseCreateSchema(FormResponseSchema, InboundPayloadSchema):
     idempotency_key: Optional[str] = None
 
 
-class FormResponseUpdateSchema(FormResponseSchema, InboundPayloadSchema):
-    pass
+class FormResponseUpdateSchema(BaseModel, InboundPayloadSchema):
+    model_config = ConfigDict(extra="ignore")
+
+    project: Optional[str] = None
+    form: Optional[str] = None
+    form_version: Optional[str] = None
+    version: Optional[str] = None
+    organization_id: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+    submitted_by: Optional[str] = None
+    submitted_at: Optional[datetime] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    status: Optional[Literal["submitted", "processed", "error", "archived"]] = None
+    review_status: Optional[Literal["pending", "approved", "rejected"]] = None
+    meta_data: Optional[Dict[str, Any]] = None
+    tags: Optional[List[str]] = None
+
 
 
 class FormResponseService(BaseService):
@@ -103,12 +121,15 @@ class FormResponseService(BaseService):
 
             # Invalidate analytics cache before updating
             response_doc = self.model.objects(id=doc_id).first()
-            if response_doc and response_doc.form:
-                try:
-                    from services.analytics_cache import analytics_cache
-                    analytics_cache.invalidate_form(str(response_doc.form.id))
-                except Exception as cache_err:
-                    app_logger.warning(f"Failed to invalidate analytics cache on update: {cache_err}")
+            if response_doc and hasattr(response_doc, "_data") and "form" in response_doc._data:
+                form_ref = response_doc._data.get("form")
+                if form_ref:
+                    form_id = str(form_ref.id) if hasattr(form_ref, "id") else str(form_ref)
+                    try:
+                        from services.analytics_cache import analytics_cache
+                        analytics_cache.invalidate_form(form_id)
+                    except Exception as cache_err:
+                        app_logger.warning(f"Failed to invalidate analytics cache on update: {cache_err}")
 
             result = super().update(doc_id, update_schema, organization_id)
 
@@ -143,12 +164,15 @@ class FormResponseService(BaseService):
 
             # Invalidate analytics cache before deleting
             response_doc = self.model.objects(id=doc_id).first()
-            if response_doc and response_doc.form:
-                try:
-                    from services.analytics_cache import analytics_cache
-                    analytics_cache.invalidate_form(str(response_doc.form.id))
-                except Exception as cache_err:
-                    app_logger.warning(f"Failed to invalidate analytics cache on delete: {cache_err}")
+            if response_doc and hasattr(response_doc, "_data") and "form" in response_doc._data:
+                form_ref = response_doc._data.get("form")
+                if form_ref:
+                    form_id = str(form_ref.id) if hasattr(form_ref, "id") else str(form_ref)
+                    try:
+                        from services.analytics_cache import analytics_cache
+                        analytics_cache.invalidate_form(form_id)
+                    except Exception as cache_err:
+                        app_logger.warning(f"Failed to invalidate analytics cache on delete: {cache_err}")
 
             super().delete(doc_id, organization_id, hard_delete)
 
@@ -216,11 +240,15 @@ class FormResponseService(BaseService):
                     data.data = dict(data.data)
                     data.data.pop("idempotency_key", None)
 
+                import uuid
+                form_uuid = uuid.UUID(data.form) if isinstance(data.form, str) else data.form
                 existing = FormResponse.objects(
-                    form=data.form,
-                    organization_id=data.organization_id,
-                    idempotency_key=idempotency_key,
-                    is_deleted=False,
+                    __raw__={
+                        "form": form_uuid,
+                        "organization_id": data.organization_id,
+                        "idempotency_key": idempotency_key,
+                        "is_deleted": False,
+                    }
                 ).first()
                 if existing:
                     existing_hash = (existing.meta_data or {}).get(
@@ -312,11 +340,15 @@ class FormResponseService(BaseService):
 
             except ConflictError:
                 if idempotency_key:
+                    import uuid
+                    form_uuid = uuid.UUID(data.form) if isinstance(data.form, str) else data.form
                     existing = FormResponse.objects(
-                        form=data.form,
-                        organization_id=data.organization_id,
-                        idempotency_key=idempotency_key,
-                        is_deleted=False,
+                        __raw__={
+                            "form": form_uuid,
+                            "organization_id": data.organization_id,
+                            "idempotency_key": idempotency_key,
+                            "is_deleted": False,
+                        }
                     ).first()
                     if existing:
                         existing_hash = (existing.meta_data or {}).get(

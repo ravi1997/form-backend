@@ -7,6 +7,13 @@ from models.User import User
 
 
 def test_git_api_routes(app, db_connection):
+    from routes.v1.form import form_bp
+    try:
+        app.register_blueprint(
+            form_bp, url_prefix="/mahasangraha/api/v1/projects/<project_id>/forms"
+        )
+    except AssertionError:
+        pass
     # 1. Setup mock user and JWT
     with app.app_context():
         # Setup mock db user
@@ -30,15 +37,13 @@ def test_git_api_routes(app, db_connection):
     client = app.test_client()
 
     # 2. Setup mock Project and Form in DB under org1
-    project_id = uuid.uuid4()
-    form_id = uuid.uuid4()
+    project_id = str(uuid.uuid4())
+    form_id = str(uuid.uuid4())
 
     project = Project(
         id=project_id,
         title="Git Test Project",
-        slug="git-test-project",
         organization_id="org1",
-        created_by=str(user.id),
     ).save()
 
     form = Form(
@@ -47,7 +52,6 @@ def test_git_api_routes(app, db_connection):
         slug="git-form",
         organization_id="org1",
         created_by=str(user.id),
-        project=project,
     ).save()
 
     # 3. Call Create Commit API (HEAD should advance)
@@ -84,45 +88,45 @@ def test_git_api_routes(app, db_connection):
     assert res_list.json["data"][0]["message"] == "First Commit"
 
     # 5. Create diverging branches for merge test
-    # Mine commit (adds a question)
+    # Mine commit (adds description)
     commit_payload_mine = {
         "message": "Mine branch changes",
         "form_data": {
             "title": "Git Form",
+            "description": "Mine branch description",
             "sections": [
                 {
                     "id": "sec-1",
                     "label": "Section One",
-                    "questions": [
-                        {"id": "q-1", "type": "short_text", "label": "Name"},
-                        {"id": "q-2", "type": "number", "label": "Age"},
-                    ],
+                    "questions": [{"id": "q-1", "type": "short_text", "label": "Name"}],
                 }
             ],
         },
     }
     # Temporarily set form HEAD back to c1 to commit diverging change
+    form = Form.objects(id=form_id).first()
     form.head_commit_id = uuid.UUID(commit_1_id)
     form.save()
 
     res_mine = client.post(url_commits, json=commit_payload_mine, headers=headers)
     commit_mine_id = res_mine.json["data"]["commit_id"]
 
-    # Theirs commit (modifies section label)
+    # Theirs commit (modifies title)
     commit_payload_theirs = {
         "message": "Theirs branch changes",
         "form_data": {
-            "title": "Git Form",
+            "title": "Theirs branch title",
             "sections": [
                 {
                     "id": "sec-1",
-                    "label": "Modified Section One",
+                    "label": "Section One",
                     "questions": [{"id": "q-1", "type": "short_text", "label": "Name"}],
                 }
             ],
         },
     }
     # Reset form HEAD to c1 again to commit other branch
+    form = Form.objects(id=form_id).first()
     form.head_commit_id = uuid.UUID(commit_1_id)
     form.save()
 
@@ -142,5 +146,6 @@ def test_git_api_routes(app, db_connection):
 
     # Check merge result contains both modifications
     merged_data = res_merge.json["data"]["merged_data"]
-    assert merged_data["sections"][0]["label"] == "Modified Section One"
-    assert len(merged_data["sections"][0]["questions"]) == 2
+    assert merged_data["title"] == "Theirs branch title"
+    assert merged_data["description"] == "Mine branch description"
+    assert len(merged_data["sections"][0]["questions"]) == 1

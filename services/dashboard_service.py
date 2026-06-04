@@ -10,7 +10,7 @@ class WidgetSchema(BaseModel):
     id: Optional[str] = None
     title: str
     type: str
-    form_id: Optional[str] = None
+    form_id: Optional[str] = Field(default=None, validation_alias="form_ref")
     group_by_field: Optional[str] = None
     aggregate_field: Optional[str] = None
     calculation_type: str = "count"
@@ -78,6 +78,7 @@ class DashboardService(BaseService):
                 raise NotFoundError(f"Dashboard {slug} not found")
 
             result = self._to_schema(document)
+            app_logger.info(f"Dashboard Schema Result: {result.model_dump()}")
             app_logger.debug(f"Exiting get_by_slug: {slug} successfully")
             return result
         except Exception as e:

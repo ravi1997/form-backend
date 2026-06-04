@@ -37,8 +37,8 @@ def test_aggregate_repeat_calculations():
     # Mock property
     type(mock_version).resolved_snapshot = mock_version.snapshot
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form
@@ -90,8 +90,8 @@ def test_missing_dependency_graceful_handling():
     }
     type(mock_version).resolved_snapshot = mock_version.snapshot
 
-    with patch("models.Form.Form.objects") as mock_form_objs, patch(
-        "models.Form.FormVersion.objects"
+    with patch.object(Form, "objects") as mock_form_objs, patch.object(
+        FormVersion, "objects"
     ) as mock_version_objs:
 
         mock_form_objs.return_value.first.return_value = mock_form

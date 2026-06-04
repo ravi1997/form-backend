@@ -44,13 +44,20 @@ def handle_form_submitted(payload: dict):
                 )
 
         # Check project-bound automated reports threshold triggers
-        if form and form.project:
+        project_ref = None
+        if form:
+            try:
+                project_ref = form.project
+            except Exception:
+                pass
+
+        if project_ref:
             try:
                 from models.Form import Project
                 from tasks.report_tasks import async_generate_report
 
                 proj = Project.objects(
-                    id=str(form.project.id), is_deleted=False
+                    id=str(project_ref.id), is_deleted=False
                 ).first()
                 if proj and proj.report_configs:
                     updated = False

@@ -40,23 +40,39 @@ def app_context(app):
 @pytest.fixture(scope="session")
 def mongo_container():
     if not DOCKER_AVAILABLE:
-        pytest.skip("Docker daemon is unavailable; skipping MongoDB-backed tests")
-    try:
-        with MongoDbContainer("mongo:6.0") as mongo:
-            yield mongo.get_connection_url()
-    except Exception as exc:
-        pytest.skip(f"MongoDB test container unavailable: {exc}")
+        import os
+        uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017/form_backend")
+        if "form_backend" in uri:
+            uri = uri.replace("form_backend", "test_db")
+        else:
+            uri = uri.replace("27017/", "27017/test_db")
+        yield uri
+    else:
+        try:
+            with MongoDbContainer("mongo:6.0") as mongo:
+                yield mongo.get_connection_url()
+        except Exception as exc:
+            pytest.skip(f"MongoDB test container unavailable: {exc}")
 
 
 @pytest.fixture(scope="session")
 def redis_container():
     if not DOCKER_AVAILABLE:
-        pytest.skip("Docker daemon is unavailable; skipping Redis-backed tests")
-    try:
-        with RedisContainer("redis:7.0-alpine") as redis:
-            yield redis.get_connection_url()
-    except Exception as exc:
-        pytest.skip(f"Redis test container unavailable: {exc}")
+        import os
+        host = os.environ.get("REDIS_HOST", "shared-redis")
+        port = os.environ.get("REDIS_PORT", "6379")
+        password = os.environ.get("REDIS_PASSWORD", "")
+        if password:
+            uri = f"redis://:{password}@{host}:{port}/15"
+        else:
+            uri = f"redis://{host}:{port}/15"
+        yield uri
+    else:
+        try:
+            with RedisContainer("redis:7.0-alpine") as redis:
+                yield redis.get_connection_url()
+        except Exception as exc:
+            pytest.skip(f"Redis test container unavailable: {exc}")
 
 
 @pytest.fixture(scope="function")
@@ -66,8 +82,12 @@ def db_connection(mongo_container):
         mongoengine.disconnect()
     except Exception:
         pass
-    mongoengine.connect("test_db", host=mongo_container)
+    conn = mongoengine.connect("test_db", host=mongo_container, uuidRepresentation="standard")
     yield
+    try:
+        conn.drop_database("test_db")
+    except Exception:
+        pass
     try:
         mongoengine.disconnect()
     except Exception:
@@ -81,3 +101,7 @@ def redis_mock(redis_container):
 
     redis_client.cache = redis.from_url(redis_container)
     yield redis_client
+    try:
+        redis_client.cache.flushdb()
+    except Exception:
+        pass

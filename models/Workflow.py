@@ -25,6 +25,8 @@ class WorkflowStep(BaseEmbeddedDocument):
     approvers = ListField(StringField())  # List of User IDs
     approver_groups = ListField(StringField())  # List of Group IDs
     required_approvals = IntField(default=1)  # Min approvals needed to pass this step
+    min_approvals_required = IntField(default=1)
+    approval_type = StringField(default="serial")
 
     # Escalation Logic
     timeout_hours = IntField(default=0)  # 0 means no timeout
@@ -34,6 +36,21 @@ class WorkflowStep(BaseEmbeddedDocument):
 
     # Optional logic/actions
     actions = ListField(DictField())  # e.g. [{"type": "notify", "template": "..."}]
+    on_approve_script = StringField()
+    on_reject_script = StringField()
+
+    def clean(self):
+        super().clean()
+        if self.min_approvals_required != 1 and self.required_approvals == 1:
+            self.required_approvals = self.min_approvals_required
+        elif self.required_approvals != 1 and self.min_approvals_required == 1:
+            self.min_approvals_required = self.required_approvals
+
+        if self.approval_type and not self.concurrency_type:
+            if self.approval_type in ("serial", "parallel"):
+                self.concurrency_type = self.approval_type
+        elif self.concurrency_type and not self.approval_type:
+            self.approval_type = self.concurrency_type
 
 
 class ApprovalWorkflow(BaseDocument, SoftDeleteMixin):

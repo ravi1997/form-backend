@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from models.Form import Project
+from models.User import User
 from models.AnalysisBoard import AnalysisBoard, AnalysisNode
 from services.analysis_board_service import AnalysisBoardService
 from schemas.analysis_board import (
@@ -92,7 +93,7 @@ def test_execute_aspect_nodes(analysis_service):
     assert res is None
 
 
-def test_crud_endpoints(app, db_connection):
+def test_crud_endpoints(app, db_connection, redis_mock):
     """
     Tests CRUD routing endpoints on /api/v1/projects/<project_id>/analysis-boards
     """
@@ -109,8 +110,19 @@ def test_crud_endpoints(app, db_connection):
         pass  # already registered
 
     with app.app_context():
-        user_claims = {"org_id": "org-test", "roles": ["admin"]}
-        token = create_access_token(identity="user-test", additional_claims=user_claims)
+        user_id = str(uuid.uuid4())
+        user = User(
+            id=user_id,
+            username="board_tester",
+            email="board@test.com",
+            user_type="employee",
+            is_active=True,
+            roles=["admin"],
+            organization_id="org-test",
+        ).save()
+
+        user_claims = {"org_id": "org-test", "organization_id": "org-test", "roles": ["admin"]}
+        token = create_access_token(identity=user_id, additional_claims=user_claims)
         headers = {"Authorization": f"Bearer {token}"}
         project_id = str(uuid.uuid4())
 
@@ -118,7 +130,7 @@ def test_crud_endpoints(app, db_connection):
 
         # Mock DB queries and security checks
         mock_user = MagicMock()
-        mock_user.id = "user-test"
+        mock_user.id = user_id
         mock_user.organization_id = "org-test"
         mock_user.roles = ["admin"]
 

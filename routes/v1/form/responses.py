@@ -312,10 +312,12 @@ def sync_responses(form_id):
                 continue
 
             existing = FormResponse.objects(
-                form=form.id,
-                organization_id=current_user.organization_id,
-                idempotency_key=idempotency_key,
-                is_deleted=False,
+                __raw__={
+                    "form": form.id,
+                    "organization_id": current_user.organization_id,
+                    "idempotency_key": idempotency_key,
+                    "is_deleted": False,
+                }
             ).first()
 
             if existing:
