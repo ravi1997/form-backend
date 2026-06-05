@@ -1,11 +1,12 @@
 ### model
-model_name_or_path: Qwen/Qwen3-30B-A3B-Instruct-2507
+model_name_or_path: Qwen/Qwen3-14B
 template: qwen3
 trust_remote_code: true
 quantization_method: bnb
 quantization_bit: 4
 quantization_type: nf4
 double_quantization: true
+upcast_layernorm: true
 
 ### method
 stage: sft
@@ -18,7 +19,7 @@ lora_dropout: 0.05
 ### dataset
 dataset: ridp_train
 dataset_dir: lora/data
-cutoff_len: 4096
+cutoff_len: 2048
 packing: false
 preprocessing_num_workers: 8
 overwrite_cache: true
