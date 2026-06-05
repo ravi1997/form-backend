@@ -7,6 +7,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from collections import Counter
 
 
 STATE_PATH = Path("lora/improvement_state.json")
@@ -31,6 +32,20 @@ def write_state(state: dict) -> None:
     STATE_PATH.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
 
+def count_modes(path: Path) -> Counter:
+    counts: Counter = Counter()
+    if not path.exists():
+        return counts
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        raw = raw.strip()
+        if not raw:
+            continue
+        rec = json.loads(raw)
+        if isinstance(rec, dict):
+            counts[rec.get("mode", "general")] += 1
+    return counts
+
+
 def launch_training(fast: bool) -> int:
     cmd = ["python3", "lora/run_llama_factory.py"]
     if fast:
@@ -42,7 +57,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Continuously improve the local LoRA model.")
     parser.add_argument("--cycles", type=int, default=1, help="Number of improvement cycles. Use 0 for infinite.")
     parser.add_argument("--sleep-seconds", type=int, default=60, help="Pause between cycles.")
-    parser.add_argument("--target-dataset-size", type=int, default=3000)
+    parser.add_argument("--target-dataset-size", type=int, default=10000)
     parser.add_argument("--fast", action="store_true")
     parser.add_argument("--keep-running", action="store_true", help="Run forever even after successful cycles.")
     args = parser.parse_args()
@@ -63,34 +78,36 @@ def main() -> int:
             }
         )
 
+        augmented_path = "lora/data/train.augmented.jsonl"
         if run([
             "python3",
             "lora/augment_dataset.py",
             "--input",
             "lora/data/train.jsonl",
             "--output",
-            "lora/data/train.augmented.jsonl",
+            augmented_path,
             "--target",
             str(args.target_dataset_size),
         ]) != 0:
             return 1
+        mode_counts = count_modes(Path(augmented_path))
         if run([
             "python3",
             "lora/build_train_dataset.py",
             "--source",
-            "lora/data/train.augmented.jsonl",
+            augmented_path,
             "--output",
             "lora/data/train.jsonl",
             "--limit-json",
-            str(args.target_dataset_size // 5),
+            str(mode_counts.get("json", 0)),
             "--limit-coding",
-            str(args.target_dataset_size // 5),
+            str(mode_counts.get("coding", 0)),
             "--limit-reasoning",
-            str(args.target_dataset_size // 5),
+            str(mode_counts.get("reasoning", 0)),
             "--limit-summarization",
-            str(args.target_dataset_size // 5),
+            str(mode_counts.get("summarization", 0)),
             "--limit-general",
-            str(args.target_dataset_size // 5),
+            str(mode_counts.get("general", 0)),
         ]) != 0:
             return 1
         if run(["python3", "lora/validate_dataset.py", "lora/data/train.jsonl"]) != 0:

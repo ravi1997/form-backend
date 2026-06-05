@@ -23,6 +23,9 @@ from .OidcUserMapping import *  # noqa: F401,F403
 from .LegalHold import *  # noqa: F401,F403
 from .EvidenceLog import *  # noqa: F401,F403
 from .TenantSettings import *  # noqa: F401,F403
+from .Organization import *  # noqa: F401,F403
+from .FeatureFlag import *  # noqa: F401,F403
+
 
 
 

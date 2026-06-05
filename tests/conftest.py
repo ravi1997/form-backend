@@ -98,10 +98,26 @@ def db_connection(mongo_container):
 def redis_mock(redis_container):
     """Mocks out the Redis cache client with the test container endpoint."""
     import redis
+    from services.redis_service import redis_service
 
-    redis_client.cache = redis.from_url(redis_container)
+    # Configure redis_service client proxies with mock client
+    mock_client = redis.from_url(redis_container)
+    
+    # Override client proxies in redis_service
+    redis_service.cache.client = mock_client
+    redis_service.session.client = mock_client
+    redis_service.queue.client = mock_client
+
+    # Prevent configure_client from overwriting our mocked clients on app startup
+    def mock_configure_client(name, config):
+        pass
+    redis_service.configure_client = mock_configure_client
+
+    redis_client.cache = mock_client
     yield redis_client
     try:
-        redis_client.cache.flushdb()
+        mock_client.flushdb()
     except Exception:
         pass
+
+

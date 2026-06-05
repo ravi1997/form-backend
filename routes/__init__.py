@@ -22,7 +22,10 @@ from routes.v1.form.nlp_search import nlp_search_bp
 from routes.v1.form.anomaly import anomaly_bp
 from routes.v1.admin.system_route import system_bp
 from routes.v1.admin.task_route import admin_task_bp
+from routes.v1.admin.org_management_route import org_management_bp
+from routes.v1.admin.feature_flag_route import feature_flag_bp
 from routes.v1.task_route import task_bp
+
 from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
 from routes.v1.files_route import files_bp
@@ -110,7 +113,14 @@ def register_blueprints(app):
     app.register_blueprint(
         admin_task_bp, url_prefix=f"{base_prefix}/api/v1/admin/tasks"
     )
+    app.register_blueprint(
+        org_management_bp, url_prefix=f"{base_prefix}/api/v1/admin/orgs"
+    )
+    app.register_blueprint(
+        feature_flag_bp, url_prefix=f"{base_prefix}/api/v1/admin/feature-flags"
+    )
     app.register_blueprint(task_bp, url_prefix=f"{base_prefix}/api/v1/tasks")
+
     app.register_blueprint(theme_bp, url_prefix=f"{base_prefix}/api/v1/themes")
 
     app.logger.info(

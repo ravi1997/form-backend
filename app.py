@@ -203,8 +203,18 @@ def create_app():
 
     register_blueprints(app)
 
+    # Seed Default Feature Flags
+    try:
+        from services.feature_flag_service import FeatureFlagService
+        with app.app_context():
+            FeatureFlagService().seed_default_flags()
+            logger.info("Default feature flags seeded successfully.")
+    except Exception as e:
+        logger.error(f"Failed to seed default feature flags: {e}")
+
     # ── Instrument Flask ──────────────────────────────────────────────────
     from opentelemetry.instrumentation.flask import FlaskInstrumentor
+
 
     FlaskInstrumentor().instrument_app(app)
 

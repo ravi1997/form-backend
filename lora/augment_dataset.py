@@ -125,6 +125,15 @@ def load_repo_mined_examples(root: Path) -> list[dict]:
         if path.suffix in {".md", ".txt"}:
             headings = [line.lstrip("#").strip() for line in lines if line.startswith("#")]
             if headings:
+                for idx, heading in enumerate(headings[:5], 1):
+                    examples.append(
+                        {
+                            "instruction": f"What is the role of topic {idx} in {rel}?",
+                            "response": f"The topic centers on {heading} and the surrounding implementation constraints.",
+                            "mode": "general",
+                            "tags": ["repo", "docs", "unique"],
+                        }
+                    )
                 examples.append(
                     {
                         "instruction": f"Summarize the main topics in {rel}.",
@@ -149,8 +158,7 @@ def load_repo_mined_examples(root: Path) -> list[dict]:
                 continue
             funcs = [node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
             classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
-            if funcs:
-                fname = funcs[0]
+            for fname in funcs[:4]:
                 examples.append(
                     {
                         "instruction": f"What does `{fname}` do in {rel}?",
@@ -167,8 +175,15 @@ def load_repo_mined_examples(root: Path) -> list[dict]:
                         "tags": ["repo", "code", "unique"],
                     }
                 )
-            if classes:
-                cname = classes[0]
+                examples.append(
+                    {
+                        "instruction": f"State one implementation constraint for `{fname}` in {rel}.",
+                        "response": "Keep the function thin, validate inputs first, and preserve the response envelope.",
+                        "mode": "reasoning",
+                        "tags": ["repo", "code", "unique"],
+                    }
+                )
+            for cname in classes[:3]:
                 examples.append(
                     {
                         "instruction": f"Explain the role of `{cname}` in {rel} in one sentence.",
@@ -184,6 +199,15 @@ def load_repo_mined_examples(root: Path) -> list[dict]:
                         "response": "The test is guarding tenant isolation and preventing cross-organization leakage.",
                         "mode": "reasoning",
                         "tags": ["repo", "test", "unique"],
+                    }
+                )
+            if "success_response" in text or "error_response" in text:
+                examples.append(
+                    {
+                        "instruction": f"Summarize the response-envelope rule in {rel}.",
+                        "response": "Routes should return canonical success and error envelopes rather than ad hoc JSON.",
+                        "mode": "summarization",
+                        "tags": ["repo", "responses", "unique"],
                     }
                 )
         elif path.suffix in {".yaml", ".yml"} and "lora" in path.as_posix():
@@ -209,6 +233,15 @@ def load_repo_mined_examples(root: Path) -> list[dict]:
                         "tags": ["repo", "openapi", "unique"],
                     }
                 )
+                for idx, path_name in enumerate(sorted(data.get("paths", {}).keys())[:10], 1):
+                    examples.append(
+                        {
+                            "instruction": f"What should be preserved by endpoint {idx} in {rel}?",
+                            "response": f"The documented contract for {path_name} should preserve auth, tenant scope, and response codes.",
+                            "mode": "reasoning",
+                            "tags": ["repo", "openapi", "unique"],
+                        }
+                    )
     return examples
 
 
@@ -263,7 +296,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Expand the LoRA dataset with synthetic variants.")
     parser.add_argument("--input", default="lora/data/train.jsonl")
     parser.add_argument("--output", default="lora/data/train.augmented.jsonl")
-    parser.add_argument("--target", type=int, default=3000)
+    parser.add_argument("--target", type=int, default=10000)
     args = parser.parse_args()
 
     records = load_records(Path(args.input))

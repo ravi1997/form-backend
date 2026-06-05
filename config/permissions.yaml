@@ -94,5 +94,26 @@ protected_routes:
     permission: "system:manage"
   "GET /mahasangraha/api/v1/admin/tasks":
     permission: "system:manage"
+  
+  # Organization Control Panel
+  "POST /mahasangraha/api/v1/admin/orgs":
+    permission: "system:manage"
+  "GET /mahasangraha/api/v1/admin/orgs":
+    permission: "system:manage"
+  "PUT /mahasangraha/api/v1/admin/orgs/<org_id>/status":
+    permission: "system:manage"
+  "PUT /mahasangraha/api/v1/admin/orgs/<org_id>/admin":
+    permission: "system:manage"
+  "GET /mahasangraha/api/v1/admin/orgs/<org_id>/stats":
+    permission: "system:manage"
+
+  # Feature Flags
+  "GET /mahasangraha/api/v1/admin/feature-flags":
+    permission: "system:manage"
+  "PUT /mahasangraha/api/v1/admin/feature-flags/<flag_key>":
+    permission: "system:manage"
+  "PUT /mahasangraha/api/v1/admin/feature-flags/<flag_key>/override/<org_id>":
+    permission: "system:manage"
+
 
 

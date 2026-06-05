@@ -84,12 +84,15 @@ class RedisClientProxy:
         """Store a value with an optional expiration time in seconds."""
         start = time.time()
         app_logger.debug(f"[{self.name}] SET key: '{key}', ttl: {ttl}")
-        if isinstance(value, (dict, list)):
+        if isinstance(value, bool):
+            value = json.dumps(value)
+        elif isinstance(value, (dict, list)):
             value = json.dumps(value)
         elif hasattr(value, "model_dump"):
             value = json.dumps(value.model_dump())
 
         res = self.client.set(key, value, ex=ttl)
+
         elapsed = (time.time() - start) * 1000
         app_logger.info(f"[{self.name}] SET key: '{key}', ttl: {ttl} ({elapsed:.2f}ms)")
         return res

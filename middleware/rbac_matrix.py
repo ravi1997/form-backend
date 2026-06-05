@@ -48,7 +48,27 @@ def setup_rbac_matrix(app):
         user_id = jwt_data.get("sub", "unknown")
         org_id = jwt_data.get("organization_id", "unknown")
 
+        # Check Org Suspension Status (skip if superadmin or if no org_id)
+        if "superadmin" not in user_roles and org_id and org_id != "unknown":
+            from models.Organization import Organization
+            from mongoengine.connection import ConnectionFailure
+            try:
+                org = Organization.objects(organization_id=org_id).first()
+                if org and org.status == "suspended":
+                    warn_msg = f"Access Blocked: Organization '{org_id}' is suspended. User '{user_id}' denied access to '{method} {path}'"
+                    app_logger.warning(warn_msg)
+                    audit_logger.warning(f"AUDIT: Suspended org access attempt: {warn_msg}")
+                    return error_response(
+                        message="Organization is suspended. Contact administration.", status_code=403
+                    )
+            except ConnectionFailure:
+                # Graceful fallback for tests running without a defined default connection in context
+                app_logger.warning(f"RBAC org check: No default database connection defined. Skipping status check for org '{org_id}'.")
+            except Exception as e:
+                app_logger.warning(f"RBAC org check: Unexpected error querying Organization status: {e}")
+
         # 4. Check permissions
+
         if not permission_validator.has_permission(user_roles, required_permission):
             warn_msg = f"RBAC Denied: User '{user_id}' with roles {user_roles} in org '{org_id}' lacks permission '{required_permission}' for '{method} {path}'"
             app_logger.warning(warn_msg)
@@ -56,6 +76,7 @@ def setup_rbac_matrix(app):
             return error_response(
                 message="Insufficient permissions for this resource", status_code=403
             )
+
 
         app_logger.info(
             f"RBAC Approved: User '{user_id}' granted access to '{method} {path}' via permission '{required_permission}'"

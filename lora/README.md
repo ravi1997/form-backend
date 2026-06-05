@@ -49,7 +49,7 @@ Recommended use:
 6. Benchmark with `python3 lora/evaluate.py`.
 
 Continuous improvement:
-1. Expand the dataset with `python3 lora/augment_dataset.py --target 3000`.
+1. Expand the dataset with `python3 lora/augment_dataset.py --target 10000`.
 2. Rebuild and validate the balanced dataset.
 3. Launch the loop with `python3 lora/improve_loop.py --fast --keep-running`.
 4. Promote the best checkpoint with `python3 lora/promote_best_checkpoint.py`.
