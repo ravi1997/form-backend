@@ -3203,7 +3203,7 @@ info:
   title: Forms Backend API
   version: 1.0.0
 paths:
-  /form/api/v1/admin/env-config/:
+  /mahasangraha/api/v1/admin/env-config/:
     get:
       responses:
         '200':
@@ -3232,7 +3232,209 @@ paths:
       summary: Update backend environment configurations. SUPERADMIN ONLY.
       tags:
       - Env_Config
-  /form/api/v1/admin/system-settings/:
+  /mahasangraha/api/v1/admin/feature-flags/:
+    get:
+      responses:
+        '200':
+          description: Feature flags retrieved successfully
+        '403':
+          description: Forbidden - Superadmin only
+      summary: Get all feature flags and overrides (Superadmin only)
+      tags:
+      - Feature Flags
+  /mahasangraha/api/v1/admin/feature-flags/{flag_key}:
+    put:
+      parameters:
+      - in: path
+        name: flag_key
+        required: true
+        type: string
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            is_enabled:
+              example: true
+              type: boolean
+          required:
+          - is_enabled
+          type: object
+      responses:
+        '200':
+          description: Global feature flag updated successfully
+        '403':
+          description: Forbidden - Superadmin only
+        '404':
+          description: Feature flag not found
+      summary: Update global feature flag default state (Superadmin only)
+      tags:
+      - Feature Flags
+  /mahasangraha/api/v1/admin/feature-flags/{flag_key}/override/{org_id}:
+    put:
+      parameters:
+      - in: path
+        name: flag_key
+        required: true
+        type: string
+      - in: path
+        name: org_id
+        required: true
+        type: string
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            is_enabled:
+              example: true
+              type: boolean
+          required:
+          - is_enabled
+          type: object
+      responses:
+        '200':
+          description: Organization feature override saved successfully
+        '403':
+          description: Forbidden - Superadmin only
+        '404':
+          description: Feature flag not found
+      summary: Configure feature flag override for a specific organization (Superadmin
+        only)
+      tags:
+      - Feature Flags
+  /mahasangraha/api/v1/admin/orgs/:
+    get:
+      responses:
+        '200':
+          description: Organizations listed successfully
+        '403':
+          description: Forbidden - Superadmin only
+      summary: List all organizations (Superadmin only)
+      tags:
+      - Organization Management
+    post:
+      description: Registers a new organization and atomically configures its default
+        tenant settings/quotas.
+      parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            contact_email:
+              example: admin@tesla.com
+              type: string
+            description:
+              example: Tesla Enterprise Account
+              type: string
+            display_name:
+              example: Tesla
+              type: string
+            metadata:
+              example:
+                region: US
+              type: object
+            name:
+              example: Tesla Inc.
+              type: string
+            organization_id:
+              example: tesla
+              type: string
+          required:
+          - organization_id
+          - name
+          - display_name
+          type: object
+      responses:
+        '200':
+          description: Organization created successfully
+        '400':
+          description: Validation or duplicate key error
+        '403':
+          description: Forbidden - Superadmin only
+      summary: Create an Enterprise Organization (Superadmin only)
+      tags:
+      - Organization Management
+  /mahasangraha/api/v1/admin/orgs/{org_id}/admin:
+    put:
+      parameters:
+      - in: path
+        name: org_id
+        required: true
+        type: string
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            admin_user_id:
+              example: 5a41bdf0-c8e9-4e78-9588-e21d6e4cbab3
+              type: string
+          required:
+          - admin_user_id
+          type: object
+      responses:
+        '200':
+          description: Organization admin assigned successfully
+        '403':
+          description: Forbidden - Superadmin only
+        '404':
+          description: Organization or user not found
+      summary: Assign an administrator user to an organization (Superadmin only)
+      tags:
+      - Organization Management
+  /mahasangraha/api/v1/admin/orgs/{org_id}/stats:
+    get:
+      parameters:
+      - in: path
+        name: org_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Organization stats retrieved successfully
+        '403':
+          description: Forbidden - Requires admin/superadmin role
+        '404':
+          description: Organization not found
+      summary: Retrieve standard organization metrics (Admin and Superadmin)
+      tags:
+      - Organization Management
+  /mahasangraha/api/v1/admin/orgs/{org_id}/status:
+    put:
+      parameters:
+      - in: path
+        name: org_id
+        required: true
+        type: string
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            status:
+              enum:
+              - active
+              - suspended
+              example: suspended
+              type: string
+          required:
+          - status
+          type: object
+      responses:
+        '200':
+          description: Organization status updated successfully
+        '400':
+          description: Invalid status value
+        '403':
+          description: Forbidden - Superadmin only
+        '404':
+          description: Organization not found
+      summary: Suspend or activate an organization (Superadmin only)
+      tags:
+      - Organization Management
+  /mahasangraha/api/v1/admin/system-settings/:
     get:
       responses:
         '200':
@@ -3252,7 +3454,7 @@ paths:
       summary: Update the global system configuration.
       tags:
       - System_Settings
-  /form/api/v1/admin/tasks/{task_id}:
+  /mahasangraha/api/v1/admin/tasks/{task_id}:
     get:
       parameters:
       - in: path
@@ -3271,7 +3473,7 @@ paths:
       summary: Get the status, progress, and results of any Celery task (admin only).
       tags:
       - Admin Tasks
-  /form/api/v1/ai/cross-analysis:
+  /mahasangraha/api/v1/ai/cross-analysis:
     post:
       responses:
         '200':
@@ -3281,21 +3483,21 @@ paths:
         Payload: { "form_ids": ["id1", "id2"] }'
       tags:
       - Ai
-  /form/api/v1/ai/generate:
+  /mahasangraha/api/v1/ai/generate:
     post:
       responses:
         '200':
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/health:
+  /mahasangraha/api/v1/ai/health:
     get:
       responses:
         '200':
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/search/health:
+  /mahasangraha/api/v1/ai/search/health:
     get:
       responses:
         '200':
@@ -3303,7 +3505,7 @@ paths:
       summary: Health check for NLP search service.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/nlp-search:
+  /mahasangraha/api/v1/ai/search/{form_id}/nlp-search:
     post:
       parameters:
       - in: path
@@ -3316,7 +3518,7 @@ paths:
       summary: Natural language search across form responses with advanced filtering.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/popular-queries:
+  /mahasangraha/api/v1/ai/search/{form_id}/popular-queries:
     get:
       parameters:
       - in: path
@@ -3329,7 +3531,7 @@ paths:
       summary: Get popular search queries for a form.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/query-suggestions:
+  /mahasangraha/api/v1/ai/search/{form_id}/query-suggestions:
     get:
       parameters:
       - in: path
@@ -3342,7 +3544,7 @@ paths:
       summary: Get query suggestions/autocomplete for a form.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/search-history:
+  /mahasangraha/api/v1/ai/search/{form_id}/search-history:
     delete:
       parameters:
       - in: path
@@ -3379,7 +3581,7 @@ paths:
       summary: Save a search query to user's search history.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/search-history/{search_id}:
+  /mahasangraha/api/v1/ai/search/{form_id}/search-history/{search_id}:
     delete:
       parameters:
       - in: path
@@ -3396,7 +3598,7 @@ paths:
       summary: Delete a specific search history item.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/search-stats:
+  /mahasangraha/api/v1/ai/search/{form_id}/search-stats:
     get:
       parameters:
       - in: path
@@ -3409,7 +3611,7 @@ paths:
       summary: Get search-related statistics for a form.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/semantic-search:
+  /mahasangraha/api/v1/ai/search/{form_id}/semantic-search:
     post:
       parameters:
       - in: path
@@ -3422,7 +3624,7 @@ paths:
       summary: Pure semantic search using Ollama embeddings with advanced filtering.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/search/{form_id}/semantic-search/stream:
+  /mahasangraha/api/v1/ai/search/{form_id}/semantic-search/stream:
     post:
       parameters:
       - in: path
@@ -3436,7 +3638,7 @@ paths:
         and advanced filtering.
       tags:
       - Nlp_Search
-  /form/api/v1/ai/suggestions:
+  /mahasangraha/api/v1/ai/suggestions:
     post:
       responses:
         '200':
@@ -3444,7 +3646,7 @@ paths:
       summary: AI Field Suggestions based on current form context.
       tags:
       - Ai
-  /form/api/v1/ai/templates:
+  /mahasangraha/api/v1/ai/templates:
     get:
       responses:
         '200':
@@ -3452,7 +3654,7 @@ paths:
       summary: List available AI form templates.
       tags:
       - Ai
-  /form/api/v1/ai/templates/{template_id}:
+  /mahasangraha/api/v1/ai/templates/{template_id}:
     get:
       parameters:
       - in: path
@@ -3465,7 +3667,7 @@ paths:
       summary: Get a specific AI template structure.
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/anomalies:
+  /mahasangraha/api/v1/ai/{form_id}/anomalies:
     post:
       parameters:
       - in: path
@@ -3477,7 +3679,7 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/anomaly-detect:
+  /mahasangraha/api/v1/ai/{form_id}/anomaly-detect:
     post:
       parameters:
       - in: path
@@ -3489,7 +3691,7 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/cache:
+  /mahasangraha/api/v1/ai/{form_id}/cache:
     delete:
       parameters:
       - in: path
@@ -3506,7 +3708,7 @@ paths:
         cleared_at\": \"2026-02-04T10:00:00Z\"\n}"
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/cache/invalidate:
+  /mahasangraha/api/v1/ai/{form_id}/cache/invalidate:
     post:
       parameters:
       - in: path
@@ -3527,7 +3729,7 @@ paths:
         \    \"invalidated_at\": \"2026-02-04T10:00:00Z\"\n}"
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/export:
+  /mahasangraha/api/v1/ai/{form_id}/export:
     post:
       parameters:
       - in: path
@@ -3539,23 +3741,7 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/responses/{response_id}/analyze:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: path
-        name: response_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Ai
-  /form/api/v1/ai/{form_id}/responses/{response_id}/moderate:
+  /mahasangraha/api/v1/ai/{form_id}/responses/{response_id}/analyze:
     post:
       parameters:
       - in: path
@@ -3571,7 +3757,47 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/search:
+  /mahasangraha/api/v1/ai/{form_id}/responses/{response_id}/classify:
+    post:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      - in: path
+        name: response_id
+        required: true
+        type: string
+      responses:
+        '202':
+          description: Auto-classification task scheduled successfully
+        '403':
+          description: Unauthorized access
+        '404':
+          description: Form or response not found
+      summary: 'Manually triggers AI auto-tagging and classification for a specific
+        response.
+
+        Returns 202 with scheduled task ID.'
+      tags:
+      - Ai
+  /mahasangraha/api/v1/ai/{form_id}/responses/{response_id}/moderate:
+    post:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      - in: path
+        name: response_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Ai
+  /mahasangraha/api/v1/ai/{form_id}/search:
     post:
       parameters:
       - in: path
@@ -3583,7 +3809,7 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/security-scan:
+  /mahasangraha/api/v1/ai/{form_id}/security-scan:
     post:
       parameters:
       - in: path
@@ -3595,7 +3821,7 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/sentiment:
+  /mahasangraha/api/v1/ai/{form_id}/sentiment:
     get:
       parameters:
       - in: path
@@ -3607,7 +3833,7 @@ paths:
           description: Success
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/summarize:
+  /mahasangraha/api/v1/ai/{form_id}/summarize:
     post:
       parameters:
       - in: path
@@ -3625,7 +3851,25 @@ paths:
         \ default: False)\n}"
       tags:
       - Ai
-  /form/api/v1/ai/{form_id}/validate-design:
+  /mahasangraha/api/v1/ai/{form_id}/taxonomy:
+    get:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Retrieved form taxonomy config successfully
+        '403':
+          description: Unauthorized access
+        '404':
+          description: Form not found
+      summary: Retrieve classification configuration details (enabled status and taxonomy
+        list) for a form.
+      tags:
+      - Ai
+  /mahasangraha/api/v1/ai/{form_id}/validate-design:
     post:
       parameters:
       - in: path
@@ -3638,7 +3882,7 @@ paths:
       summary: Analyzes the form design for UX/logical issues.
       tags:
       - Ai
-  /form/api/v1/analytics/dashboard:
+  /mahasangraha/api/v1/analytics/dashboard:
     get:
       responses:
         '200':
@@ -3648,7 +3892,7 @@ paths:
         Restricted to privileged users to prevent sensitive data leakage.'
       tags:
       - Analytics
-  /form/api/v1/analytics/summary:
+  /mahasangraha/api/v1/analytics/summary:
     get:
       responses:
         '200':
@@ -3656,7 +3900,7 @@ paths:
       summary: Returns organization-wide summary statistics.
       tags:
       - Analytics
-  /form/api/v1/auth/login:
+  /mahasangraha/api/v1/auth/login:
     post:
       description: Authenticate via password or OTP and issue JWT tokens.
       parameters:
@@ -3687,7 +3931,7 @@ paths:
       summary: Authenticate via password or OTP and issue JWT tokens.
       tags:
       - Auth
-  /form/api/v1/auth/logout:
+  /mahasangraha/api/v1/auth/logout:
     post:
       description: Revokes the user's access and refresh tokens.
       responses:
@@ -3698,7 +3942,7 @@ paths:
       summary: Revoke the current JWT session.
       tags:
       - Auth
-  /form/api/v1/auth/refresh:
+  /mahasangraha/api/v1/auth/refresh:
     post:
       description: Generates a new access token using a valid refresh token.
       responses:
@@ -3720,7 +3964,7 @@ paths:
       summary: Issue a new access token using a valid refresh token.
       tags:
       - Auth
-  /form/api/v1/auth/register:
+  /mahasangraha/api/v1/auth/register:
     post:
       description: Registers a new user and returns user details.
       parameters:
@@ -3739,7 +3983,7 @@ paths:
       summary: Register a new user account.
       tags:
       - Auth
-  /form/api/v1/auth/request-otp:
+  /mahasangraha/api/v1/auth/request-otp:
     post:
       description: Generate and send an OTP to the given mobile/email.
       parameters:
@@ -3761,7 +4005,7 @@ paths:
       summary: Generate and send an OTP to the given mobile/email.
       tags:
       - Auth
-  /form/api/v1/auth/revoke-all:
+  /mahasangraha/api/v1/auth/revoke-all:
     post:
       description: Revokes all active JWT sessions for the authenticated user.
       responses:
@@ -3772,7 +4016,7 @@ paths:
       summary: Revoke all active sessions for the authenticated user.
       tags:
       - Auth
-  /form/api/v1/custom-fields/:
+  /mahasangraha/api/v1/custom-fields/:
     get:
       responses:
         '200':
@@ -3785,7 +4029,7 @@ paths:
           description: Success
       tags:
       - Library
-  /form/api/v1/custom-fields/{template_id}:
+  /mahasangraha/api/v1/custom-fields/{template_id}:
     delete:
       parameters:
       - in: path
@@ -3808,19 +4052,15 @@ paths:
           description: Success
       tags:
       - Library
-  /form/api/v1/dashboard-settings/layout:
+  /mahasangraha/api/v1/dashboard-settings/layout:
     put:
       responses:
         '200':
           description: Success
-      summary: "Update only the layout configuration.\n\nRequest Body:\n    {\n  \
-        \      \"columns\": 4,\n        \"rowHeight\": 120,\n        \"margin\": [15,\
-        \ 15],\n        \"compactType\": \"vertical\",\n        \"positions\": {\n\
-        \            \"widget_id_1\": {\"x\": 0, \"y\": 0}\n        }\n    }\n\nReturns:\n\
-        \    200: Updated settings object\n    400: Validation error\n    401: Unauthorized"
+      summary: Update only the layout configuration.
       tags:
       - Dashboard_Settings
-  /form/api/v1/dashboard-settings/reset:
+  /mahasangraha/api/v1/dashboard-settings/reset:
     post:
       responses:
         '200':
@@ -3828,7 +4068,7 @@ paths:
       summary: Reset user dashboard settings to defaults.
       tags:
       - Dashboard_Settings
-  /form/api/v1/dashboard-settings/settings:
+  /mahasangraha/api/v1/dashboard-settings/settings:
     get:
       responses:
         '200':
@@ -3843,7 +4083,7 @@ paths:
       summary: Update user dashboard settings.
       tags:
       - Dashboard_Settings
-  /form/api/v1/dashboard-settings/widgets:
+  /mahasangraha/api/v1/dashboard-settings/widgets:
     get:
       responses:
         '200':
@@ -3857,19 +4097,15 @@ paths:
           description: Success
       tags:
       - Dashboard_Settings
-  /form/api/v1/dashboard-settings/widgets/positions:
+  /mahasangraha/api/v1/dashboard-settings/widgets/positions:
     put:
       responses:
         '200':
           description: Success
-      summary: "Update positions for multiple widgets.\n\nUsed for drag-and-drop reordering\
-        \ of widgets.\n\nRequest Body:\n    {\n        \"positions\": {\n        \
-        \    \"widget_id_1\": {\"x\": 0, \"y\": 0},\n            \"widget_id_2\":\
-        \ {\"x\": 2, \"y\": 0}\n        }\n    }\n\nReturns:\n    200: List of updated\
-        \ widgets\n    400: Validation error\n    401: Unauthorized"
+      summary: Update positions for multiple widgets.
       tags:
       - Dashboard_Settings
-  /form/api/v1/dashboard-settings/widgets/{widget_id}:
+  /mahasangraha/api/v1/dashboard-settings/widgets/{widget_id}:
     delete:
       parameters:
       - in: path
@@ -3879,9 +4115,7 @@ paths:
       responses:
         '200':
           description: Success
-      summary: "Remove a widget from the user's dashboard.\n\nArgs:\n    widget_id:\
-        \ ID of the widget to remove\n\nReturns:\n    200: Success message\n    404:\
-        \ Widget not found\n    401: Unauthorized"
+      summary: Remove a widget from the user's dashboard.
       tags:
       - Dashboard_Settings
     put:
@@ -3893,16 +4127,10 @@ paths:
       responses:
         '200':
           description: Success
-      summary: "Update a widget's configuration.\n\nArgs:\n    widget_id: ID of the\
-        \ widget to update\n\nRequest Body:\n    {\n        \"position\": {\"x\":\
-        \ 0, \"y\": 4},  // Optional new position\n        \"size\": {\"w\": 2, \"\
-        h\": 2},      // Optional new size\n        \"config\": {...},           \
-        \    // Optional config updates\n        \"is_visible\": True            \
-        \ // Optional visibility\n    }\n\nReturns:\n    200: Updated widget object\n\
-        \    404: Widget not found\n    401: Unauthorized"
+      summary: Update a widget's configuration.
       tags:
       - Dashboard_Settings
-  /form/api/v1/dashboards/:
+  /mahasangraha/api/v1/dashboards/:
     post:
       parameters:
       - in: body
@@ -3915,7 +4143,7 @@ paths:
       summary: Create a new Dashboard configuration.
       tags:
       - Dashboard
-  /form/api/v1/dashboards/{dashboard_id}:
+  /mahasangraha/api/v1/dashboards/{dashboard_id}:
     put:
       parameters:
       - in: path
@@ -3932,7 +4160,7 @@ paths:
       summary: Update Dashboard configuration.
       tags:
       - Dashboard
-  /form/api/v1/dashboards/{slug}:
+  /mahasangraha/api/v1/dashboards/{slug}:
     get:
       parameters:
       - in: path
@@ -3945,7 +4173,7 @@ paths:
       summary: Get dashboard details AND fetch data for widgets.
       tags:
       - Dashboard
-  /form/api/v1/external/employee/{employee_id}:
+  /mahasangraha/api/v1/external/employee/{employee_id}:
     get:
       parameters:
       - in: path
@@ -3958,7 +4186,7 @@ paths:
       summary: Fetch details of EMPLOYEE (Empty Route Placeholder).
       tags:
       - External_Api
-  /form/api/v1/external/mail:
+  /mahasangraha/api/v1/external/mail:
     post:
       responses:
         '200':
@@ -3966,7 +4194,7 @@ paths:
       summary: Send mail (Empty Route Placeholder).
       tags:
       - External_Api
-  /form/api/v1/external/sms:
+  /mahasangraha/api/v1/external/sms:
     post:
       responses:
         '200':
@@ -3974,7 +4202,7 @@ paths:
       summary: Send SMS (Empty Route Placeholder).
       tags:
       - External_Api
-  /form/api/v1/external/uhid/{uhid}:
+  /mahasangraha/api/v1/external/uhid/{uhid}:
     get:
       parameters:
       - in: path
@@ -3987,823 +4215,28 @@ paths:
       summary: Fetch details of UHID (Empty Route Placeholder).
       tags:
       - External_Api
-  /form/api/v1/forms/:
-    get:
-      responses:
-        '200':
-          description: List forms for the current organization
-      summary: 'Compatibility endpoint for the dashboard client.
-
-
-        The Flutter dashboard expects GET /form/api/v1/forms/, so we expose a
-
-        tenant-scoped listing here that mirrors the newer form listing behavior.'
-      tags:
-      - Advanced_Responses
-    post:
-      parameters:
-      - in: body
-        name: body
-        schema:
-          $ref: '#/definitions/FormCreateSchema'
-      responses:
-        '200':
-          description: Create a new form. Sets the current user as creator and editor.
-      summary: Create a new form inside the current project context.
-      tags:
-      - Form
-  /form/api/v1/forms/builder-metadata:
+  /mahasangraha/api/v1/forms/builder-metadata:
     get:
       responses:
         '200':
           description: Builder metadata
-      summary: Return enum/config metadata needed by schema-driven Flutter builders.
       tags:
       - Form
-  /form/api/v1/forms/conditions/evaluate:
-    post:
-      responses:
-        '200':
-          description: Success
-      summary: Evaluate conditional logic for dynamic form behavior.
-      tags:
-      - Form
-  /form/api/v1/forms/expired:
-    get:
-      responses:
-        '200':
-          description: 'Admin only: List all forms that have passed their expiration
-            date.'
-      summary: 'Admin only: List all forms that have passed their expiration date.'
-      tags:
-      - Form
-  /form/api/v1/forms/export/bulk:
+  /mahasangraha/api/v1/forms/export/bulk:
     post:
       responses:
         '202':
           description: Bulk export job accepted
-      summary: Initiates an asynchronous bulk export job.
       tags:
       - Form
-  /form/api/v1/forms/external-hooks/register:
-    post:
-      parameters:
-      - in: body
-        name: body
-        schema:
-          properties:
-            headers:
-              type: object
-            input_schema:
-              type: object
-            method:
-              default: POST
-              type: string
-            name:
-              type: string
-            output_schema:
-              type: object
-            url:
-              type: string
-          required:
-          - name
-          - url
-          type: object
-      responses:
-        '201':
-          description: Hook registered and pending approval
-      summary: Register a new external hook for approval
-      tags:
-      - Form Hooks
-  /form/api/v1/forms/external-hooks/{hook_id}/approve:
-    post:
-      parameters:
-      - in: path
-        name: hook_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          properties:
-            status:
-              enum:
-              - approved
-              - rejected
-              type: string
-          type: object
-      responses:
-        '200':
-          description: Hook status updated
-      summary: Approve or reject a registered external hook (Admin only)
-      tags:
-      - Form Hooks
-  /form/api/v1/forms/fetch/external:
-    get:
-      responses:
-        '200':
-          description: Success
-      summary: 'Fetch data from another form response where some question may have
-        match for a value.
-
-        Query Params: form_id, question_id, value'
-      tags:
-      - Advanced_Responses
-  /form/api/v1/forms/hooks/trigger:
-    post:
-      parameters:
-      - in: path
-        name: project_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          type: object
-      responses:
-        '200':
-          description: Execution results for all hooks
-      summary: Synchronously trigger all hooks for a project
-      tags:
-      - Project Hooks
-  /form/api/v1/forms/import:
-    post:
-      responses:
-        '201':
-          description: Form imported successfully
-      summary: Import a full form structure from JSON.
-      tags:
-      - Form
-  /form/api/v1/forms/signatures:
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/slug-available:
+  /mahasangraha/api/v1/forms/slug-available:
     get:
       responses:
         '200':
           description: Check if a form slug is already taken.
-      summary: Check if a form slug is already taken.
       tags:
       - Form
-  /form/api/v1/forms/templates:
-    get:
-      responses:
-        '200':
-          description: List templates accessible to the current user.
-      summary: List templates accessible to the current user.
-      tags:
-      - Form
-  /form/api/v1/forms/templates/{template_id}:
-    get:
-      parameters:
-      - in: path
-        name: template_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Retrieve a single template.
-      summary: Retrieve a single template.
-      tags:
-      - Form
-  /form/api/v1/forms/translations:
-    get:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/translations/jobs:
-    get:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/translations/jobs/{job_id}:
-    delete:
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-    get:
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/translations/jobs/{job_id}/cancel:
-    patch:
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/translations/jobs/{job_id}/content:
-    get:
-      parameters:
-      - in: path
-        name: job_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/translations/languages:
-    get:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/translations/preview:
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Translation
-  /form/api/v1/forms/upload:
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}:
-    delete:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Soft delete a form.
-      summary: Soft delete a form.
-      tags:
-      - Form
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Retrieve a single form, applying optional language filters.
-      summary: Retrieve a single form, applying optional language filters.
-      tags:
-      - Form
-    put:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          $ref: '#/definitions/FormUpdateSchema'
-      responses:
-        '200':
-          description: Update an existing form.
-      summary: Update an existing form.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/access-control:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: 'User access control for a forms.
-
-        Returns a detailed JSON report of the current user''s permissions.'
-      tags:
-      - Advanced_Responses
-  /form/api/v1/forms/{form_id}/access-policy:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: 'Management route to update the Access Policy for a form.
-
-        Requires ''manage_access'' permission.'
-      tags:
-      - Advanced_Responses
-    put:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: 'Management route to update the Access Policy for a form.
-
-        Requires ''manage_access'' permission.'
-      tags:
-      - Advanced_Responses
-  /form/api/v1/forms/{form_id}/analytics:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: 'M-11 Aggregated Analytics Endpoint
-
-        Returns: totalSubmissions, completionRate, trends, fieldDistributions'
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/analytics/distribution:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/analytics/summary:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/analytics/timeline:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/archive:
-    patch:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: 'Admin only: Change form status to ''archived''.'
-      summary: 'Admin only: Change form status to ''archived''.'
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/check-duplicate:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Check if the current user has already submitted this exact
-            data.
-      summary: Check if the current user has already submitted this exact data.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/clone:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Clone a form asynchronously.
-      summary: Clone a form asynchronously.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/expire:
-    patch:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: 'Admin only: Set a date when the form automatically becomes
-            unavailable.'
-      summary: 'Admin only: Set a date when the form automatically becomes unavailable.'
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/export/csv:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/export/json:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/fetch/same:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: 'Fetch data from same form response where some question may have match
-        for a value.
-
-        Query Params: question_id, value'
-      tags:
-      - Advanced_Responses
-  /form/api/v1/forms/{form_id}/files/{question_id}/{filename}:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: path
-        name: question_id
-        required: true
-        type: string
-      - in: path
-        name: filename
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Serve uploaded files. Can be accessed by users with view permissions
-            or for public forms
-      summary: Serve uploaded files. Can be accessed by users with view permissions
-        or for public forms
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/history:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/hooks/trigger:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          type: object
-      responses:
-        '200':
-          description: Execution results for all hooks
-      summary: Synchronously trigger all top-level hooks for a form
-      tags:
-      - Form Hooks
-  /form/api/v1/forms/{form_id}/next-action:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: Check if any active workflows should be triggered for this form.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/public-submit:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/publish:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Publish a form asynchronously.
-      summary: Publish a form asynchronously.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/questions/{question_id}/hooks/trigger:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: path
-        name: question_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          type: object
-      responses:
-        '200':
-          description: Execution results for all hooks
-      summary: Synchronously trigger all hooks for a question
-      tags:
-      - Form Hooks
-  /form/api/v1/forms/{form_id}/responses:
-    delete:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: 'Admin only: Purge all collected responses for a specific form.'
-      summary: 'Admin only: Purge all collected responses for a specific form (Soft
-        delete).'
-      tags:
-      - Form
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: List responses for a specific form (paginated).
-      tags:
-      - Form
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          $ref: '#/definitions/FormResponseCreateSchema'
-      responses:
-        '200':
-          description: Success
-      summary: Authenticated form submission.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/responses/count:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Get total submission count for a form.
-      summary: Get total submission count for a form.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/responses/last:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Fetch the most recent response record for a form.
-      summary: Fetch the most recent response record for a form.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/responses/meta:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: Fetching meta information about a form response like number of response
-        etc.
-      tags:
-      - Advanced_Responses
-  /form/api/v1/forms/{form_id}/responses/questions:
-    get:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: 'Fetching particular questions responses from a form only.
-
-        Query Params: question_ids (comma separated)'
-      tags:
-      - Advanced_Responses
-  /form/api/v1/forms/{form_id}/restore:
-    patch:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: 'Admin only: Change form status from ''archived'' back to ''draft''.'
-      summary: 'Admin only: Change form status from ''archived'' back to ''draft''.'
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/sections:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '201':
-          description: Section created
-      summary: Add a new section to a form.
-      tags:
-      - Section
-  /form/api/v1/forms/{form_id}/sections/{section_id}/hooks/trigger:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      - in: path
-        name: section_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          type: object
-      responses:
-        '200':
-          description: Execution results for all hooks
-      summary: Synchronously trigger all hooks for a section
-      tags:
-      - Section Hooks
-  /form/api/v1/forms/{form_id}/share:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: 'Admin only: Grant editor/viewer/submitter permissions for
-            a form.'
-      summary: 'Admin only: Grant editor/viewer/submitter permissions for a form.'
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/summarize:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Success
-      summary: Generate summary from form responses.
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/toggle-public:
-    patch:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: 'Admin only: Toggle between private and public access for a
-            form.'
-      summary: 'Admin only: Toggle between private and public access for a form.'
-      tags:
-      - Form
-  /form/api/v1/forms/{form_id}/translations:
-    post:
-      parameters:
-      - in: path
-        name: form_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Update translation strings for a given language code.
-      summary: Update translation strings for a given language code.
-      tags:
-      - Form
-  /form/api/v1/projects/:
+  /mahasangraha/api/v1/projects/:
     post:
       parameters:
       - in: body
@@ -4813,9 +4246,10 @@ paths:
       responses:
         '201':
           description: Project created
+      summary: Create a new project for the current organization.
       tags:
       - Project
-  /form/api/v1/projects/{project_id}/analysis-boards/:
+  /mahasangraha/api/v1/projects/{project_id}/analysis-boards/:
     get:
       parameters:
       - description: ID of the parent Project
@@ -4859,7 +4293,7 @@ paths:
       summary: Create a new Analysis Board in a Project.
       tags:
       - Analysis Board
-  /form/api/v1/projects/{project_id}/analysis-boards/{board_id}:
+  /mahasangraha/api/v1/projects/{project_id}/analysis-boards/{board_id}:
     delete:
       parameters:
       - in: path
@@ -4919,7 +4353,7 @@ paths:
       summary: Update an Analysis Board.
       tags:
       - Analysis Board
-  /form/api/v1/projects/{project_id}/analysis-boards/{board_id}/execute:
+  /mahasangraha/api/v1/projects/{project_id}/analysis-boards/{board_id}/execute:
     get:
       parameters:
       - in: path
@@ -4939,14 +4373,20 @@ paths:
       summary: Execute calculations on an Analysis Board.
       tags:
       - Analysis Board
-  /form/api/v1/projects/{project_id}/forms/:
+  /mahasangraha/api/v1/projects/{project_id}/forms/:
     get:
       responses:
         '200':
-          description: List forms belonging to the current user's organization.
-      summary: List forms belonging to the current project.
+          description: List forms for the current organization
+      summary: 'Compatibility endpoint for the dashboard client.
+
+
+        The Flutter dashboard expects GET /mahasangraha/api/v1/forms/, so we expose
+        a
+
+        tenant-scoped listing here that mirrors the newer form listing behavior.'
       tags:
-      - Form
+      - Advanced_Responses
     post:
       parameters:
       - in: body
@@ -4959,15 +4399,7 @@ paths:
       summary: Create a new form inside the current project context.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/builder-metadata:
-    get:
-      responses:
-        '200':
-          description: Builder metadata
-      summary: Return enum/config metadata needed by schema-driven Flutter builders.
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/conditions/evaluate:
+  /mahasangraha/api/v1/projects/{project_id}/forms/conditions/evaluate:
     post:
       responses:
         '200':
@@ -4975,24 +4407,7 @@ paths:
       summary: Evaluate conditional logic for dynamic form behavior.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/expired:
-    get:
-      responses:
-        '200':
-          description: 'Admin only: List all forms that have passed their expiration
-            date.'
-      summary: 'Admin only: List all forms that have passed their expiration date.'
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/export/bulk:
-    post:
-      responses:
-        '202':
-          description: Bulk export job accepted
-      summary: Initiates an asynchronous bulk export job.
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/external-hooks/register:
+  /mahasangraha/api/v1/projects/{project_id}/forms/external-hooks/register:
     post:
       parameters:
       - in: body
@@ -5022,7 +4437,7 @@ paths:
       summary: Register a new external hook for approval
       tags:
       - Form Hooks
-  /form/api/v1/projects/{project_id}/forms/external-hooks/{hook_id}/approve:
+  /mahasangraha/api/v1/projects/{project_id}/forms/external-hooks/{hook_id}/approve:
     post:
       parameters:
       - in: path
@@ -5045,7 +4460,18 @@ paths:
       summary: Approve or reject a registered external hook (Admin only)
       tags:
       - Form Hooks
-  /form/api/v1/projects/{project_id}/forms/hooks/trigger:
+  /mahasangraha/api/v1/projects/{project_id}/forms/fetch/external:
+    get:
+      responses:
+        '200':
+          description: Success
+      summary: 'Fetch data from another form response where some question may have
+        match for a value.
+
+        Query Params: form_id, question_id, value'
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/hooks/trigger:
     post:
       parameters:
       - in: path
@@ -5062,7 +4488,7 @@ paths:
       summary: Synchronously trigger all hooks for a project
       tags:
       - Project Hooks
-  /form/api/v1/projects/{project_id}/forms/import:
+  /mahasangraha/api/v1/projects/{project_id}/forms/import:
     post:
       responses:
         '201':
@@ -5070,50 +4496,7 @@ paths:
       summary: Import a full form structure from JSON.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/signatures:
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/slug-available:
-    get:
-      responses:
-        '200':
-          description: Check if a form slug is already taken.
-      summary: Check if a form slug is already taken.
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/templates:
-    get:
-      responses:
-        '200':
-          description: List templates accessible to the current user.
-      summary: List templates accessible to the current user.
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/templates/{template_id}:
-    get:
-      parameters:
-      - in: path
-        name: template_id
-        required: true
-        type: string
-      responses:
-        '200':
-          description: Retrieve a single template.
-      summary: Retrieve a single template.
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/upload:
-    post:
-      responses:
-        '200':
-          description: Success
-      tags:
-      - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}:
     delete:
       parameters:
       - in: path
@@ -5154,7 +4537,51 @@ paths:
       summary: Update an existing form.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/analytics:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/access-control:
+    get:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      summary: 'User access control for a forms.
+
+        Returns a detailed JSON report of the current user''s permissions.'
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/access-policy:
+    post:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      summary: 'Management route to update the Access Policy for a form.
+
+        Requires ''manage_access'' permission.'
+      tags:
+      - Advanced_Responses
+    put:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      summary: 'Management route to update the Access Policy for a form.
+
+        Requires ''manage_access'' permission.'
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/analytics:
     get:
       parameters:
       - in: path
@@ -5169,7 +4596,7 @@ paths:
         Returns: totalSubmissions, completionRate, trends, fieldDistributions'
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/analytics/distribution:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/analytics/distribution:
     get:
       parameters:
       - in: path
@@ -5181,7 +4608,7 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/analytics/summary:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/analytics/summary:
     get:
       parameters:
       - in: path
@@ -5193,7 +4620,7 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/analytics/timeline:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/analytics/timeline:
     get:
       parameters:
       - in: path
@@ -5205,7 +4632,7 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/anomalies/{response_id}:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/anomalies/{response_id}:
     get:
       parameters:
       - in: path
@@ -5225,7 +4652,7 @@ paths:
         pending\",\n        \"suggested_actions\": [...]\n    }"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/archive:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/archive:
     patch:
       parameters:
       - in: path
@@ -5238,7 +4665,7 @@ paths:
       summary: 'Admin only: Change form status to ''archived''.'
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/check-duplicate:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/check-duplicate:
     post:
       parameters:
       - in: path
@@ -5252,7 +4679,7 @@ paths:
       summary: Check if the current user has already submitted this exact data.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/clone:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/clone:
     post:
       parameters:
       - in: path
@@ -5265,7 +4692,7 @@ paths:
       summary: Clone a form asynchronously.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/detect-anomalies:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/detect-anomalies:
     post:
       parameters:
       - in: path
@@ -5287,7 +4714,7 @@ paths:
         \        \"anomalies\": [...],\n        \"summary_by_type\": {...}\n    }"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/detect-anomalies/batch:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/detect-anomalies/batch:
     post:
       parameters:
       - in: path
@@ -5313,7 +4740,7 @@ paths:
         \ for anomaly detection"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/expire:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/expire:
     patch:
       parameters:
       - in: path
@@ -5327,7 +4754,7 @@ paths:
       summary: 'Admin only: Set a date when the form automatically becomes unavailable.'
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/export/csv:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/export/csv:
     get:
       parameters:
       - in: path
@@ -5339,7 +4766,7 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/export/json:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/export/json:
     get:
       parameters:
       - in: path
@@ -5351,7 +4778,23 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/files/{question_id}/{filename}:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/fetch/same:
+    get:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      summary: 'Fetch data from same form response where some question may have match
+        for a value.
+
+        Query Params: question_id, value'
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/files/{question_id}/{filename}:
     get:
       parameters:
       - in: path
@@ -5374,7 +4817,7 @@ paths:
         or for public forms
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/history:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/history:
     get:
       parameters:
       - in: path
@@ -5386,7 +4829,7 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/hooks/trigger:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/hooks/trigger:
     post:
       parameters:
       - in: path
@@ -5403,7 +4846,7 @@ paths:
       summary: Synchronously trigger all top-level hooks for a form
       tags:
       - Form Hooks
-  /form/api/v1/projects/{project_id}/forms/{form_id}/next-action:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/next-action:
     get:
       parameters:
       - in: path
@@ -5416,7 +4859,7 @@ paths:
       summary: Check if any active workflows should be triggered for this form.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/permissions:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/permissions:
     get:
       parameters:
       - in: path
@@ -5439,7 +4882,7 @@ paths:
           description: Success
       tags:
       - Permissions
-  /form/api/v1/projects/{project_id}/forms/{form_id}/public-submit:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/public-submit:
     post:
       parameters:
       - in: path
@@ -5451,7 +4894,7 @@ paths:
           description: Success
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/publish:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/publish:
     post:
       parameters:
       - in: path
@@ -5464,7 +4907,7 @@ paths:
       summary: Publish a form asynchronously.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/questions/{question_id}/hooks/trigger:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/questions/{question_id}/hooks/trigger:
     post:
       parameters:
       - in: path
@@ -5485,7 +4928,7 @@ paths:
       summary: Synchronously trigger all hooks for a question
       tags:
       - Form Hooks
-  /form/api/v1/projects/{project_id}/forms/{form_id}/responses:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/responses:
     delete:
       parameters:
       - in: path
@@ -5527,7 +4970,7 @@ paths:
       summary: Authenticated form submission.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/responses/count:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/responses/count:
     get:
       parameters:
       - in: path
@@ -5540,7 +4983,79 @@ paths:
       summary: Get total submission count for a form.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/responses/last:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/responses/filter:
+    post:
+      parameters:
+      - description: ID of the form whose responses to filter
+        in: path
+        name: form_id
+        required: true
+        type: string
+      - in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            filters:
+              description: Array of filter rule objects
+              items:
+                properties:
+                  field:
+                    type: string
+                  field_type:
+                    enum:
+                    - string
+                    - number
+                    - date
+                    - boolean
+                    type: string
+                  is_meta:
+                    type: boolean
+                  operator:
+                    type: string
+                  value: {}
+                required:
+                - field
+                - operator
+                - field_type
+                type: object
+              type: array
+            page:
+              default: 1
+              type: integer
+            page_size:
+              default: 50
+              type: integer
+          type: object
+      responses:
+        '200':
+          description: Filtered, paginated response list
+        '400':
+          description: Invalid filter specification
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Forbidden
+        '404':
+          description: Form not found
+      summary: 'POST /advanced_responses/<form_id>/responses/filter
+
+
+        Accept a JSON body with a ``filters`` array and return paginated
+
+        FormResponse documents matching all supplied criteria.
+
+
+        The filter engine guarantees:
+
+        - Every query is scoped to the caller''s organisation and the specified form.
+
+        - No MongoDB operator injection is possible via filter input.
+
+        - Unsupported operators or invalid types raise a 400 error.'
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/responses/last:
     get:
       parameters:
       - in: path
@@ -5553,7 +5068,36 @@ paths:
       summary: Fetch the most recent response record for a form.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/restore:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/responses/meta:
+    get:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      summary: Fetching meta information about a form response like number of response
+        etc.
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/responses/questions:
+    get:
+      parameters:
+      - in: path
+        name: form_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      summary: 'Fetching particular questions responses from a form only.
+
+        Query Params: question_ids (comma separated)'
+      tags:
+      - Advanced_Responses
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/restore:
     patch:
       parameters:
       - in: path
@@ -5566,7 +5110,7 @@ paths:
       summary: 'Admin only: Change form status from ''archived'' back to ''draft''.'
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/sections:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/sections:
     post:
       parameters:
       - in: path
@@ -5579,7 +5123,7 @@ paths:
       summary: Add a new section to a form.
       tags:
       - Section
-  /form/api/v1/projects/{project_id}/forms/{form_id}/sections/{section_id}/hooks/trigger:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/sections/{section_id}/hooks/trigger:
     post:
       parameters:
       - in: path
@@ -5600,7 +5144,7 @@ paths:
       summary: Synchronously trigger all hooks for a section
       tags:
       - Section Hooks
-  /form/api/v1/projects/{project_id}/forms/{form_id}/share:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/share:
     post:
       parameters:
       - in: path
@@ -5614,7 +5158,7 @@ paths:
       summary: 'Admin only: Grant editor/viewer/submitter permissions for a form.'
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/summarize:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/summarize:
     post:
       parameters:
       - in: path
@@ -5627,7 +5171,7 @@ paths:
       summary: Generate summary from form responses.
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/thresholds/history:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/thresholds/history:
     get:
       parameters:
       - in: path
@@ -5643,7 +5187,7 @@ paths:
         \    }"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/thresholds/latest:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/thresholds/latest:
     get:
       parameters:
       - in: path
@@ -5661,7 +5205,7 @@ paths:
         \    \"created_by\": \"user_123\",\n        \"is_manual\": False\n    }"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/thresholds/manual:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/thresholds/manual:
     post:
       parameters:
       - in: path
@@ -5680,7 +5224,7 @@ paths:
         \    }"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/thresholds/update-baseline:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/thresholds/update-baseline:
     post:
       parameters:
       - in: path
@@ -5696,7 +5240,7 @@ paths:
         \      \"response_count\": 150,\n        \"threshold_id\": \"...\"\n    }"
       tags:
       - Anomaly
-  /form/api/v1/projects/{project_id}/forms/{form_id}/toggle-public:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/toggle-public:
     patch:
       parameters:
       - in: path
@@ -5710,7 +5254,7 @@ paths:
       summary: 'Admin only: Toggle between private and public access for a form.'
       tags:
       - Form
-  /form/api/v1/projects/{project_id}/forms/{form_id}/translations:
+  /mahasangraha/api/v1/projects/{project_id}/forms/{form_id}/translations:
     post:
       parameters:
       - in: path
@@ -5723,7 +5267,7 @@ paths:
       summary: Update translation strings for a given language code.
       tags:
       - Form
-  /form/api/v1/sms/health:
+  /mahasangraha/api/v1/sms/health:
     get:
       responses:
         '200':
@@ -5731,7 +5275,7 @@ paths:
       summary: Verify SMS provider connectivity.
       tags:
       - Sms
-  /form/api/v1/sms/notify:
+  /mahasangraha/api/v1/sms/notify:
     post:
       responses:
         '200':
@@ -5739,7 +5283,7 @@ paths:
       summary: Send triggered notifications.
       tags:
       - Sms
-  /form/api/v1/sms/otp:
+  /mahasangraha/api/v1/sms/otp:
     post:
       responses:
         '200':
@@ -5747,7 +5291,7 @@ paths:
       summary: Manually send an OTP. Restrict to admins to prevent spam.
       tags:
       - Sms
-  /form/api/v1/sms/single:
+  /mahasangraha/api/v1/sms/single:
     post:
       responses:
         '200':
@@ -5755,7 +5299,7 @@ paths:
       summary: Forward a single SMS request to the external provider.
       tags:
       - Sms
-  /form/api/v1/system/analytics-trends/{org_id}:
+  /mahasangraha/api/v1/system/analytics-trends/{org_id}:
     get:
       parameters:
       - in: path
@@ -5768,7 +5312,7 @@ paths:
       summary: Returns submission trends from the OLAP engine.
       tags:
       - System
-  /form/api/v1/system/event-health:
+  /mahasangraha/api/v1/system/event-health:
     get:
       responses:
         '200':
@@ -5778,7 +5322,7 @@ paths:
         Includes consumer lag, DLQ sizes, and stream lengths.'
       tags:
       - System
-  /form/api/v1/system/gdpr-cleanup:
+  /mahasangraha/api/v1/system/gdpr-cleanup:
     post:
       responses:
         '200':
@@ -5793,7 +5337,7 @@ paths:
         retention period.'
       tags:
       - System
-  /form/api/v1/system/tasks/{task_id}:
+  /mahasangraha/api/v1/system/tasks/{task_id}:
     get:
       parameters:
       - description: Celery task ID
@@ -5812,7 +5356,7 @@ paths:
         and async_process_translation_job.'
       tags:
       - System
-  /form/api/v1/tasks/{task_id}:
+  /mahasangraha/api/v1/tasks/{task_id}:
     get:
       parameters:
       - in: path
@@ -5826,7 +5370,7 @@ paths:
           description: Failed to fetch task status
       tags:
       - Tasks
-  /form/api/v1/templates/:
+  /mahasangraha/api/v1/templates/:
     get:
       responses:
         '200':
@@ -5839,7 +5383,7 @@ paths:
           description: Success
       tags:
       - Library
-  /form/api/v1/templates/{template_id}:
+  /mahasangraha/api/v1/templates/{template_id}:
     delete:
       parameters:
       - in: path
@@ -5862,43 +5406,132 @@ paths:
           description: Success
       tags:
       - Library
-  /form/api/v1/themes/:
+  /mahasangraha/api/v1/themes/:
     get:
       responses:
         '200':
           description: Themes listed
+      summary: List all themes for the organization.
       tags:
       - Themes
     post:
       responses:
         '201':
           description: Theme created
+      summary: Create a new custom theme.
       tags:
       - Themes
-  /form/api/v1/themes/{theme_id}:
+  /mahasangraha/api/v1/themes/{theme_id}:
     delete:
       responses:
         '200':
           description: Theme deleted
+      summary: Delete a custom theme.
       tags:
       - Themes
     put:
       responses:
         '200':
           description: Theme updated
+      summary: Update custom theme settings.
       tags:
       - Themes
-  /form/api/v1/user/change-password:
+  /mahasangraha/api/v1/translations:
+    get:
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+    post:
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/translations/jobs:
+    get:
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+    post:
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/translations/jobs/{job_id}:
+    delete:
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+    get:
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/translations/jobs/{job_id}/cancel:
+    patch:
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/translations/jobs/{job_id}/content:
+    get:
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        type: string
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/translations/languages:
+    get:
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/translations/preview:
+    post:
+      responses:
+        '200':
+          description: Success
+      tags:
+      - Translation
+  /mahasangraha/api/v1/user/change-password:
     post:
       responses:
         '200':
           description: Securely change current user's password.
-          schema:
-            $ref: '#/definitions/UserOut'
       summary: Securely change current user's password.
       tags:
       - User
-  /form/api/v1/user/profile:
+  /mahasangraha/api/v1/user/profile:
     get:
       responses:
         '200':
@@ -5908,7 +5541,7 @@ paths:
       summary: Return currently authenticated user's profile.
       tags:
       - User
-  /form/api/v1/user/security/lock-status/{user_id}:
+  /mahasangraha/api/v1/user/security/lock-status/{user_id}:
     get:
       parameters:
       - in: path
@@ -5931,7 +5564,7 @@ paths:
       summary: Get account lock status for a specific user. Admin only.
       tags:
       - User
-  /form/api/v1/user/status:
+  /mahasangraha/api/v1/user/status:
     get:
       responses:
         '200':
@@ -5941,7 +5574,7 @@ paths:
       summary: Return currently authenticated user's profile.
       tags:
       - User
-  /form/api/v1/user/users:
+  /mahasangraha/api/v1/user/users:
     get:
       responses:
         '200':
@@ -5965,7 +5598,7 @@ paths:
       summary: Provision a new user account. Admin only.
       tags:
       - User
-  /form/api/v1/user/users/{user_id}:
+  /mahasangraha/api/v1/user/users/{user_id}:
     delete:
       parameters:
       - in: path
@@ -6010,7 +5643,7 @@ paths:
       summary: Update user attributes. Admin only.
       tags:
       - User
-  /form/api/v1/user/users/{user_id}/lock:
+  /mahasangraha/api/v1/user/users/{user_id}/lock:
     post:
       parameters:
       - in: path
@@ -6023,7 +5656,7 @@ paths:
       summary: Manually lock a user account. Admin only.
       tags:
       - User
-  /form/api/v1/user/users/{user_id}/roles:
+  /mahasangraha/api/v1/user/users/{user_id}/roles:
     put:
       parameters:
       - in: path
@@ -6038,7 +5671,7 @@ paths:
       summary: Update user roles. Admin only.
       tags:
       - User
-  /form/api/v1/user/users/{user_id}/unlock:
+  /mahasangraha/api/v1/user/users/{user_id}/unlock:
     post:
       parameters:
       - in: path
@@ -6051,17 +5684,15 @@ paths:
       summary: Manually unlock a user account. Admin only.
       tags:
       - User
-  /form/api/v1/users/change-password:
+  /mahasangraha/api/v1/users/change-password:
     post:
       responses:
         '200':
           description: Securely change current user's password.
-          schema:
-            $ref: '#/definitions/UserOut'
       summary: Securely change current user's password.
       tags:
       - User
-  /form/api/v1/users/profile:
+  /mahasangraha/api/v1/users/profile:
     get:
       responses:
         '200':
@@ -6071,7 +5702,7 @@ paths:
       summary: Return currently authenticated user's profile.
       tags:
       - User
-  /form/api/v1/users/security/lock-status/{user_id}:
+  /mahasangraha/api/v1/users/security/lock-status/{user_id}:
     get:
       parameters:
       - in: path
@@ -6094,7 +5725,7 @@ paths:
       summary: Get account lock status for a specific user. Admin only.
       tags:
       - User
-  /form/api/v1/users/status:
+  /mahasangraha/api/v1/users/status:
     get:
       responses:
         '200':
@@ -6104,7 +5735,7 @@ paths:
       summary: Return currently authenticated user's profile.
       tags:
       - User
-  /form/api/v1/users/users:
+  /mahasangraha/api/v1/users/users:
     get:
       responses:
         '200':
@@ -6128,7 +5759,7 @@ paths:
       summary: Provision a new user account. Admin only.
       tags:
       - User
-  /form/api/v1/users/users/{user_id}:
+  /mahasangraha/api/v1/users/users/{user_id}:
     delete:
       parameters:
       - in: path
@@ -6173,7 +5804,7 @@ paths:
       summary: Update user attributes. Admin only.
       tags:
       - User
-  /form/api/v1/users/users/{user_id}/lock:
+  /mahasangraha/api/v1/users/users/{user_id}/lock:
     post:
       parameters:
       - in: path
@@ -6186,7 +5817,7 @@ paths:
       summary: Manually lock a user account. Admin only.
       tags:
       - User
-  /form/api/v1/users/users/{user_id}/roles:
+  /mahasangraha/api/v1/users/users/{user_id}/roles:
     put:
       parameters:
       - in: path
@@ -6201,7 +5832,7 @@ paths:
       summary: Update user roles. Admin only.
       tags:
       - User
-  /form/api/v1/users/users/{user_id}/unlock:
+  /mahasangraha/api/v1/users/users/{user_id}/unlock:
     post:
       parameters:
       - in: path
@@ -6214,14 +5845,14 @@ paths:
       summary: Manually unlock a user account. Admin only.
       tags:
       - User
-  /form/api/v1/view/:
+  /mahasangraha/api/v1/view/:
     get:
       responses:
         '200':
           description: Success
       tags:
       - View
-  /form/api/v1/view/{form_id}:
+  /mahasangraha/api/v1/view/{form_id}:
     get:
       parameters:
       - in: path
@@ -6242,7 +5873,7 @@ paths:
         Private forms require authentication and organization match.'
       tags:
       - View
-  /form/api/v1/view/{form_id}/info:
+  /mahasangraha/api/v1/view/{form_id}/info:
     get:
       parameters:
       - in: path
@@ -6259,7 +5890,7 @@ paths:
         Used for initial form discovery.'
       tags:
       - View
-  /form/api/v1/webhooks/deliver:
+  /mahasangraha/api/v1/webhooks/deliver:
     post:
       responses:
         '200':
@@ -6267,7 +5898,7 @@ paths:
       summary: Trigger webhook delivery. Restricted to managers and above.
       tags:
       - Webhooks
-  /form/api/v1/webhooks/history:
+  /mahasangraha/api/v1/webhooks/history:
     get:
       responses:
         '200':
@@ -6275,7 +5906,7 @@ paths:
       summary: View system-wide or specific delivery history. Manager restricted.
       tags:
       - Webhooks
-  /form/api/v1/webhooks/logs:
+  /mahasangraha/api/v1/webhooks/logs:
     get:
       responses:
         '200':
@@ -6283,7 +5914,7 @@ paths:
       summary: 'Admin only: Retrieve low-level delivery logs.'
       tags:
       - Webhooks
-  /form/api/v1/webhooks/test:
+  /mahasangraha/api/v1/webhooks/test:
     post:
       responses:
         '200':
@@ -6291,7 +5922,7 @@ paths:
       summary: 'Admin only: Test webhook delivery to a specific URL.'
       tags:
       - Webhooks
-  /form/api/v1/webhooks/{delivery_id}/cancel:
+  /mahasangraha/api/v1/webhooks/{delivery_id}/cancel:
     delete:
       parameters:
       - in: path
@@ -6304,7 +5935,7 @@ paths:
       summary: 'Admin only: Cancel a pending/retrying delivery.'
       tags:
       - Webhooks
-  /form/api/v1/webhooks/{delivery_id}/history:
+  /mahasangraha/api/v1/webhooks/{delivery_id}/history:
     get:
       responses:
         '200':
@@ -6312,7 +5943,7 @@ paths:
       summary: View system-wide or specific delivery history. Manager restricted.
       tags:
       - Webhooks
-  /form/api/v1/webhooks/{delivery_id}/retry:
+  /mahasangraha/api/v1/webhooks/{delivery_id}/retry:
     post:
       parameters:
       - in: path
@@ -6325,7 +5956,7 @@ paths:
       summary: 'Admin only: Manually retry a failed delivery.'
       tags:
       - Webhooks
-  /form/api/v1/webhooks/{delivery_id}/status:
+  /mahasangraha/api/v1/webhooks/{delivery_id}/status:
     get:
       parameters:
       - in: path
@@ -6338,7 +5969,7 @@ paths:
       summary: View status of a specific delivery.
       tags:
       - Webhooks
-  /form/api/v1/workflows/:
+  /mahasangraha/api/v1/workflows/:
     get:
       responses:
         '200':
@@ -6353,7 +5984,7 @@ paths:
       summary: Create a new multi-step approval workflow.
       tags:
       - Workflow
-  /form/api/v1/workflows/{workflow_id}:
+  /mahasangraha/api/v1/workflows/{workflow_id}:
     delete:
       parameters:
       - in: path

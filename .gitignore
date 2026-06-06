@@ -326,3 +326,8 @@ celerybeat.pid
 # Local Postman collections (large JSON artifacts — use version control sparingly)
 # ------------------------------------------------------------------------------
 postman_collection_merged.json
+
+# LoRA / Qwen model fine-tuning outputs and checkpoints
+lora/llama-factory-output/
+lora/best-checkpoint/
+

@@ -1,5 +1,7 @@
 {
-  "last_cycle_started_at": "2026-06-05T09:36:46.774668+00:00",
+  "last_cycle_started_at": "2026-06-06T04:48:00.648011+00:00",
   "cycle": 1,
-  "target_dataset_size": 3000
+  "target_dataset_size": 10000,
+  "last_training_exit_code": 0,
+  "last_cycle_finished_at": "2026-06-05T10:20:00.878767+00:00"
 }

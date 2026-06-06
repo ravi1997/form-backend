@@ -7,7 +7,7 @@ SPEC_FILE="${BACKEND_DIR}/docs/openapi_spec.json"
 OUT_DIR="${FRONTEND_DIR}/lib/generated/api"
 
 cd "${BACKEND_DIR}"
-docker compose run --rm backend python scripts/export_openapi.py
+docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm -u root backend python3 scripts/export_openapi.py
 
 docker run --rm \
   -v "${BACKEND_DIR}:/local_backend" \
