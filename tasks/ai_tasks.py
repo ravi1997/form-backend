@@ -261,3 +261,50 @@ def async_classify_response_tags(self, response_id: str, organization_id: str):
             exc_info=True,
         )
         raise self.retry(exc=e)
+
+
+@celery_app.task(bind=True)
+def async_run_lora_improvement_loop(self, cycles=1, target_dataset_size=10000, fast=True):
+    """
+    Asynchronously executes the LoRA model continuous improvement loop.
+    Runs offline training, dataset building, validation, and checkpoint promotion.
+    """
+    import subprocess
+    app_logger.info("Entering async_run_lora_improvement_loop")
+    try:
+        cmd = [
+            "python3",
+            "lora/improve_loop.py",
+            "--cycles", str(cycles),
+            "--target-dataset-size", str(target_dataset_size)
+        ]
+        if fast:
+            cmd.append("--fast")
+
+        process = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        audit_logger.info(f"AUDIT: LoRA improvement loop completed. Cycles run: {cycles}")
+        app_logger.info("Successfully completed async_run_lora_improvement_loop")
+        return {
+            "status": "success",
+            "stdout": process.stdout[-2000:],
+            "stderr": process.stderr[-2000:]
+        }
+    except subprocess.CalledProcessError as e:
+        error_logger.error(
+            f"LoRA improvement loop task failed: {e.stderr}",
+            exc_info=True
+        )
+        return {"status": "error", "message": str(e), "stderr": e.stderr}
+    except Exception as e:
+        error_logger.error(
+            f"Unexpected error in LoRA improvement task: {str(e)}",
+            exc_info=True
+        )
+        raise self.retry(exc=e)
+

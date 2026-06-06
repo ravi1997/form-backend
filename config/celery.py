@@ -91,6 +91,12 @@ celery_app.conf.update(
             routing_key="employee",
             queue_arguments={"x-max-priority": 10},
         ),
+        Queue(
+            "analytics_write",
+            Exchange("analytics_write"),
+            routing_key="analytics_write",
+            queue_arguments={"x-max-priority": 10},
+        ),
     ),
     task_default_queue="celery",
     task_default_exchange="celery",
@@ -101,7 +107,7 @@ celery_app.conf.update(
         "tasks.form_tasks.async_recalculate_materialized_view": {"queue": "celery"},
         "tasks.ai_tasks.async_generate_form_summary": {"queue": "celery"},
         "tasks.ai_tasks.async_index_response_vector": {"queue": "celery"},
-        "tasks.ai_tasks.async_export_to_olap": {"queue": "celery"},
+        "tasks.ai_tasks.async_export_to_olap": {"queue": "analytics_write"},
         "tasks.services.process_sms": {"queue": "sms"},
         "tasks.services.process_mail": {"queue": "mail"},
         "tasks.services.process_ehospital": {"queue": "ehospital"},
@@ -213,4 +219,3 @@ def task_prerun_handler(task, **kwargs):
         g.request_id = req_id
     if org_id:
         g.tenant_db_alias = f"conn_{org_id}"
-

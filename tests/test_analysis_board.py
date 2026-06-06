@@ -1,9 +1,13 @@
 import pytest
 from unittest.mock import patch, MagicMock
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from models.Form import Project
 from models.User import User
 from models.AnalysisBoard import AnalysisBoard, AnalysisNode
 from services.analysis_board_service import AnalysisBoardService
+from services.analytics_stream_service import AnalyticsStreamService
+import config.settings as settings_module
 from schemas.analysis_board import (
     AnalysisBoardCreateSchema,
     AnalysisBoardUpdateSchema,
@@ -233,3 +237,33 @@ def test_crud_endpoints(app, db_connection, redis_mock):
             )
             assert resp.status_code == 200
             assert resp.get_json()["message"] == "Analysis Board deleted"
+
+
+def test_analytics_partitioned_writes_support_parallel_writers(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings_module.settings, "OLAP_ENGINE", "duckdb")
+    monkeypatch.setattr(
+        settings_module.settings, "DUCKDB_PATH", str(tmp_path / "analytics.duckdb")
+    )
+
+    service = AnalyticsStreamService()
+
+    def write_event(idx: int):
+        payload = {
+            "response_id": f"resp-{idx}",
+            "form_id": "form-1",
+            "organization_id": "org-1",
+            "timestamp": "2026-06-06T10:00:00Z",
+            "data": {"field": idx},
+        }
+        service.process_submission_event(payload)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(write_event, range(20)))
+
+    parquet_files = list((Path(tmp_path) / "analytics_partitions").rglob("*.parquet"))
+    assert len(parquet_files) == 20
+    assert all("org-1" in str(path) for path in parquet_files)
+
+    service.refresh_partition_view()
+    trends = service.get_submission_trends("org-1", days=7)
+    assert trends

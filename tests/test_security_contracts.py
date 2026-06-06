@@ -1,9 +1,12 @@
-from utils.idempotency import require_idempotency
 import pathlib
-from utils.permission_validator import PermissionValidator, permission_validator
+import pytest
 from flask import Flask
-from middleware.rbac_matrix import setup_rbac_matrix
 from flask_jwt_extended import create_access_token, JWTManager
+from middleware.rbac_matrix import setup_rbac_matrix
+from utils.idempotency import require_idempotency
+from utils.permission_validator import PermissionValidator, permission_validator
+from routes.v1.auth_route import auth_bp
+from extensions import jwt
 
 
 def test_retryable_mutation_requires_idempotency_key(app):
@@ -157,3 +160,114 @@ def test_rbac_matrix_middleware_enforcement():
     )
     assert res4.status_code == 200
     assert res4.json["status"] == "success"
+
+
+@pytest.fixture
+def auth_contract_app():
+    app = Flask("auth_contract_app")
+    app.config.update(
+        TESTING=True,
+        JWT_SECRET_KEY="super-secret",
+        JWT_ALGORITHM="HS256",
+        JWT_TOKEN_LOCATION=["headers", "cookies"],
+        JWT_COOKIE_CSRF_PROTECT=True,
+        JWT_ACCESS_CSRF_HEADER_NAME="X-CSRF-TOKEN-ACCESS",
+        JWT_REFRESH_CSRF_HEADER_NAME="X-CSRF-TOKEN-REFRESH",
+    )
+    jwt.init_app(app)
+    app.register_blueprint(auth_bp, url_prefix="/mahasangraha/api/v1/auth")
+    return app
+
+
+def test_auth_transport_matrix_accepts_bearer_and_cookie(auth_contract_app):
+    client = auth_contract_app.test_client()
+
+    with auth_contract_app.app_context():
+        bearer_token = create_access_token(
+            identity="user-1",
+            additional_claims={"roles": ["admin"], "organization_id": "org-1"},
+        )
+        cookie_token = create_access_token(
+            identity="user-2",
+            additional_claims={"roles": ["admin"], "organization_id": "org-1"},
+        )
+
+    bearer_response = client.post(
+        "/mahasangraha/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {bearer_token}"},
+    )
+    assert bearer_response.status_code == 200
+    assert bearer_response.json["success"] is True
+
+    from flask_jwt_extended import set_access_cookies
+
+    with auth_contract_app.test_request_context():
+        response = auth_contract_app.response_class()
+        set_access_cookies(response, cookie_token)
+
+    access_cookie = None
+    csrf_cookie = None
+    for set_cookie in response.headers.getlist("Set-Cookie"):
+        key, value = set_cookie.split(";", 1)[0].split("=", 1)
+        if key == "access_token_cookie":
+            access_cookie = value
+        if key == "csrf_access_token":
+            csrf_cookie = value
+
+    assert access_cookie
+    assert csrf_cookie
+    client.set_cookie("access_token_cookie", access_cookie)
+    client.set_cookie("csrf_access_token", csrf_cookie)
+    cookie_response = client.post(
+        "/mahasangraha/api/v1/auth/logout",
+        headers={"X-CSRF-TOKEN-ACCESS": csrf_cookie},
+    )
+    assert cookie_response.status_code == 200
+    assert cookie_response.json["success"] is True
+
+
+def test_cookie_auth_write_routes_require_csrf_header(auth_contract_app):
+    client = auth_contract_app.test_client()
+
+    with auth_contract_app.app_context():
+        access_token = create_access_token(
+            identity="user-3",
+            additional_claims={"roles": ["admin"], "organization_id": "org-1"},
+        )
+
+    response = auth_contract_app.response_class()
+    from flask_jwt_extended import set_access_cookies
+
+    with auth_contract_app.test_request_context():
+        set_access_cookies(response, access_token)
+    csrf_cookie = None
+    for set_cookie in response.headers.getlist("Set-Cookie"):
+        key, value = set_cookie.split(";", 1)[0].split("=", 1)
+        if key == "csrf_access_token":
+            csrf_cookie = value
+
+    assert csrf_cookie
+
+    access_cookie = None
+    for set_cookie in response.headers.getlist("Set-Cookie"):
+        key, value = set_cookie.split(";", 1)[0].split("=", 1)
+        if key == "access_token_cookie":
+            access_cookie = value
+    assert access_cookie
+    client.set_cookie("access_token_cookie", access_cookie)
+
+    blocked = client.post(
+        "/mahasangraha/api/v1/auth/logout",
+    )
+    assert blocked.status_code in {401, 403}
+    assert "msg" in blocked.json or "error" in blocked.json
+
+    client.set_cookie("csrf_access_token", csrf_cookie)
+    allowed = client.post(
+        "/mahasangraha/api/v1/auth/logout",
+        headers={
+            "X-CSRF-TOKEN-ACCESS": csrf_cookie,
+        },
+    )
+    assert allowed.status_code == 200
+    assert allowed.json["success"] is True

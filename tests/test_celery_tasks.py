@@ -1,10 +1,12 @@
 import pytest
 from unittest.mock import patch
+from config.celery import celery_app
 from tasks.notification_tasks import (
     process_notification_triggers,
     process_single_trigger,
     long_running_computation,
 )
+from tasks.ai_tasks import async_export_to_olap
 
 
 def test_long_running_computation():
@@ -60,3 +62,23 @@ def test_process_single_trigger_failure(mock_call_webhook):
     with pytest.raises(Exception) as exc:
         process_single_trigger(trigger_data, context_data)
     assert "HTTP Error" in str(exc.value)
+
+
+def test_async_export_to_olap_routes_to_single_writer_queue():
+    route = celery_app.conf.task_routes["tasks.ai_tasks.async_export_to_olap"]
+    assert route["queue"] == "analytics_write"
+
+
+@patch("services.analytics_stream_service.analytics_stream_service.process_submission_event")
+def test_async_export_to_olap_invokes_analytics_stream(mock_process):
+    payload = {
+        "response_id": "resp-1",
+        "form_id": "form-1",
+        "organization_id": "org-1",
+        "timestamp": "2026-06-06T00:00:00Z",
+        "data": {"field": "value"},
+    }
+
+    async_export_to_olap.run(payload)
+
+    mock_process.assert_called_once_with(payload)
