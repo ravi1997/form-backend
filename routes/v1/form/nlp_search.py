@@ -29,6 +29,7 @@ from services.nlp_service import NLPSearchService
 from services.ollama_service import OllamaService
 from flask_jwt_extended import jwt_required
 from routes.v1.form.helper import get_current_user
+from utils.feature_gate import require_feature
 from utils.redis_client import redis_client
 
 nlp_search_bp = Blueprint("nlp_search", __name__)
@@ -45,6 +46,7 @@ nlp_search_bp = Blueprint("nlp_search", __name__)
     }
 )
 @jwt_required()
+@require_feature("nlp_search")
 def nlp_search(form_id: str):
     """
     Natural language search across form responses with advanced filtering.
@@ -253,6 +255,7 @@ def nlp_search(form_id: str):
     }
 )
 @jwt_required()
+@require_feature("nlp_search")
 def semantic_search(form_id: str):
     """
     Pure semantic search using Ollama embeddings with advanced filtering.
@@ -417,6 +420,7 @@ def semantic_search(form_id: str):
     }
 )
 @jwt_required()
+@require_feature("nlp_search")
 def semantic_search_stream(form_id: str):
     """
     Pure semantic search using Ollama embeddings with streaming response and advanced filtering.
@@ -590,6 +594,7 @@ def semantic_search_stream(form_id: str):
     }
 )
 @jwt_required()
+@require_feature("nlp_search")
 def search_stats(form_id: str):
     """
     Get search-related statistics for a form.
@@ -640,6 +645,7 @@ def search_stats(form_id: str):
     }
 )
 @jwt_required()
+@require_feature("nlp_search")
 def query_suggestions(form_id: str):
     """
     Get query suggestions/autocomplete for a form.

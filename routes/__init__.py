@@ -24,6 +24,7 @@ from routes.v1.admin.system_route import system_bp
 from routes.v1.admin.task_route import admin_task_bp
 from routes.v1.admin.org_management_route import org_management_bp
 from routes.v1.admin.feature_flag_route import feature_flag_bp
+from routes.v1.admin.ai_ops_route import ai_ops_bp
 from routes.v1.task_route import task_bp
 
 from routes.v1.theme_route import theme_bp
@@ -118,6 +119,9 @@ def register_blueprints(app):
     )
     app.register_blueprint(
         feature_flag_bp, url_prefix=f"{base_prefix}/api/v1/admin/feature-flags"
+     )
+    app.register_blueprint(
+        ai_ops_bp, url_prefix=f"{base_prefix}/api/v1/admin/ai-ops"
     )
     app.register_blueprint(task_bp, url_prefix=f"{base_prefix}/api/v1/tasks")
 

@@ -58,6 +58,24 @@ class AnalyticsStreamService:
                     from clickhouse_driver import Client
 
                     self._conn = Client.from_url(settings.CLICKHOUSE_URL)
+                    self._conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS submission_analytics (
+                            id String,
+                            form_id String,
+                            organization_id String,
+                            submitted_at DateTime,
+                            status String,
+                            field_count UInt32,
+                            processing_time_ms Float64,
+                            batch_uuid String,
+                            year UInt16,
+                            month UInt8,
+                            day UInt8
+                        ) ENGINE = MergeTree()
+                        ORDER BY (organization_id, submitted_at, form_id)
+                        """
+                    )
 
                 app_logger.info(
                     f"AnalyticsStreamService: Successfully connected to {self.engine_type}"

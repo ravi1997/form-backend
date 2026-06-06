@@ -8,6 +8,7 @@ from mongoengine import DoesNotExist
 from logger.unified_logger import app_logger, audit_logger, error_logger
 from utils.response_helper import success_response, error_response
 from utils.security_helpers import get_current_user, require_permission
+from utils.feature_gate import require_feature
 from models.Form import Form
 from models.FormCommit import FormCommit
 from services.git_form_service import GitFormService
@@ -17,6 +18,7 @@ git_form_service = GitFormService()
 
 @form_bp.route("/<form_id>/commits", methods=["GET"])
 @jwt_required()
+@require_feature("git_versioning")
 def list_commits(form_id):
     """
     List commit history tree for a specific form.
@@ -41,6 +43,7 @@ def list_commits(form_id):
 
 @form_bp.route("/<form_id>/commits", methods=["POST"])
 @jwt_required()
+@require_feature("git_versioning")
 def create_commit(form_id):
     """
     Create a new snapshot commit of the form configuration (saving a draft).
@@ -99,6 +102,7 @@ def create_commit(form_id):
 
 @form_bp.route("/<form_id>/merge", methods=["POST"])
 @jwt_required()
+@require_feature("git_versioning")
 def merge_branches(form_id):
     """
     Performs 3-way merge conflict check and publishes.

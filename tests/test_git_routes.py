@@ -34,6 +34,12 @@ def test_git_api_routes(app, db_connection):
         )
         headers = {"Authorization": f"Bearer {token}"}
 
+        # Seed and override feature flag for git route testing
+        from services.feature_flag_service import FeatureFlagService
+        ff_service = FeatureFlagService()
+        ff_service.seed_default_flags()
+        ff_service.set_org_override("git_versioning", "org1", True)
+
     client = app.test_client()
 
     # 2. Setup mock Project and Form in DB under org1

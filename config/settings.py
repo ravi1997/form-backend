@@ -139,7 +139,7 @@ class Settings(BaseSettings):
     # ── OLAP & Analytics ─────────────────────────────────────────────────────
     OLAP_ENGINE: str = "duckdb"  # "duckdb", "clickhouse"
     DUCKDB_PATH: str = "analytics.duckdb"
-    CLICKHOUSE_URL: Optional[str] = None
+    CLICKHOUSE_URL: Optional[str] = "http://clickhouse:8123"
 
     model_config = {
         "env_file": ".env",

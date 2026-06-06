@@ -23,6 +23,7 @@ from services.summarization_service import SummarizationService
 from services.ollama_service import OllamaService
 from flask_jwt_extended import jwt_required
 from utils.security_helpers import get_current_user
+from utils.feature_gate import require_feature
 from logger.unified_logger import app_logger, error_logger
 
 
@@ -37,6 +38,7 @@ from logger.unified_logger import app_logger, error_logger
     }
 )
 @jwt_required()
+@require_feature("ai_summarization")
 def summarize(form_id: str):
     """Generate summary from form responses."""
     app_logger.info(f"Entering summarize for form_id: {form_id}")
@@ -101,6 +103,7 @@ def summarize(form_id: str):
 
 @form_bp.route("/<form_id>/summarize-stream", methods=["POST"])
 @jwt_required()
+@require_feature("ai_summarization")
 def summarize_stream(form_id: str):
     """Generate summary from form responses with streaming response."""
     app_logger.info(f"Entering summarize_stream for form_id: {form_id}")

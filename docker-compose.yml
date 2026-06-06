@@ -110,6 +110,30 @@ services:
       - ridp.managed=true
       - ridp.app=form-backend
 
+  # ── ClickHouse (standalone — not in shared-infra) ─────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8-alpine
+    container_name: forms_clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    networks:
+      - ridp_app_network
+      - ridp_data_network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - ridp.managed=true
+      - ridp.app=form-backend
+
 networks:
   ridp_app_network:
     external: true

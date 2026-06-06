@@ -154,3 +154,82 @@ def get_evidence_logs():
     logs = EvidenceLog.objects(organization_id=org_id).order_by("-timestamp")
     serialized = [log.to_dict() for log in logs]
     return success_response(data=serialized, message="Evidence logs retrieved")
+
+
+@tenant_compliance_bp.route("/audit/export", methods=["POST"])
+@jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
+def trigger_audit_export():
+    """Trigger background execution of tenant audit log export."""
+    claims = get_jwt()
+    org_id = claims.get("organization_id")
+    if not org_id:
+        return error_response(message="Organization ID not found in token context", status_code=400)
+        
+    data = request.get_json(silent=True) or {}
+    export_format = data.get("format", "csv")
+    if export_format not in ("csv", "json"):
+        return error_response(message="Format must be csv or json", status_code=400)
+        
+    from tasks.compliance_tasks import export_tenant_audit_logs_task
+    task = export_tenant_audit_logs_task.delay(org_id, export_format)
+    
+    return success_response(
+        data={
+            "task_id": task.id,
+            "status": "PENDING"
+        },
+        message="Audit log export task triggered",
+        status_code=202
+    )
+
+
+@tenant_compliance_bp.route("/audit/export/status/<task_id>", methods=["GET"])
+@jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
+def get_audit_export_status(task_id):
+    """Retrieve Celery background task status for audit exports."""
+    from celery.result import AsyncResult
+    res = AsyncResult(task_id)
+    
+    download_url = None
+    if res.status == "SUCCESS":
+        result_val = res.result
+        if isinstance(result_val, dict) and "export_uuid" in result_val:
+            format_ext = result_val.get("filename", "").split(".")[-1] or "csv"
+            download_url = f"/mahasangraha/api/v1/compliance/audit/export/download/{result_val['export_uuid']}.{format_ext}"
+            
+    return success_response(
+        data={
+            "task_id": task_id,
+            "status": res.status,
+            "result": res.result if res.status == "SUCCESS" else None,
+            "download_url": download_url
+        },
+        message="Export status retrieved"
+    )
+
+
+@tenant_compliance_bp.route("/audit/export/download/<export_uuid>.<format_ext>", methods=["GET"])
+@jwt_required()
+def download_audit_export(export_uuid, format_ext):
+    """Downloads a tenant-isolated audit export file."""
+    import os
+    claims = get_jwt()
+    org_id = claims.get("organization_id")
+    if not org_id:
+        return error_response(message="Organization ID not found in token context", status_code=400)
+    
+    if format_ext not in ("csv", "json"):
+        return error_response(message="Invalid file format", status_code=400)
+        
+    filename = f"audit_export_{org_id}_{export_uuid}.{format_ext}"
+    
+    from flask import send_from_directory
+    export_dir = "/app/logs/exports"
+    
+    if not os.path.exists(os.path.join(export_dir, filename)):
+        return error_response(message="Export file not found or unauthorized access", status_code=404)
+        
+    return send_from_directory(export_dir, filename, as_attachment=True)
+

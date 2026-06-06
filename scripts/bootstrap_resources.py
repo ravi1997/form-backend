@@ -65,6 +65,35 @@ def bootstrap():
     client.close()
     print(f"\n✅ Bootstrap complete for {db_name}.\n")
 
+    # ClickHouse bootstrap if configured
+    from config.settings import settings
+    if settings.OLAP_ENGINE == "clickhouse":
+        print("⚙️  Bootstrapping ClickHouse database...")
+        try:
+            from clickhouse_driver import Client
+            ch_client = Client.from_url(settings.CLICKHOUSE_URL)
+            ch_client.execute(
+                """
+                CREATE TABLE IF NOT EXISTS submission_analytics (
+                    id String,
+                    form_id String,
+                    organization_id String,
+                    submitted_at DateTime,
+                    status String,
+                    field_count UInt32,
+                    processing_time_ms Float64,
+                    batch_uuid String,
+                    year UInt16,
+                    month UInt8,
+                    day UInt8
+                ) ENGINE = MergeTree()
+                ORDER BY (organization_id, submitted_at, form_id)
+                """
+            )
+            print("   ✅ ClickHouse: submission_analytics table created/verified")
+        except Exception as e:
+            print(f"   ⚠️ ClickHouse bootstrap failed: {e}")
+
 
 if __name__ == "__main__":
     bootstrap()

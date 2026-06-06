@@ -144,3 +144,33 @@ def test_feature_flag_routes(db_connection, ff_service, redis_mock):
         assert resp.get_json()["data"]["per_org_overrides"]["tesla"] is False
 
 
+def test_feature_flag_cache_metrics(db_connection, ff_service, redis_mock):
+    # Reset/flush metrics
+    from services.redis_service import redis_service
+    redis_service.cache.client.delete("metrics:feature_flag:hits", "metrics:feature_flag:misses")
+
+    # 1. Initially metrics should be zero
+    metrics = ff_service.get_cache_metrics()
+    assert metrics["hits"] == 0
+    assert metrics["misses"] == 0
+    assert metrics["total"] == 0
+    assert metrics["hit_rate_percent"] == 0.0
+
+    # 2. Check feature flag (should miss)
+    ff_service.is_feature_enabled("export_csv", "org_metrics")
+    metrics = ff_service.get_cache_metrics()
+    assert metrics["hits"] == 0
+    assert metrics["misses"] == 1
+    assert metrics["total"] == 1
+    assert metrics["hit_rate_percent"] == 0.0
+
+    # 3. Check feature flag again (should hit)
+    ff_service.is_feature_enabled("export_csv", "org_metrics")
+    metrics = ff_service.get_cache_metrics()
+    assert metrics["hits"] == 1
+    assert metrics["misses"] == 1
+    assert metrics["total"] == 2
+    assert metrics["hit_rate_percent"] == 50.0
+
+
+

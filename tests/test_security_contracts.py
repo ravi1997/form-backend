@@ -179,7 +179,7 @@ def auth_contract_app():
     return app
 
 
-def test_auth_transport_matrix_accepts_bearer_and_cookie(auth_contract_app):
+def test_auth_transport_matrix_accepts_bearer_and_cookie(auth_contract_app, db_connection):
     client = auth_contract_app.test_client()
 
     with auth_contract_app.app_context():
@@ -226,7 +226,7 @@ def test_auth_transport_matrix_accepts_bearer_and_cookie(auth_contract_app):
     assert cookie_response.json["success"] is True
 
 
-def test_cookie_auth_write_routes_require_csrf_header(auth_contract_app):
+def test_cookie_auth_write_routes_require_csrf_header(auth_contract_app, db_connection):
     client = auth_contract_app.test_client()
 
     with auth_contract_app.app_context():

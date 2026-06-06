@@ -3,7 +3,7 @@ services/feature_flag_service.py
 Service layer for Feature Flag management and consumption.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from logger.unified_logger import app_logger, audit_logger
 from services.base import BaseService
 from services.redis_service import redis_service
@@ -98,6 +98,11 @@ class FeatureFlagService(BaseService):
         try:
             cached_val = redis_service.cache.get(cache_key)
             if cached_val is not None:
+                try:
+                    redis_service.cache.client.incr("metrics:feature_flag:hits")
+                except Exception:
+                    pass
+                app_logger.info(f"Feature flag cache HIT for {flag_key}:{organization_id}")
                 # If cached_val is a string representing a bool, convert it
                 if isinstance(cached_val, str):
                     if cached_val.lower() == "true":
@@ -108,9 +113,13 @@ class FeatureFlagService(BaseService):
         except Exception as e:
             app_logger.warning(f"Failed to read feature flag cache: {e}")
 
-
-
         # 2. Query MongoDB
+        try:
+            redis_service.cache.client.incr("metrics:feature_flag:misses")
+        except Exception:
+            pass
+        app_logger.info(f"Feature flag cache MISS for {flag_key}:{organization_id}")
+
         flag = FeatureFlag.objects(flag_key=flag_key).first()
         if not flag:
             # If flag not registered, default to False
@@ -128,6 +137,26 @@ class FeatureFlagService(BaseService):
             app_logger.warning(f"Failed to write feature flag cache: {e}")
 
         return enabled
+
+    def get_cache_metrics(self) -> Dict[str, Any]:
+        """Returns the hit/miss metrics for the feature flag cache."""
+        try:
+            client = redis_service.cache.client
+            hits_val = client.get("metrics:feature_flag:hits")
+            misses_val = client.get("metrics:feature_flag:misses")
+            hits = int(hits_val) if hits_val is not None else 0
+            misses = int(misses_val) if misses_val is not None else 0
+            total = hits + misses
+            hit_rate = (hits / total * 100) if total > 0 else 0.0
+            return {
+                "hits": hits,
+                "misses": misses,
+                "total": total,
+                "hit_rate_percent": round(hit_rate, 2)
+            }
+        except Exception as e:
+            app_logger.warning(f"Failed to fetch cache metrics: {e}")
+            return {"hits": 0, "misses": 0, "total": 0, "hit_rate_percent": 0.0}
 
     def _check_global_flag_directly(self, flag_key: str) -> bool:
         flag = FeatureFlag.objects(flag_key=flag_key).first()
