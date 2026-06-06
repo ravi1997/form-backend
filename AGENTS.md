@@ -5,6 +5,37 @@ Python/Flask backend for the RIDP Form Platform. Keep this file as the durable i
 ## Durable Subagent Orchestration
 All major coding, planning, reviews, and test runs are delegated to specialized, narrow-context subagents to keep parent model token usage extremely low and optimize context cost. For architecture and operations, see [.agents/skills/ORCHESTRATOR.md](file:///home/ravi/workspace/docker/apps/form-backend/.agents/skills/ORCHESTRATOR.md).
 
+## Codex & Antigravity (AGY) Integration
+
+Codex is installed locally at `/usr/bin/codex` and can be leveraged to delegate subtasks, generate/refactor code, or perform automated reviews.
+
+### Bidirectional Master-Worker Orchestration
+Codex and Antigravity can operate in a bidirectional loop where Codex acts as the Master architect and Antigravity behaves as the coding agent, or vice versa.
+
+* **Codex as Master**:
+  To run Codex in Master mode with full access to execute commands and coordinate progress:
+  ```bash
+  /usr/bin/codex exec -s danger-full-access - <<'EOF'
+  You are the Lead Master Software Architect. Execute the following goals.
+  If you need Antigravity to perform a task (e.g., read code, execute tests), run:
+  agy --print "Find all references to method X"
+  EOF
+  ```
+
+* **Delegating tasks from Codex to Antigravity (AGY)**:
+  Within Codex execution, use the `agy` CLI to request help or run sub-commands:
+  - `agy --print "Run pytest on tests/test_auth_service.py and return the summary"`
+  - `agy --print "Read and explain services/oidc_service.py"`
+
+* **Delegating tasks from Antigravity to Codex**:
+  Run `codex exec` with the prompt as an argument or via stdin:
+  - `codex exec "Write a unit test for the authentication routes under tests/"`
+  - `codex exec --sandbox read-only -o codex_output.md "Explain the DB schema mapping"`
+
+* **Code Reviews**:
+  - `codex review` (runs in the workspace directory)
+
+
 ## Skill Router
 - `ridp-backend-flask`: routes, schemas, services, models, authz, tenancy, Celery, OpenAPI, backend tests.
 - `ridp-api-contract-sync`: backend/frontend API compatibility, OpenAPI, generated Dart client, auth headers, response envelopes.
