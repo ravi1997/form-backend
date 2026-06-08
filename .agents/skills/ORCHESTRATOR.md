@@ -43,11 +43,19 @@ We have defined and registered the following subagents corresponding to the skil
 To ensure that your token consumption remains as low as possible:
 
 1. **Gatekeeper Routing**: The parent agent's context is kept extremely clean. Whenever a user submits a prompt, the parent agent maps the request to a subagent and immediately calls `invoke_subagent` without loading massive file snippets into the parent conversation context.
-2. **Narrow Context Isolation**: When subagents are spawned, they are instructed to:
+2. **Minimal Prompt Shape**: Parent prompts must stay short and structured:
+   - outcome
+   - exact files or symbols
+   - constraints and risk boundary
+   - expected return format
+   Avoid background narratives and repeated repo policy.
+3. **Narrow Context Isolation**: When subagents are spawned, they are instructed to:
    - Inherit a clean workspace.
    - Avoid reading files blindly. They must only read the specific, targeted files required for their direct task.
+   - Prefer graph-backed discovery and symbol reads before shell-wide search.
    - Execute lightweight commands first (e.g. host-side virtualenv test runs `./venv/bin/pytest tests/test_file.py`) rather than starting large container clusters unless necessary.
-3. **Concise Aggregation**: Subagents report back only the structural changes (a diff summary, compilation status, and green verification runs). The parent agent then formats this summary cleanly for the user, keeping the conversation history short.
+4. **One Task Per Subagent**: Split discovery, implementation, and verification unless the task is trivial. If a task spans backend and frontend, create separate repo-local subagents.
+5. **Concise Aggregation**: Subagents report back only the structural changes (a diff summary, compilation status, and green verification runs). The parent agent then formats this summary cleanly for the user, keeping the conversation history short.
 
 ---
 

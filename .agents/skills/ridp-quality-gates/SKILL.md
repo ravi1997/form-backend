@@ -7,6 +7,11 @@ description: Use before RIDP handoff, commit/PR, after broad refactors, or when 
 
 Run checks proportional to risk. Report exact commands, failures, skipped checks, and why.
 
+## Token Discipline
+- Prefer the smallest check that can prove the change.
+- Do not run broad suites until the changed surface justifies them.
+- When reporting, summarize pass/fail state and exact scope instead of dumping logs.
+
 ## Fast Gates
 ```bash
 flutter analyze

@@ -12,9 +12,12 @@ node_modules
 dist
 build
 .venv
+.venv-lora
 venv
 env
+lora/
 # tests
 # test
 *.test.js
 *.spec.js
+

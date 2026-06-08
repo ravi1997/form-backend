@@ -128,16 +128,6 @@ def submit_public_response(form_id):
             "meta_data": {"idempotency_request_hash": request_hash},
         }
 
-        # Track submitter's organization ID for ownership tracking
-        # Even for anonymous public submissions, we record their original org if available
-        submitter_org_id = request.headers.get("X-Submitter-Org-ID")
-        if submitter_org_id:
-            submission_data["submitter_org_id"] = submitter_org_id
-            submission_data["submitted_by"] = f"anonymous_org_{submitter_org_id}"
-            app_logger.info(
-                f"Recording submitter org ID {submitter_org_id} for form {form_id}"
-            )
-
         create_schema = FormResponseCreateSchema(**submission_data)
         response = response_service.create_submission(create_schema)
 
