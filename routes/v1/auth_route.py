@@ -6,6 +6,7 @@ Uses AuthService and UserService for all business logic.
 from flask import Blueprint, current_app, request, jsonify
 from flask_jwt_extended import (
     decode_token,
+    verify_jwt_in_request,
     jwt_required,
     get_jwt,
     set_access_cookies,
@@ -364,7 +365,6 @@ def accept_invite(token):
 
 
 @auth_bp.route("/refresh", methods=["POST"])
-@jwt_required(optional=True, refresh=True)
 @swag_from(
     {
         "tags": ["Auth"],
@@ -394,13 +394,20 @@ def refresh():
         from models.User import User
 
         payload = request.get_json(silent=True) or {}
-        current_user_id = get_jwt_identity()
+        current_user_id = None
+        refresh_token = payload.get("refresh_token")
+        if refresh_token:
+            decoded = decode_token(str(refresh_token).strip())
+            current_user_id = decoded.get("sub")
+        else:
+            verify_jwt_in_request(refresh=True)
+            current_user_id = get_jwt_identity()
+
         if not current_user_id:
             refresh_token = payload.get("refresh_token")
             if not refresh_token:
                 return error_response(message="refresh_token required", status_code=400)
-            decoded = decode_token(str(refresh_token).strip())
-            current_user_id = decoded.get("sub")
+
         user = User.objects(
             id=current_user_id, is_active=True, is_deleted=False
         ).first()

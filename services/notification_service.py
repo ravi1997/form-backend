@@ -58,7 +58,7 @@ class NotificationService:
         app_logger.info(f"Delivering webhook: {method} {url}")
         try:
             response = requests.request(
-                method, url, json=data, headers=headers, timeout=5
+                method, url, json=data, headers=headers, timeout=30
             )
             response.raise_for_status()
             app_logger.info(f"Webhook delivered successfully: {response.status_code}")
@@ -112,7 +112,7 @@ class NotificationService:
                 url,
                 json=payload,
                 headers=headers,
-                timeout=15,
+                timeout=30,
             )
             response.raise_for_status()
             try:

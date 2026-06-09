@@ -314,6 +314,9 @@ class FormResponseService(BaseService):
                     version_doc = Version.objects(id=active_version_id).first()
                     if version_doc:
                         data.version = version_doc.version_string
+                        data.commit_id = getattr(
+                            form_doc, "active_publish_commit_id", None
+                        ) or getattr(form_doc, "head_commit_id", None)
 
                     fv = None
                     if version_doc:

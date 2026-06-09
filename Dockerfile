@@ -1,6 +1,6 @@
 # Multi-stage-ready slim base — ~750MB smaller than full bookworm image.
 # libmagic1 is available in slim images (no build-essential needed).
-FROM python:3.10-slim-bookworm
+FROM python:3.11-slim-bookworm
 
 # Reproducible builds: write no .pyc files; flush stdout/stderr immediately.
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -28,7 +28,7 @@ RUN mkdir -p /app/logs
 RUN useradd -m -u 1001 appuser && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 6000
+EXPOSE 5000
 
 # Default command: Runs the production server
-CMD ["gunicorn", "--bind", "0.0.0.0:6000", "--workers", "3", "--threads", "4", "--timeout", "120", "--graceful-timeout", "30", "app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--threads", "4", "--timeout", "120", "--graceful-timeout", "30", "app:create_app()"]

@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     # ── Security ──────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FIELD_ENCRYPTION_KEY: Optional[str] = None
 

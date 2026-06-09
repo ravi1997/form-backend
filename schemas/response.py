@@ -9,6 +9,7 @@ class FormResponseSchema(SoftDeleteBaseSchema):
     form: str
     form_version: Optional[str] = None
     version: Optional[str] = None
+    commit_id: Optional[str] = None
     organization_id: str
 
     data: Dict[str, Any]

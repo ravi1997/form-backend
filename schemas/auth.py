@@ -30,4 +30,4 @@ class TokenPayload(BaseModel):
     exp: int
     iat: int
     system_role: str = "user"
-    orgs: list[dict[str, str]] = []
+    orgs: list[dict[str, str]] = Field(default_factory=list)

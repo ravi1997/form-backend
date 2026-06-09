@@ -84,9 +84,9 @@ class WebhookService:
         webhook_id: str,
         form_id: str,
         created_by: Optional[str] = None,
-        max_retries: int = 5,
+        max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        timeout: int = 10,
+        timeout: int = 30,
         schedule_for: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         app_logger.info(f"Preparing to send webhook {webhook_id} to {url}")
@@ -302,7 +302,13 @@ class WebhookService:
         cls, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, str]:
         signed_headers = dict(headers or {})
-        secret = headers.get("X-Webhook-Secret") if headers else None
+        secret = None
+        if headers:
+            secret = (
+                headers.get("X-Webhook-Secret")
+                or headers.get("Webhook-Secret")
+                or headers.get("X-Webhook-Signature-Secret")
+            )
         if not secret:
             secret = settings.JWT_SECRET_KEY
         digest = hmac.new(
@@ -310,7 +316,9 @@ class WebhookService:
             cls._canonical_payload(payload),
             hashlib.sha256,
         ).hexdigest()
-        signed_headers["X-FBP-Signature"] = f"sha256={digest}"
+        signature_value = f"sha256={digest}"
+        signed_headers["X-FBP-Signature"] = signature_value
+        signed_headers["X-RIDP-Signature"] = signature_value
         return signed_headers
 
     @classmethod

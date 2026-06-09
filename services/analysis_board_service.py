@@ -117,11 +117,11 @@ class AnalysisBoardService(BaseService):
                     queue.append(neighbor)
 
         if len(order) != len(nodes):
-            # Circular dependency detected, fallback to standard database order
-            app_logger.warning(
-                "Circular dependency detected in calculation nodes graph! Falling back to raw list order."
+            from utils.exceptions import ValidationError
+
+            raise ValidationError(
+                "Circular dependency detected in calculation nodes graph"
             )
-            return [str(node.id) for node in nodes]
 
         return order
 
