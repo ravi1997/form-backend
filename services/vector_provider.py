@@ -93,7 +93,7 @@ class QdrantVectorProvider(AbstractVectorProvider):
             resp = requests.put(
                 f"{self.base_url}/collections/{collection_name}/points?wait=true",
                 json={"points": [point]},
-                timeout=10,
+                timeout=30,
             )
             if resp.status_code != 200:
                 app_logger.warning(
@@ -129,7 +129,7 @@ class QdrantVectorProvider(AbstractVectorProvider):
             resp = requests.post(
                 f"{self.base_url}/collections/{collection_name}/points/search",
                 json=payload,
-                timeout=10,
+                timeout=30,
             )
             if resp.status_code != 200:
                 app_logger.warning(

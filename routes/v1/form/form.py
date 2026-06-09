@@ -1083,11 +1083,15 @@ def get_project_form_version(form_id, version):
         if not version_doc:
             return error_response(message="Version not found", status_code=404)
         if version and version != getattr(version_doc, "version_string", None):
+            try:
+                major, minor, patch = (int(part) for part in version.split("."))
+            except (ValueError, TypeError):
+                return error_response(message="Version not found", status_code=404)
             matching = Version.objects(
                 form=form.id,
-                major=int(version.split(".")[0]),
-                minor=int(version.split(".")[1]),
-                patch=int(version.split(".")[2]),
+                major=major,
+                minor=minor,
+                patch=patch,
             ).first()
             if matching:
                 version_doc = matching
@@ -1188,6 +1192,9 @@ def update_project_form_version(form_id, version):
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
+        form_version = _find_form_version(form, version)
+        if not form_version:
+            return error_response(message="Version not found", status_code=404)
         if data.get("sections") or data.get("versions"):
             form_service.sync_form_canvas(
                 str(form.id), current_user.organization_id, data

@@ -1,4 +1,6 @@
+import json
 import math
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel
 from mongoengine import QuerySet
@@ -8,13 +10,21 @@ from services.base import BaseService
 from schemas.analysis_board import AnalysisBoardSchema, AnalysisNodeSchema
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from extensions import redis_client
+from services.analysis_run_service import analysis_run_service
 
 
 class AnalysisBoardService(BaseService):
     def __init__(self):
         super().__init__(model=AnalysisBoard, schema=AnalysisBoardSchema)
 
-    def execute_board(self, board_id: str, organization_id: str) -> Dict[str, Any]:
+    def execute_board(
+        self,
+        board_id: str,
+        organization_id: str,
+        triggered_by: str = None,
+        trigger: str = "on_demand",
+        celery_task_id: str = None,
+    ) -> Dict[str, Any]:
         """
         Executes the entire visual calculation nodes graph of an Analysis Board.
         Utilizes Redis-backed result caching, evicted on new form response events.
@@ -49,29 +59,131 @@ class AnalysisBoardService(BaseService):
         # 3. Topological Sort of Nodes based on 'inputs' dependency graph
         nodes_dict = {str(node.id): node for node in board_doc.nodes}
         execution_order = self._resolve_topological_order(board_doc.nodes)
+        run = analysis_run_service.create_run(
+            analysis_id=str(board_doc.id),
+            organization_id=organization_id,
+            trigger=trigger,
+            triggered_by=triggered_by,
+            celery_task_id=celery_task_id,
+        )
 
         # 4. Process Nodes in Sequence
         results = {}
+        node_statuses = {}
+        result_ids = {}
         for node_id in execution_order:
             node = nodes_dict[node_id]
+            blocked_parent = None
+            for parent_id in (node.inputs or []):
+                parent_result = results.get(str(parent_id))
+                if isinstance(parent_result, dict) and (
+                    parent_result.get("status") in {"error", "blocked"}
+                    or "error" in parent_result
+                ):
+                    blocked_parent = str(parent_id)
+                    break
+            if blocked_parent:
+                blocked_payload = {
+                    "status": "blocked",
+                    "blocked_by": blocked_parent,
+                    "error": f"Blocked by failed dependency {blocked_parent}",
+                }
+                results[node_id] = blocked_payload
+                node_statuses[node_id] = {
+                    "status": "blocked",
+                    "started_at": run.started_at.isoformat()
+                    if run.started_at
+                    else None,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "error": blocked_payload["error"],
+                }
+                result_doc = analysis_run_service.record_result(
+                    run,
+                    node_id=node_id,
+                    analysis_id=str(board_doc.id),
+                    organization_id=organization_id,
+                    payload=blocked_payload,
+                    output_type="error",
+                )
+                result_ids[node_id] = str(result_doc.id)
+                continue
             try:
-                results[node_id] = self._execute_single_node(
+                node_result = self._execute_single_node(
                     node, results, organization_id
                 )
+                results[node_id] = node_result
+                node_statuses[node_id] = {
+                    "status": "completed"
+                    if not (isinstance(node_result, dict) and node_result.get("error"))
+                    else "error",
+                    "started_at": run.started_at.isoformat()
+                    if run.started_at
+                    else None,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "error": node_result.get("error")
+                    if isinstance(node_result, dict)
+                    else None,
+                }
+                result_doc = analysis_run_service.record_result(
+                    run,
+                    node_id=node_id,
+                    analysis_id=str(board_doc.id),
+                    organization_id=organization_id,
+                    payload=node_result
+                    if isinstance(node_result, dict)
+                    else {"value": node_result},
+                    output_type=(
+                        "error"
+                        if isinstance(node_result, dict) and node_result.get("error")
+                        else "value"
+                    ),
+                )
+                result_ids[node_id] = str(result_doc.id)
             except Exception as node_err:
                 error_logger.error(
                     f"Error executing node {node.title} ({node_id}): {node_err}",
                     exc_info=True,
                 )
-                results[node_id] = {"error": str(node_err)}
+                error_payload = {"status": "error", "error": str(node_err)}
+                results[node_id] = error_payload
+                node_statuses[node_id] = {
+                    "status": "error",
+                    "started_at": run.started_at.isoformat()
+                    if run.started_at
+                    else None,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "error": str(node_err),
+                }
+                result_doc = analysis_run_service.record_result(
+                    run,
+                    node_id=node_id,
+                    analysis_id=str(board_doc.id),
+                    organization_id=organization_id,
+                    payload=error_payload,
+                    output_type="error",
+                )
+                result_ids[node_id] = str(result_doc.id)
 
         # 5. Cache Results
         try:
-            import json
-
             redis_client.setex(cache_key, 3600, json.dumps(results))  # Cache for 1 hour
         except Exception as cache_err:
             app_logger.warning(f"Failed to set Analysis Board cache: {cache_err}")
+
+        analysis_run_service.finish_run(
+            run,
+            node_statuses=node_statuses,
+            result_ids=result_ids,
+            error_summary=(
+                "One or more nodes failed or were blocked"
+                if any(
+                    isinstance(payload, dict)
+                    and payload.get("status") in {"error", "blocked"}
+                    for payload in results.values()
+                )
+                else None
+            ),
+        )
 
         return results
 

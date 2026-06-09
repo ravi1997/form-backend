@@ -20,7 +20,7 @@ class WebhookService:
     HISTORY_KEY = "webhook:history"
     STATUS_KEY_PREFIX = "webhook:status:"
     LOG_KEY = "webhook:logs"
-    DEFAULT_MAX_RETRIES = 5
+    DEFAULT_MAX_RETRIES = 3
     HISTORY_LIMIT = 1000
 
     @classmethod
@@ -149,7 +149,7 @@ class WebhookService:
             raise ValueError("Webhook retry payload missing url")
 
         headers = payload.get("headers")
-        timeout = int(payload.get("timeout", 10))
+        timeout = int(payload.get("timeout", 30))
         max_retries = int(payload.get("max_retries", cls.DEFAULT_MAX_RETRIES))
         body = payload.get("payload", payload)
 
@@ -222,7 +222,7 @@ class WebhookService:
             "url": record.get("url"),
             "form_id": record.get("form_id"),
             "headers": record.get("headers"),
-            "timeout": record.get("timeout", 10),
+            "timeout": record.get("timeout", 30),
             "max_retries": record.get("max_retries", cls.DEFAULT_MAX_RETRIES),
             "created_by": record.get("created_by"),
             "organization_id": record.get("organization_id"),

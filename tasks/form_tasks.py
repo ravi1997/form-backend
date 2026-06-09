@@ -465,6 +465,8 @@ def cleanup_deleted_records(self, retention_days: int = 30, dry_run: bool = Fals
     """
     from models.Form import Form
     from models.Response import FormResponse
+    from services.form_service import FormService
+    from services.response_service import FormResponseService
     from datetime import datetime, timezone, timedelta
 
     app_logger.info(
@@ -473,6 +475,8 @@ def cleanup_deleted_records(self, retention_days: int = 30, dry_run: bool = Fals
 
     try:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        form_service = FormService()
+        response_service = FormResponseService()
 
         # Count and delete soft-deleted Forms
         deleted_forms = []
@@ -485,7 +489,11 @@ def cleanup_deleted_records(self, retention_days: int = 30, dry_run: bool = Fals
                         app_logger.info(
                             f"Hard deleting form {form.id} (deleted_at: {form.deleted_at})"
                         )
-                        form.delete()
+                        form_service.delete(
+                            str(form.id),
+                            organization_id=form.organization_id,
+                            hard_delete=True,
+                        )
                         audit_logger.info(
                             f"GDPR: Hard deleted form {form.id} from org {form.organization_id}. "
                             f"Originally deleted at {form.deleted_at}"
@@ -503,7 +511,11 @@ def cleanup_deleted_records(self, retention_days: int = 30, dry_run: bool = Fals
                         app_logger.info(
                             f"Hard deleting response {response.id} (deleted_at: {response.deleted_at})"
                         )
-                        response.delete()
+                        response_service.delete(
+                            str(response.id),
+                            organization_id=response.organization_id,
+                            hard_delete=True,
+                        )
                         audit_logger.info(
                             f"GDPR: Hard deleted response {response.id} from org {response.organization_id}. "
                             f"Originally deleted at {response.deleted_at}"

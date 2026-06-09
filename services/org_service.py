@@ -91,6 +91,8 @@ class OrgService(BaseService):
         org.save()
 
         # Ensure the user's role includes 'admin'
+        if not getattr(user, "roles", None):
+            user.roles = []
         if "admin" not in user.roles:
             user.roles.append("admin")
             user.save()

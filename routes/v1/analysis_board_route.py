@@ -1,8 +1,11 @@
-from flask import Blueprint, request
+import os
+
+from flask import Blueprint, request, send_file
 from flasgger import swag_from
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from models.Form import Project
 from services.analysis_board_service import AnalysisBoardService
+from services.analysis_run_service import analysis_run_service
 from schemas.analysis_board import (
     AnalysisBoardCreateSchema,
     AnalysisBoardUpdateSchema,
@@ -276,10 +279,144 @@ def execute_board(project_id, board_id):
         if board.project_id != project_id:
             raise NotFoundError("Analysis Board not found in this project")
 
-        results = analysis_board_service.execute_board(board_id, org_id)
+        results = analysis_board_service.execute_board(
+            board_id, org_id, triggered_by=user_id, trigger="on_demand"
+        )
         return success_response(
             data=results, message="Calculations executed successfully"
         )
     except Exception as e:
         error_logger.error(f"Execute Analysis Board error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@analysis_board_bp.route("/<board_id>/runs", methods=["GET"])
+@jwt_required()
+@require_permission("project", "view")
+def list_board_runs(project_id, board_id):
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    try:
+        board = analysis_board_service.get_by_id(board_id, organization_id=org_id)
+        if board.project_id != project_id:
+            raise NotFoundError("Analysis Board not found in this project")
+
+        runs = analysis_run_service.list_runs(board_id, org_id)
+        return success_response(
+            data={"items": [run.to_dict() for run in runs], "total": len(runs)}
+        )
+    except Exception as e:
+        error_logger.error(f"List Analysis runs error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@analysis_board_bp.route("/<board_id>/runs/<run_id>", methods=["GET"])
+@jwt_required()
+@require_permission("project", "view")
+def get_board_run(project_id, board_id, run_id):
+    org_id = get_jwt().get("org_id")
+    try:
+        board = analysis_board_service.get_by_id(board_id, organization_id=org_id)
+        if board.project_id != project_id:
+            raise NotFoundError("Analysis Board not found in this project")
+
+        run = analysis_run_service.get_run(board_id, run_id, org_id)
+        if not run:
+            raise NotFoundError("Analysis run not found")
+
+        results = analysis_run_service.get_results(run_id, org_id)
+        return success_response(
+            data={
+                "run": run.to_dict(),
+                "results": [result.to_dict() for result in results],
+            }
+        )
+    except Exception as e:
+        error_logger.error(f"Get Analysis run error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@analysis_board_bp.route("/<board_id>/export", methods=["POST"])
+@jwt_required()
+@require_permission("project", "view")
+def create_board_export(project_id, board_id):
+    org_id = get_jwt().get("org_id")
+    user_id = get_jwt_identity()
+    try:
+        board = analysis_board_service.get_by_id(board_id, organization_id=org_id)
+        if board.project_id != project_id:
+            raise NotFoundError("Analysis Board not found in this project")
+
+        payload = request.get_json(silent=True) or {}
+        export = analysis_run_service.create_export(
+            analysis_id=board_id,
+            run_id=str(payload.get("run_id") or ""),
+            organization_id=org_id,
+            created_by=str(user_id),
+            export_format=payload.get("format", "csv"),
+            node_ids=payload.get("node_ids") or [],
+            file_path=payload.get("file_path"),
+            file_size_bytes=payload.get("file_size_bytes"),
+            status=payload.get("status", "queued"),
+        )
+        return success_response(data=export.to_dict(), status_code=201)
+    except Exception as e:
+        error_logger.error(f"Create Analysis export error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@analysis_board_bp.route("/<board_id>/export/<export_id>", methods=["GET"])
+@jwt_required()
+@require_permission("project", "view")
+def get_board_export(project_id, board_id, export_id):
+    org_id = get_jwt().get("org_id")
+    try:
+        board = analysis_board_service.get_by_id(board_id, organization_id=org_id)
+        if board.project_id != project_id:
+            raise NotFoundError("Analysis Board not found in this project")
+
+        from models.AnalysisRun import AnalysisExport
+
+        export = AnalysisExport.objects(
+            id=export_id, analysis_id=board_id, organization_id=org_id
+        ).first()
+        if not export:
+            raise NotFoundError("Analysis export not found")
+        return success_response(data=export.to_dict())
+    except Exception as e:
+        error_logger.error(f"Get Analysis export error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@analysis_board_bp.route("/<board_id>/export/<export_id>/download", methods=["GET"])
+@jwt_required()
+@require_permission("project", "view")
+def download_board_export(project_id, board_id, export_id):
+    org_id = get_jwt().get("org_id")
+    try:
+        board = analysis_board_service.get_by_id(board_id, organization_id=org_id)
+        if board.project_id != project_id:
+            raise NotFoundError("Analysis Board not found in this project")
+
+        from models.AnalysisRun import AnalysisExport
+
+        export = AnalysisExport.objects(
+            id=export_id, analysis_id=board_id, organization_id=org_id
+        ).first()
+        if not export:
+            raise NotFoundError("Analysis export not found")
+
+        if export.status != "ready" or not export.file_path:
+            raise ValidationError("Analysis export is not ready for download")
+
+        if not os.path.exists(export.file_path):
+            raise NotFoundError("Analysis export file not found")
+
+        return send_file(
+            export.file_path,
+            as_attachment=True,
+            download_name=os.path.basename(export.file_path),
+        )
+    except Exception as e:
+        error_logger.error(f"Download Analysis export error: {str(e)}", exc_info=True)
         return error_response(message=str(e), status_code=400)

@@ -102,7 +102,7 @@ def long_running_computation(data):
 
 
 @celery_app.task(bind=True)
-def process_outbox_events_task(self, max_retries=5):
+def process_outbox_events_task(self, max_retries=3):
     """
     Background task/worker loop to publish failed/pending outbox events.
     """
@@ -117,18 +117,19 @@ def _deliver_notification_log(notification_log):
     """
     Replays a persisted notification delivery attempt using the stored log payload.
     """
-    channel = notification_log.channel
+    channel = str(notification_log.channel or "").strip().lower()
     payload = notification_log.payload or {}
     context_data = payload.get("context_data", payload)
     response = None
+    action_config = payload.get("action_config") or payload.get("config") or {}
 
     if channel == "webhook":
         response = NotificationService._call_webhook(
-            payload.get("action_config", {}), context_data
+            action_config, context_data
         )
     elif channel == "api_call":
         response = NotificationService._call_external_api(
-            payload.get("action_config", {}), context_data
+            action_config, context_data
         )
     elif channel == "execute_script":
         NotificationService._run_custom_logic(payload.get("script", ""), context_data)

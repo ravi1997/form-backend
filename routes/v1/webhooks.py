@@ -31,9 +31,9 @@ def deliver_webhook():
     webhook_id = data.get("webhook_id")
     form_id = data.get("form_id")
     payload = data.get("payload")
-    max_retries = data.get("max_retries", 5)
+    max_retries = data.get("max_retries", 3)
     headers = data.get("headers")
-    timeout = data.get("timeout", 10)
+    timeout = data.get("timeout", 30)
     schedule_for_str = data.get("schedule_for")
 
     if not url or not webhook_id or not form_id or not payload:
@@ -240,6 +240,7 @@ def test_webhook():
         form_id="test_form",
         created_by=admin_id,
         max_retries=3,
+        timeout=30,
     )
 
     audit_logger.info(f"Test webhook triggered. URL: {url}, Admin: {admin_id}")

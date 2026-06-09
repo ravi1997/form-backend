@@ -57,6 +57,8 @@ from .external_sms_service import ExternalSMSService, get_sms_service, SMSResult
 from .event_bus import event_bus
 from .org_service import OrgService
 from .feature_flag_service import FeatureFlagService
+from .tombstone_service import TombstoneService
+from .analysis_run_service import AnalysisRunService, analysis_run_service
 
 __all__ = [
     "BaseService",
@@ -118,5 +120,7 @@ __all__ = [
     "event_bus",
     "OrgService",
     "FeatureFlagService",
+    "TombstoneService",
+    "AnalysisRunService",
+    "analysis_run_service",
 ]
-

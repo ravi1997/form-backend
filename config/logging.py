@@ -265,4 +265,30 @@ LOGGING_CONFIG: Dict[str, Any] = {
 
 
 def setup_logging():
-    logging.config.dictConfig(LOGGING_CONFIG)
+    try:
+        logging.config.dictConfig(LOGGING_CONFIG)
+    except (OSError, PermissionError, ValueError):
+        fallback_config = dict(LOGGING_CONFIG)
+        fallback_config["handlers"] = {
+            "console": LOGGING_CONFIG["handlers"]["console"],
+            "access_console": LOGGING_CONFIG["handlers"]["access_console"],
+        }
+        fallback_config["loggers"] = dict(LOGGING_CONFIG["loggers"])
+        fallback_config["loggers"][""] = {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": True,
+        }
+        fallback_config["loggers"]["application"] = {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        }
+        fallback_config["loggers"]["access_logger"] = {
+            "handlers": ["access_console"],
+            "level": "INFO",
+            "propagate": False,
+        }
+        for logger_name in ("error_logger", "audit_logger", "performance_logger"):
+            fallback_config["loggers"].pop(logger_name, None)
+        logging.config.dictConfig(fallback_config)

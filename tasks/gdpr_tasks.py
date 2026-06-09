@@ -1,5 +1,6 @@
 from config.celery import celery_app
 from services.gdpr_compliance_service import gdpr_compliance_service
+from services.tombstone_service import TombstoneService
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
 
@@ -47,4 +48,24 @@ def prune_soft_deleted_records(
 
     except Exception as e:
         error_logger.error(f"GDPR prune failed: {e}", exc_info=True)
+        raise self.retry(exc=e)
+
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=3600)
+def prune_old_tombstones(self, retention_days=30):
+    """Remove tombstone records older than the retention window."""
+    app_logger.info(
+        f"Starting tombstone prune: retention_days={retention_days}"
+    )
+
+    try:
+        deleted_count = TombstoneService().prune_old_tombstones(
+            retention_days=retention_days
+        )
+        audit_logger.info(
+            f"Tombstone prune task completed: {deleted_count} tombstones permanently deleted"
+        )
+        return {"status": "success", "deleted_count": deleted_count}
+    except Exception as e:
+        error_logger.error(f"Tombstone prune failed: {e}", exc_info=True)
         raise self.retry(exc=e)

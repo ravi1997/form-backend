@@ -39,6 +39,19 @@ class FormService(BaseService):
         self, doc_id: str, organization_id: str = None, hard_delete: bool = False
     ) -> None:
         super().delete(doc_id, organization_id, hard_delete)
+        if hard_delete and organization_id:
+            try:
+                from services.tombstone_service import TombstoneService
+
+                TombstoneService().record_delete(
+                    organization_id=organization_id,
+                    entity_type="forms",
+                    entity_id=str(doc_id),
+                )
+            except Exception as tombstone_err:
+                app_logger.warning(
+                    f"Failed to record form tombstone for {doc_id}: {tombstone_err}"
+                )
         if organization_id:
             from services.tenant_service import TenantService
             TenantService().recalculate_usage(organization_id)

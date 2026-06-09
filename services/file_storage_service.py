@@ -7,6 +7,8 @@ from logger.unified_logger import app_logger, error_logger
 from utils.file_validator import validate_upload, generate_secure_filename
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from config.settings import settings
+from models.TenantSettings import TenantSettings
+from utils.exceptions import ValidationError
 
 class FileStorageService:
     """
@@ -32,12 +34,48 @@ class FileStorageService:
         os.makedirs(path, exist_ok=True)
         return path
 
+    def _calculate_directory_size(self, path: str) -> int:
+        total = 0
+        if not os.path.exists(path):
+            return total
+        for root, _dirs, files in os.walk(path):
+            for file_name in files:
+                file_path = os.path.join(root, file_name)
+                if os.path.exists(file_path):
+                    total += os.path.getsize(file_path)
+        return total
+
+    def _ensure_storage_quota(self, organization_id: str, projected_size: int = 0) -> None:
+        tenant_settings = TenantSettings.get_or_create(organization_id)
+        limit_bytes = int(getattr(tenant_settings, "storage_limit_mb", 0) or 0) * 1024 * 1024
+        tenant_root = os.path.join(
+            self.upload_folder, generate_secure_filename(organization_id)
+        )
+        current_size = self._calculate_directory_size(tenant_root)
+        if limit_bytes and current_size + projected_size > limit_bytes:
+            raise ValidationError(
+                f"Storage quota exceeded ({tenant_settings.storage_limit_mb} MB max)."
+            )
+
+    def _refresh_storage_usage(self, organization_id: str) -> None:
+        tenant_settings = TenantSettings.get_or_create(organization_id)
+        tenant_root = os.path.join(
+            self.upload_folder, generate_secure_filename(organization_id)
+        )
+        tenant_settings.usage_storage_bytes = self._calculate_directory_size(tenant_root)
+        tenant_settings.save()
+
     def save_file(self, file: FileStorage, organization_id: str, form_id: str = "generic", question_id: str = "generic") -> str:
         """Validates and saves an uploaded file in a tenant-isolated path."""
         is_valid, error_msg = validate_upload(file)
         if not is_valid:
             app_logger.warning(f"File upload validation failed: {error_msg}")
             raise ValueError(error_msg)
+
+        file.seek(0, os.SEEK_END)
+        projected_size = file.tell()
+        file.seek(0)
+        self._ensure_storage_quota(organization_id, projected_size=projected_size)
 
         secure_filename = generate_secure_filename(file.filename)
         # Prevent collisions by appending a unique UUID segment
@@ -47,6 +85,7 @@ class FileStorageService:
         tenant_dir = self._get_tenant_path(organization_id, form_id, question_id)
         filepath = os.path.join(tenant_dir, unique_filename)
         file.save(filepath)
+        self._refresh_storage_usage(organization_id)
 
         app_logger.info(
             f"File saved successfully: {unique_filename} for organization {organization_id}"
@@ -60,12 +99,14 @@ class FileStorageService:
                 signature_data = signature_data.split(",")[1]
 
             file_data = base64.b64decode(signature_data)
+            self._ensure_storage_quota(organization_id, projected_size=len(file_data))
             filename = f"sig_{uuid.uuid4().hex}.png"
 
             tenant_dir = self._get_tenant_path(organization_id, form_id, "signatures")
             filepath = os.path.join(tenant_dir, filename)
             with open(filepath, "wb") as f:
                 f.write(file_data)
+            self._refresh_storage_usage(organization_id)
 
             app_logger.info(f"Signature saved successfully: {filename} for organization {organization_id}")
             return self.generate_signed_url(organization_id, form_id, "signatures", filename)

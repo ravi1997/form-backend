@@ -49,6 +49,8 @@ def _docs_widget(widget):
             "node_id": getattr(widget, "node_id", None),
             "refresh_mode": getattr(widget, "refresh_mode", "with_dashboard"),
         },
+        "form_ref": getattr(widget, "form_id", None),
+        "form_id": getattr(widget, "form_id", None),
         "filters": [],
     }
 
@@ -65,6 +67,7 @@ def _backend_widget(widget):
             widget.get("data_binding", {}).get("analysis_id")
             or widget.get("data_binding", {}).get("node_id")
             or widget.get("form_ref")
+            or widget.get("form_id")
         ),
         "group_by_field": widget.get("properties", {}).get("group_by_field"),
         "aggregate_field": widget.get("properties", {}).get("aggregate_field"),
@@ -511,6 +514,8 @@ def share_dashboard(dashboard_id):
     """Generate a public share token for a dashboard."""
     user_id = get_jwt_identity()
     org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
     try:
         from models.Dashboard import Dashboard
         dashboard = Dashboard.objects.get(
@@ -538,12 +543,15 @@ def unshare_dashboard(dashboard_id):
     """Disable public sharing for a dashboard."""
     user_id = get_jwt_identity()
     org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
     try:
         from models.Dashboard import Dashboard
         dashboard = Dashboard.objects.get(
             id=dashboard_id, organization_id=org_id, is_deleted=False
         )
         dashboard.is_shared = False
+        dashboard.share_token = None
         dashboard.save()
         audit_logger.info(f"AUDIT: Dashboard {dashboard_id} unshared by user {user_id}")
         return success_response(
@@ -586,7 +594,7 @@ def get_shared_dashboard(share_token):
                 "id": str(w.id),
                 "title": w.title,
                 "type": w.type,
-                "form_id": form_id_str,
+                "form_ref": form_id_str,
                 "group_by_field": w.group_by_field,
                 "aggregate_field": w.aggregate_field,
                 "calculation_type": w.calculation_type,
@@ -624,6 +632,8 @@ def export_dashboard(dashboard_id):
     """Export dashboard details and aggregated widget data."""
     org_id = get_jwt().get("org_id")
     export_format = request.args.get("format", "json").lower()
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
     try:
         from models.Dashboard import Dashboard
         dashboard = Dashboard.objects.get(
@@ -646,7 +656,7 @@ def export_dashboard(dashboard_id):
                 "id": str(w.id),
                 "title": w.title,
                 "type": w.type,
-                "form_id": form_id_str,
+                "form_ref": form_id_str,
                 "group_by_field": w.group_by_field,
                 "aggregate_field": w.aggregate_field,
                 "calculation_type": w.calculation_type,

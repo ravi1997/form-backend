@@ -210,6 +210,15 @@ def async_classify_response_tags(self, response_id: str, organization_id: str):
         # Perform AI classification
         taxonomy_payload = []
         for item in classification_taxonomy:
+            if isinstance(item, dict):
+                taxonomy_payload.append(
+                    {
+                        "category_name": item.get("category_name", ""),
+                        "description": item.get("description", ""),
+                        "keywords": item.get("keywords", []) or [],
+                    }
+                )
+                continue
             taxonomy_payload.append(
                 {
                     "category_name": item.category_name,
@@ -307,4 +316,3 @@ def async_run_lora_improvement_loop(self, cycles=1, target_dataset_size=10000, f
             exc_info=True
         )
         raise self.retry(exc=e)
-

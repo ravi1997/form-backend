@@ -299,7 +299,7 @@ class HookService(BaseService):
         app_logger.info(f"Calling external URL: {method} {url}")
         try:
             response = requests.request(
-                method, url, json=data, headers=headers or {}, timeout=10
+                method, url, json=data, headers=headers or {}, timeout=30
             )
             response.raise_for_status()
             app_logger.info(f"External URL call successful: {response.status_code}")

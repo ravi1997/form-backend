@@ -7,7 +7,7 @@ from tasks.notification_tasks import (
     long_running_computation,
     process_notification_retry_queue_task,
 )
-from tasks.ai_tasks import async_export_to_olap
+from tasks.ai_tasks import async_export_to_olap, async_classify_response_tags
 
 
 def test_long_running_computation():
@@ -83,6 +83,61 @@ def test_async_export_to_olap_invokes_analytics_stream(mock_process):
     async_export_to_olap.run(payload)
 
     mock_process.assert_called_once_with(payload)
+
+
+@patch("services.ai_service.ai_service.classify_taxonomy")
+@patch("models.Form.FormVersion.objects")
+@patch("models.Form.Form.objects")
+@patch("models.Response.FormResponse.objects")
+def test_async_classify_response_tags_accepts_dict_taxonomy(
+    mock_response_objects,
+    mock_form_objects,
+    mock_form_version_objects,
+    mock_classify_taxonomy,
+):
+    response = type("ResponseStub", (), {})()
+    response.id = "resp-1"
+    response._data = {"form": "form-1", "form_version": "ver-1"}
+    response.data = {"summary": "The form keeps crashing"}
+    response.tags = []
+    response.ai_results = {}
+    response.save = lambda: None
+
+    form = type("FormStub", (), {})()
+    form.id = "form-1"
+    form.classification_enabled = False
+    form.classification_taxonomy = [
+        {
+            "category_name": "Bug Report",
+            "description": "Crash or unexpected error reports.",
+            "keywords": ["crash", "error"],
+        }
+    ]
+
+    version = type("VersionStub", (), {})()
+    version.classification_enabled = True
+    version.classification_taxonomy = [
+        {
+            "category_name": "Bug Report",
+            "description": "Crash or unexpected error reports.",
+            "keywords": ["crash", "error"],
+        }
+    ]
+
+    mock_response_objects.return_value.first.return_value = response
+    mock_form_objects.return_value.first.return_value = form
+    mock_form_version_objects.return_value.first.return_value = version
+    mock_classify_taxonomy.return_value = {
+        "tags": ["Bug Report"],
+        "scores": {"Bug Report": 0.99},
+        "provider": "heuristic",
+    }
+
+    result = async_classify_response_tags.run("resp-1", "org-1")
+
+    assert result["status"] == "success"
+    assert result["tags_applied"] == ["Bug Report"]
+    mock_classify_taxonomy.assert_called_once()
 
 
 class _FakeRetryQuerySet:

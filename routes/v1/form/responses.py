@@ -276,6 +276,10 @@ def sync_responses(form_id):
     payload_data = request.get_json() or {}
     submissions = payload_data.get("submissions", [])
     conflict_resolution = payload_data.get("conflict_resolution", "server_wins")
+    last_synced_at_raw = (
+        request.args.get("last_synced_at") or payload_data.get("last_synced_at")
+    )
+    tombstone_entity_types = payload_data.get("tombstone_entity_types")
 
     if not isinstance(submissions, list):
         return error_response(message="Submissions must be a list", status_code=400)
@@ -298,6 +302,29 @@ def sync_responses(form_id):
                 message="You do not have permission to submit to this form",
                 status_code=403,
             )
+
+        tombstones = []
+        if last_synced_at_raw:
+            try:
+                if isinstance(last_synced_at_raw, str):
+                    normalized_last_synced_at = last_synced_at_raw.replace("Z", "+00:00")
+                    last_synced_at = datetime.fromisoformat(normalized_last_synced_at)
+                else:
+                    last_synced_at = last_synced_at_raw
+                from services.tombstone_service import TombstoneService
+
+                tombstone_service = TombstoneService()
+                tombstones = tombstone_service.list_since(
+                    organization_id=current_user.organization_id,
+                    since=last_synced_at,
+                    entity_types=tombstone_entity_types
+                    if isinstance(tombstone_entity_types, list)
+                    else None,
+                )
+            except ValueError:
+                return error_response(
+                    message="Invalid last_synced_at format", status_code=400
+                )
 
         results = []
         for sub in submissions:
@@ -403,11 +430,13 @@ def sync_responses(form_id):
                         "error": str(e)
                     })
 
-        return success_response(data={"results": results})
+        response_payload = {"results": results}
+        if last_synced_at_raw:
+            response_payload["tombstones"] = tombstones
+        return success_response(data=response_payload)
 
     except DoesNotExist:
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Error syncing responses: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
-

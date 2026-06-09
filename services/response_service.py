@@ -176,6 +176,20 @@ class FormResponseService(BaseService):
 
             super().delete(doc_id, organization_id, hard_delete)
 
+            if hard_delete and response_doc and organization_id:
+                try:
+                    from services.tombstone_service import TombstoneService
+
+                    TombstoneService().record_delete(
+                        organization_id=organization_id,
+                        entity_type="responses",
+                        entity_id=str(doc_id),
+                    )
+                except Exception as tombstone_err:
+                    app_logger.warning(
+                        f"Failed to record response tombstone for {doc_id}: {tombstone_err}"
+                    )
+
             if organization_id:
                 from services.tenant_service import TenantService
                 TenantService().recalculate_usage(organization_id)

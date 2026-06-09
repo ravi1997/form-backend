@@ -23,7 +23,8 @@ class Invitation(BaseDocument, SoftDeleteMixin):
     email = StringField(required=True, trim=True)
     token = StringField(required=True, unique=True)
     invited_by = ReferenceField("User", required=True, reverse_delete_rule=3)
-    group = ReferenceField("Group", reverse_delete_rule=2)
+    # Avoid a circular delete-rule dependency with Group.created_from_invitation.
+    group = ReferenceField("Group")
     role = StringField(default="member")
     status = StringField(
         choices=("pending", "accepted", "declined", "expired", "revoked"),

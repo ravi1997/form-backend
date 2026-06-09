@@ -67,7 +67,7 @@ class DashboardService(BaseService):
     def _widget_to_schema(self, widget: Any) -> WidgetSchema:
         form_ref = None
         if hasattr(widget, "_data"):
-            raw_form_ref = widget._data.get("form_ref")
+            raw_form_ref = widget._data.get("form_ref") or widget._data.get("form_id")
             if raw_form_ref is not None:
                 form_ref = getattr(raw_form_ref, "id", raw_form_ref)
 
@@ -168,7 +168,15 @@ class DashboardService(BaseService):
 
         widgets_payload = canvas_data.get("widgets")
         if widgets_payload is not None:
-            dashboard.widgets = [WidgetSchema(**item) for item in widgets_payload]
+            normalized_widgets = []
+            for item in widgets_payload:
+                if isinstance(item, dict):
+                    widget_item = dict(item)
+                    widget_item.setdefault("form_ref", widget_item.get("form_id"))
+                    normalized_widgets.append(WidgetSchema(**widget_item))
+                else:
+                    normalized_widgets.append(WidgetSchema(**item))
+            dashboard.widgets = normalized_widgets
 
         dashboard.save()
         audit_logger.info(

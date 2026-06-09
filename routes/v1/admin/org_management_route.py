@@ -11,6 +11,7 @@ from services.org_service import OrgService
 from schemas.org import OrgCreateSchema, OrgUpdateStatusSchema, OrgAssignAdminSchema
 from logger.unified_logger import app_logger, error_logger
 from pydantic import ValidationError as PydanticValidationError
+from utils.exceptions import NotFoundError, ValidationError
 
 org_management_bp = Blueprint("org_management", __name__)
 org_service = OrgService()
@@ -53,6 +54,10 @@ def create_org():
         schema = OrgCreateSchema(**body)
         res = org_service.create_org(schema)
         return success_response(data=res.model_dump(), message="Organization created successfully")
+    except ValidationError as e:
+        return error_response(message=str(e), status_code=400)
+    except NotFoundError as e:
+        return error_response(message=str(e), status_code=404)
     except PydanticValidationError as e:
         return error_response(message=str(e), status_code=400)
     except Exception as e:
@@ -74,6 +79,10 @@ def get_all_orgs():
     try:
         orgs = org_service.get_all_orgs()
         return success_response(data=[o.model_dump() for o in orgs])
+    except ValidationError as e:
+        return error_response(message=str(e), status_code=400)
+    except NotFoundError as e:
+        return error_response(message=str(e), status_code=404)
     except Exception as e:
         error_logger.error(f"Error listing organizations: {e}", exc_info=True)
         return error_response(message=str(e), status_code=500)
@@ -112,6 +121,10 @@ def update_status(org_id):
         schema = OrgUpdateStatusSchema(**body)
         res = org_service.update_status(org_id, schema.status)
         return success_response(data=res.model_dump(), message="Organization status updated successfully")
+    except ValidationError as e:
+        return error_response(message=str(e), status_code=400)
+    except NotFoundError as e:
+        return error_response(message=str(e), status_code=404)
     except PydanticValidationError as e:
         return error_response(message=str(e), status_code=400)
     except Exception as e:
@@ -151,6 +164,10 @@ def assign_admin(org_id):
         schema = OrgAssignAdminSchema(**body)
         res = org_service.assign_admin(org_id, schema.admin_user_id)
         return success_response(data=res.model_dump(), message="Organization admin assigned successfully")
+    except ValidationError as e:
+        return error_response(message=str(e), status_code=400)
+    except NotFoundError as e:
+        return error_response(message=str(e), status_code=404)
     except PydanticValidationError as e:
         return error_response(message=str(e), status_code=400)
     except Exception as e:
@@ -176,6 +193,10 @@ def get_stats(org_id):
     try:
         res = org_service.get_stats(org_id)
         return success_response(data=res)
+    except ValidationError as e:
+        return error_response(message=str(e), status_code=400)
+    except NotFoundError as e:
+        return error_response(message=str(e), status_code=404)
     except Exception as e:
         error_logger.error(f"Error fetching stats for org {org_id}: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
