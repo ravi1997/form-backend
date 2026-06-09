@@ -331,3 +331,7 @@ postman_collection_merged.json
 lora/llama-factory-output/
 lora/best-checkpoint/
 
+.codebase-memory/
+*.pt
+*.safetensors
+*.zst
