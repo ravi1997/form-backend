@@ -49,7 +49,7 @@ class OutboxService:
         return event
 
     def process_pending_outbox_events(
-        self, max_retries: int = 5
+        self, max_retries: int = 3
     ) -> Dict[str, int]:
         """
         Queries all pending or failed outbox events and retries publishing them.

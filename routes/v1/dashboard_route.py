@@ -12,6 +12,7 @@ from utils.response_helper import success_response, error_response
 from utils.security_helpers import require_permission
 from utils.exceptions import NotFoundError, ForbiddenError, ValidationError
 import uuid
+import re
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
 dashboard_bp = Blueprint("dashboard", __name__)
@@ -49,6 +50,34 @@ def _docs_widget(widget):
             "refresh_mode": getattr(widget, "refresh_mode", "with_dashboard"),
         },
         "filters": [],
+    }
+
+
+def _backend_widget(widget):
+    if not isinstance(widget, dict):
+        return widget
+
+    return {
+        "id": widget.get("id"),
+        "title": widget.get("properties", {}).get("title") or widget.get("title", ""),
+        "type": widget.get("type", ""),
+        "form_ref": (
+            widget.get("data_binding", {}).get("analysis_id")
+            or widget.get("data_binding", {}).get("node_id")
+            or widget.get("form_ref")
+        ),
+        "group_by_field": widget.get("properties", {}).get("group_by_field"),
+        "aggregate_field": widget.get("properties", {}).get("aggregate_field"),
+        "calculation_type": widget.get("properties", {}).get("calculation_type", "count"),
+        "filters": widget.get("properties", {}).get("filters", {}) or {},
+        "size": widget.get("properties", {}).get("size", "medium"),
+        "color_scheme": widget.get("properties", {}).get("color_scheme"),
+        "position_x": widget.get("position", {}).get("x", widget.get("position_x", 0)),
+        "position_y": widget.get("position", {}).get("y", widget.get("position_y", 0)),
+        "width": widget.get("size", {}).get("width", widget.get("width", 2)),
+        "height": widget.get("size", {}).get("height", widget.get("height", 2)),
+        "display_columns": widget.get("properties", {}).get("display_columns", []) or [],
+        "config": widget.get("properties", {}).get("config", {}) or {},
     }
 
 
@@ -112,13 +141,18 @@ def create_dashboard():
     data = request.get_json() or {}
     if "name" in data and "title" not in data:
         data["title"] = data["name"]
+    if "title" in data and "slug" not in data:
+        slug_base = re.sub(r"[^a-z0-9]+", "-", str(data["title"]).lower()).strip("-")
+        data["slug"] = slug_base or f"dashboard-{uuid.uuid4().hex[:8]}"
     if isinstance(data.get("canvas"), dict):
         canvas = data["canvas"]
         data.setdefault("layout", "freeform")
         data.setdefault("canvas_width", canvas.get("width", 1920))
         data.setdefault("canvas_height", canvas.get("height", 1080))
         data.setdefault("background_color", canvas.get("background_color", "#F5F5F5"))
-        data.setdefault("widgets", canvas.get("widgets", []))
+        data.setdefault(
+            "widgets", [_backend_widget(widget) for widget in canvas.get("widgets", [])]
+        )
 
     try:
         data["created_by"] = current_user_id
