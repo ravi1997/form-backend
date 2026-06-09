@@ -350,9 +350,10 @@ class Form(BaseDocument, SoftDeleteMixin):
     @property
     def versions(self):
         """Returns all versions associated with this form, sorted by creation time."""
-        from models.Form import FormVersion
-
-        return FormVersion.objects(form=self.id).order_by("created_at")
+        if not hasattr(self, "_cached_versions"):
+            from models.Form import FormVersion
+            self._cached_versions = list(FormVersion.objects(form=self.id).order_by("created_at"))
+        return self._cached_versions
 
     @property
     def is_published(self) -> bool:

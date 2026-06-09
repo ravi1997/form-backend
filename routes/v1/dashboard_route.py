@@ -18,6 +18,70 @@ dashboard_bp = Blueprint("dashboard", __name__)
 dashboard_service = DashboardService()
 
 
+def _docs_widget(widget):
+    return {
+        "id": str(getattr(widget, "id", "") or uuid.uuid4()),
+        "type": getattr(widget, "type", ""),
+        "position": {
+            "x": getattr(widget, "position_x", 0),
+            "y": getattr(widget, "position_y", 0),
+        },
+        "size": {
+            "width": getattr(widget, "width", 2),
+            "height": getattr(widget, "height", 2),
+        },
+        "z_index": getattr(widget, "z_index", 0),
+        "is_locked": getattr(widget, "is_locked", False),
+        "properties": {
+            "title": getattr(widget, "title", ""),
+            "group_by_field": getattr(widget, "group_by_field", None),
+            "aggregate_field": getattr(widget, "aggregate_field", None),
+            "calculation_type": getattr(widget, "calculation_type", "count"),
+            "filters": getattr(widget, "filters", {}) or {},
+            "size": getattr(widget, "size", "medium"),
+            "color_scheme": getattr(widget, "color_scheme", None),
+            "display_columns": getattr(widget, "display_columns", []) or [],
+            "config": getattr(widget, "config", {}) or {},
+        },
+        "data_binding": {
+            "analysis_id": getattr(widget, "analysis_id", None),
+            "node_id": getattr(widget, "node_id", None),
+            "refresh_mode": getattr(widget, "refresh_mode", "with_dashboard"),
+        },
+        "filters": [],
+    }
+
+
+def _docs_dashboard(dashboard):
+    widgets = [_docs_widget(widget) for widget in (dashboard.widgets or [])]
+    return {
+        "_id": str(dashboard.id),
+        "org_id": str(getattr(dashboard, "organization_id", "")),
+        "project_id": getattr(dashboard, "project_id", None),
+        "name": dashboard.title,
+        "description": dashboard.description or "",
+        "is_public": getattr(dashboard, "is_shared", False),
+        "public_token": getattr(dashboard, "share_token", None),
+        "canvas": {
+            "width": getattr(dashboard, "canvas_width", 1920),
+            "height": getattr(dashboard, "canvas_height", 1080),
+            "background_color": getattr(dashboard, "background_color", "#F5F5F5"),
+            "widgets": widgets,
+        },
+        "settings": {
+            "auto_refresh": getattr(dashboard, "auto_refresh", False),
+            "refresh_interval_seconds": getattr(
+                dashboard, "refresh_interval_seconds", 60
+            ),
+            "theme": getattr(dashboard, "theme", {}) or {},
+        },
+        "linked_analysis_ids": getattr(dashboard, "linked_analysis_ids", []) or [],
+        "created_at": getattr(dashboard, "created_at", None),
+        "updated_at": getattr(dashboard, "updated_at", None),
+        "created_by": str(getattr(dashboard, "created_by", "")),
+    }
+
+
 # --- CRUD Operations ---
 
 
@@ -46,6 +110,15 @@ def create_dashboard():
     )
 
     data = request.get_json() or {}
+    if "name" in data and "title" not in data:
+        data["title"] = data["name"]
+    if isinstance(data.get("canvas"), dict):
+        canvas = data["canvas"]
+        data.setdefault("layout", "freeform")
+        data.setdefault("canvas_width", canvas.get("width", 1920))
+        data.setdefault("canvas_height", canvas.get("height", 1080))
+        data.setdefault("background_color", canvas.get("background_color", "#F5F5F5"))
+        data.setdefault("widgets", canvas.get("widgets", []))
 
     try:
         data["created_by"] = current_user_id
@@ -58,7 +131,9 @@ def create_dashboard():
         )
         app_logger.info(f"Dashboard {result.id} created successfully")
         return success_response(
-            data=result.model_dump(), message="Dashboard created", status_code=201
+            data={"dashboard": _docs_dashboard(result)},
+            message="Dashboard created",
+            status_code=201,
         )
     except Exception as e:
         error_logger.error(
@@ -224,7 +299,7 @@ def get_dashboard(slug):
         app_logger.info(
             f"Dashboard {slug} data retrieved successfully for user {user_id}"
         )
-        return success_response(data=result)
+        return success_response(data={"dashboard": _docs_dashboard(dashboard)})
     except NotFoundError:
         app_logger.warning(
             f"Dashboard {slug} not found for org {org_id} (requested by user {user_id})"
@@ -236,6 +311,113 @@ def get_dashboard(slug):
             exc_info=True,
         )
         return error_response(message="Failed to load dashboard data", status_code=500)
+
+
+@dashboard_bp.route("/<dashboard_id>/canvas", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def get_dashboard_canvas(dashboard_id):
+    """Get the canonical dashboard canvas payload."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    app_logger.info(
+        f"User {user_id} fetching dashboard canvas {dashboard_id} for org {org_id}"
+    )
+
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+
+    try:
+        canvas = dashboard_service.get_canvas(dashboard_id, organization_id=org_id)
+        return success_response(data=canvas)
+    except NotFoundError:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        error_logger.error(
+            f"Get dashboard canvas error for user {user_id}, ID {dashboard_id}: {str(e)}",
+            exc_info=True,
+        )
+        return error_response(message="Failed to load dashboard canvas", status_code=500)
+
+
+@dashboard_bp.route("/<dashboard_id>/canvas", methods=["PUT"])
+@swag_from(
+    {
+        "tags": ["Dashboard"],
+        "responses": {"200": {"description": "Update dashboard canvas."}},
+        "parameters": [
+            {"name": "dashboard_id", "in": "path", "type": "string", "required": True},
+            {
+                "name": "body",
+                "in": "body",
+                "schema": {"type": "object"},
+            },
+        ],
+    }
+)
+@jwt_required()
+@require_permission("dashboard", "edit")
+def update_dashboard_canvas(dashboard_id):
+    """Update the canonical dashboard canvas payload."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    app_logger.info(
+        f"User {user_id} updating dashboard canvas {dashboard_id} for org {org_id}"
+    )
+
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+
+    try:
+        data = request.get_json(silent=True) or {}
+        result = dashboard_service.update_canvas(
+            dashboard_id, organization_id=org_id, canvas_data=data
+        )
+        audit_logger.info(
+            f"Dashboard canvas updated: ID={dashboard_id}, UpdatedBy={user_id}, OrgID={org_id}"
+        )
+        return success_response(data=result, message="Dashboard canvas updated")
+    except NotFoundError:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        error_logger.error(
+            f"Update dashboard canvas error for user {user_id}, ID {dashboard_id}: {str(e)}",
+            exc_info=True,
+        )
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/snapshots", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def list_dashboard_snapshots(dashboard_id):
+    """Return the available dashboard snapshots."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    app_logger.info(
+        f"User {user_id} listing dashboard snapshots {dashboard_id} for org {org_id}"
+    )
+
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+
+    try:
+        snapshots = dashboard_service.list_snapshots(
+            dashboard_id, organization_id=org_id
+        )
+        return success_response(
+            data={"dashboard_id": dashboard_id, "snapshots": snapshots}
+        )
+    except NotFoundError:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        error_logger.error(
+            f"List dashboard snapshots error for user {user_id}, ID {dashboard_id}: {str(e)}",
+            exc_info=True,
+        )
+        return error_response(
+            message="Failed to load dashboard snapshots", status_code=500
+        )
 
 
 
@@ -494,4 +676,3 @@ def export_dashboard(dashboard_id):
     except Exception as e:
         error_logger.error(f"Export dashboard error: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
-

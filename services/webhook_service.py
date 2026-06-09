@@ -1,17 +1,20 @@
 import json
+import hashlib
+import hmac
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
 
+from config.settings import settings
+from models.WebhookDeliveryLog import WebhookDeliveryLog
 from services.redis_service import redis_service
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
 
 class WebhookService:
     """
-    Lightweight webhook delivery service backed by Redis for delivery history.
-    Keeps the current route contract working without introducing new persistence models.
+    Webhook delivery service backed by MongoDB with Redis as a cache fallback.
     """
 
     HISTORY_KEY = "webhook:history"
@@ -163,7 +166,12 @@ class WebhookService:
 
     @classmethod
     def get_webhook_status(cls, delivery_id: str) -> Optional[Dict[str, Any]]:
-        return redis_service.cache.get(f"{cls.STATUS_KEY_PREFIX}{delivery_id}")
+        cached = redis_service.cache.get(f"{cls.STATUS_KEY_PREFIX}{delivery_id}")
+        if cached:
+            return cached
+
+        log = WebhookDeliveryLog.objects(delivery_id=delivery_id).first()
+        return log.to_dict() if log else None
 
     @classmethod
     def get_webhook_history(
@@ -177,15 +185,16 @@ class WebhookService:
         app_logger.info(
             f"Fetching webhook history (form_id={form_id}, webhook_id={webhook_id}, status={status})"
         )
-        entries = cls._load_history()
+        query = WebhookDeliveryLog.objects
+        if form_id:
+            query = query(form_id=form_id)
+        if webhook_id:
+            query = query(webhook_id=webhook_id)
+        if status:
+            query = query(status=status)
+        entries = [cls._serialize_delivery_log(log) for log in query.order_by("-created_at")]
         filtered = []
         for entry in entries:
-            if form_id and entry.get("form_id") != form_id:
-                continue
-            if webhook_id and entry.get("webhook_id") != webhook_id:
-                continue
-            if status and entry.get("status") != status:
-                continue
             filtered.append(entry)
 
         start = max(page - 1, 0) * per_page
@@ -257,15 +266,12 @@ class WebhookService:
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         app_logger.info(f"Fetching webhook logs (url={url}, status={status})")
-        logs = redis_service.cache.get(cls.LOG_KEY) or []
-        filtered = []
-        for entry in logs:
-            if url and entry.get("url") != url:
-                continue
-            if status and entry.get("status") != status:
-                continue
-            filtered.append(entry)
-        return filtered[:limit]
+        query = WebhookDeliveryLog.objects
+        if url:
+            query = query(url=url)
+        if status:
+            query = query(status=status)
+        return [cls._serialize_delivery_log(log) for log in query.order_by("-created_at")[:limit]]
 
     @classmethod
     def safe_transform_payload(cls, template_str: str, event_data: dict) -> str:
@@ -286,6 +292,28 @@ class WebhookService:
             return json.dumps(event_data)
 
     @classmethod
+    def _canonical_payload(cls, payload: Dict[str, Any]) -> bytes:
+        return json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+
+    @classmethod
+    def _build_signed_headers(
+        cls, payload: Dict[str, Any], headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        signed_headers = dict(headers or {})
+        secret = headers.get("X-Webhook-Secret") if headers else None
+        if not secret:
+            secret = settings.JWT_SECRET_KEY
+        digest = hmac.new(
+            secret.encode("utf-8"),
+            cls._canonical_payload(payload),
+            hashlib.sha256,
+        ).hexdigest()
+        signed_headers["X-FBP-Signature"] = f"sha256={digest}"
+        return signed_headers
+
+    @classmethod
     def _deliver(
         cls,
         *,
@@ -300,13 +328,14 @@ class WebhookService:
         created_by: Optional[str],
     ) -> Dict[str, Any]:
         app_logger.info(f"Delivering webhook {delivery_id} to {url}")
+        signed_headers = cls._build_signed_headers(payload, headers=headers)
         record = {
             "delivery_id": delivery_id,
             "webhook_id": webhook_id,
             "form_id": form_id,
             "url": url,
             "payload": payload,
-            "headers": headers or {},
+            "headers": signed_headers,
             "timeout": timeout,
             "max_retries": max_retries,
             "created_by": created_by,
@@ -319,7 +348,7 @@ class WebhookService:
 
         try:
             response = requests.post(
-                url, json=payload, headers=headers or {}, timeout=timeout
+                url, json=payload, headers=signed_headers, timeout=timeout
             )
             response.raise_for_status()
             record["status"] = "delivered"
@@ -349,24 +378,30 @@ class WebhookService:
 
     @classmethod
     def _save_status(cls, delivery_id: str, record: Dict[str, Any]) -> None:
+        cls._upsert_delivery_log(record)
         redis_service.cache.set(
             f"{cls.STATUS_KEY_PREFIX}{delivery_id}", record, ttl=7 * 24 * 3600
         )
 
     @classmethod
     def _load_history(cls) -> List[Dict[str, Any]]:
-        return redis_service.cache.get(cls.HISTORY_KEY) or []
+        return [cls._serialize_delivery_log(log) for log in WebhookDeliveryLog.objects.order_by("-created_at")]
 
     @classmethod
     def _append_history(cls, record: Dict[str, Any]) -> None:
+        cls._upsert_delivery_log(record)
         history = cls._load_history()
-        history.insert(0, record)
-        redis_service.cache.set(
-            cls.HISTORY_KEY, history[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600
-        )
+        redis_service.cache.set(cls.HISTORY_KEY, history[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600)
 
     @classmethod
     def _append_log(cls, record: Dict[str, Any]) -> None:
+        log_record = dict(record)
+        log_record["log_context"] = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "organization_id": record.get("organization_id"),
+            "last_error": record.get("last_error"),
+        }
+        cls._upsert_delivery_log(log_record)
         logs = redis_service.cache.get(cls.LOG_KEY) or []
         logs.insert(
             0,
@@ -379,9 +414,53 @@ class WebhookService:
                 "last_error": record.get("last_error"),
             },
         )
-        redis_service.cache.set(
-            cls.LOG_KEY, logs[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600
-        )
+        redis_service.cache.set(cls.LOG_KEY, logs[: cls.HISTORY_LIMIT], ttl=7 * 24 * 3600)
+
+    @classmethod
+    def _serialize_delivery_log(cls, log: WebhookDeliveryLog) -> Dict[str, Any]:
+        data = log.to_dict()
+        if "id" in data and isinstance(data["id"], str):
+            data["id"] = data["id"]
+        return data
+
+    @classmethod
+    def _upsert_delivery_log(cls, record: Dict[str, Any]) -> WebhookDeliveryLog:
+        delivery_id = record.get("delivery_id")
+        if not delivery_id:
+            raise ValueError("delivery_id is required")
+
+        existing = WebhookDeliveryLog.objects(delivery_id=delivery_id).first()
+        if existing:
+            for field in (
+                "webhook_id",
+                "form_id",
+                "url",
+                "created_by",
+                "organization_id",
+                "payload",
+                "headers",
+                "timeout",
+                "max_retries",
+                "retry_count",
+                "status",
+                "scheduled_for",
+                "last_error",
+                "response_status",
+                "delivered_at",
+                "cancelled_at",
+            ):
+                if field in record and record.get(field) is not None:
+                    value = record.get(field)
+                    if field in {"scheduled_for", "delivered_at", "cancelled_at"}:
+                        value = WebhookDeliveryLog._coerce_datetime(value)
+                    setattr(existing, field, value)
+            existing.log_context = record.get("log_context", existing.log_context or {})
+            existing.save()
+            return existing
+
+        log = WebhookDeliveryLog.from_record(record)
+        log.save()
+        return log
 
 
 webhook_service = WebhookService()

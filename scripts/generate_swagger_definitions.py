@@ -40,7 +40,7 @@ def generate_definitions():
     for name, model in models.items():
         try:
             # Pydantic v2
-            schema = model.model_json_schema()
+            schema = model.model_json_schema(by_alias=True)
             # Flasgger expects definitions to not have $schema and other keys if they are in the 'definitions' section
             if "$defs" in schema:
                 # Flatten $defs if they exist

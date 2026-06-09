@@ -1,3 +1,4 @@
+import os
 from typing import List, Dict, Any, Union
 import requests
 from logger.unified_logger import app_logger, error_logger, audit_logger
@@ -68,11 +69,66 @@ class NotificationService:
 
     @staticmethod
     def _call_external_api(config: Dict, data: Dict):
-        # Specific business logic for internal/integrated API calls
-        app_logger.info(f"External API call triggered with config: {config}")
-        # Not yet implemented
-        error_logger.error("External API call not implemented")
-        raise NotImplementedError("External API call not implemented")
+        """
+        Deliver a notification payload to the configured AIIMS email endpoint.
+
+        Expected config keys:
+        - url: optional full endpoint override
+        - method: defaults to POST
+        - headers: optional extra headers
+        - path: optional path appended to the base URL
+        - payload: optional payload template merged with context data
+        """
+        base_url = (
+            config.get("url")
+            or os.getenv("AIIMS_EMAIL_API_URL")
+            or os.getenv("EMAIL_API_URL")
+        )
+        method = config.get("method", "POST").upper()
+        headers = {"Content-Type": "application/json"}
+        headers.update(config.get("headers", {}))
+        token = (
+            config.get("token")
+            or os.getenv("AIIMS_EMAIL_API_TOKEN")
+            or os.getenv("EMAIL_API_TOKEN")
+        )
+        if token:
+            headers.setdefault("Authorization", f"Bearer {token}")
+
+        if not base_url:
+            message = "AIIMS email API is not configured"
+            error_logger.error(message)
+            raise RuntimeError(message)
+
+        payload = dict(config.get("payload", {}))
+        payload.update(data)
+        path = config.get("path", "").strip()
+        url = f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url.rstrip("/")
+
+        app_logger.info(f"External API call triggered: {method} {url}")
+        try:
+            response = requests.request(
+                method,
+                url,
+                json=payload,
+                headers=headers,
+                timeout=15,
+            )
+            response.raise_for_status()
+            try:
+                result = response.json()
+            except ValueError:
+                result = {"status_code": response.status_code}
+
+            audit_logger.info(
+                f"AIIMS email sent successfully via {url}, status_code={response.status_code}"
+            )
+            return result
+        except requests.RequestException as e:
+            error_logger.error(
+                f"AIIMS email delivery failed for {url}: {str(e)}", exc_info=True
+            )
+            raise
 
     @staticmethod
     def _run_custom_logic(script: str, data: Dict):
@@ -137,4 +193,3 @@ class NotificationObservability:
             return metrics
         except Exception:
             return {}
-

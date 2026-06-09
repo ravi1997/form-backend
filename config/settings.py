@@ -7,6 +7,7 @@ Values are loaded from environment variables and optionally a .env file.
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 from typing import Optional
+import secrets
 
 
 class Settings(BaseSettings):
@@ -55,7 +56,7 @@ class Settings(BaseSettings):
         return self.REDIS_DB_CELERY_RESULTS
 
     # ── Security ──────────────────────────────────────────────────────────────
-    JWT_SECRET_KEY: str = "super-secret-key-change-me"
+    JWT_SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -153,6 +154,14 @@ class Settings(BaseSettings):
         Refuse to start in production/staging with default insecure credentials.
         """
         insecure_key = "super-secret-key-change-me"
+
+        if not self.JWT_SECRET_KEY:
+            if self.APP_ENV == "development":
+                self.JWT_SECRET_KEY = secrets.token_hex(32)
+            else:
+                raise ValueError(
+                    "JWT_SECRET_KEY must be provided via environment in non-development environments."
+                )
 
         if self.APP_ENV != "development":
             if self.JWT_SECRET_KEY == insecure_key:

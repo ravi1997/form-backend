@@ -29,4 +29,5 @@ class TokenPayload(BaseModel):
     jti: str
     exp: int
     iat: int
-    roles: list[str] = []
+    system_role: str = "user"
+    orgs: list[dict[str, str]] = []

@@ -43,7 +43,7 @@ def create_project():
         f"AUDIT: Project created with ID {project.id} by user {current_user.id}"
     )
     return success_response(
-        data=project.model_dump(), message="Project created", status_code=201
+        data=project.model_dump(by_alias=True), message="Project created", status_code=201
     )
 
 
@@ -66,7 +66,7 @@ def get_project(project_id):
     project = project_service.get_by_id(
         project_id, organization_id=current_user.organization_id
     )
-    return success_response(data=project.model_dump())
+    return success_response(data=project.model_dump(by_alias=True))
 
 
 @project_bp.route("/<project_id>", methods=["PUT"])
@@ -82,7 +82,9 @@ def update_project(project_id):
     audit_logger.info(
         f"AUDIT: Project updated with ID {project_id} by user {current_user.id}"
     )
-    return success_response(data=project.model_dump(), message="Project updated")
+    return success_response(
+        data=project.model_dump(by_alias=True), message="Project updated"
+    )
 
 
 @project_bp.route("/<project_id>", methods=["DELETE"])
@@ -124,7 +126,7 @@ def create_form_in_project(project_id):
         f"AUDIT: Form {form.id} created in project {project_id} by user {current_user.id}"
     )
     return success_response(
-        data=form.model_dump(), message="Form created in project", status_code=201
+        data=form.model_dump(by_alias=True), message="Form created in project", status_code=201
     )
 
 
@@ -136,4 +138,4 @@ def list_forms_in_project(project_id):
     result = project_service.list_forms_in_project(
         project_id, organization_id=current_user.organization_id
     )
-    return success_response(data=[item.model_dump() for item in result])
+    return success_response(data=[item.model_dump(by_alias=True) for item in result])

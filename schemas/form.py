@@ -41,8 +41,8 @@ class ValidationSchema(BaseEmbeddedSchema):
     logical_operator: str = "AND"
     required_conditions: List[ConditionSchema] = Field(default_factory=list)
 
-    min_length: Optional[int] = None
-    max_length: Optional[int] = None
+    min_length: Optional[int] = Field(default=None, alias="minLength")
+    max_length: Optional[int] = Field(default=None, alias="maxLength")
     min_value: Optional[str] = None
     max_value: Optional[str] = None
     min_word_count: Optional[int] = None
@@ -88,19 +88,21 @@ class ResponseTemplateSchema(BaseEmbeddedSchema):
 
 class QuestionSchema(BaseEmbeddedSchema):
     label: str = Field(..., max_length=255)
-    field_type: str  # Allow all from FIELD_TYPE_CHOICES
-    help_text: Optional[str] = None
-    default_value: Optional[str] = None
+    field_type: str = Field(..., alias="fieldType")  # Allow all from FIELD_TYPE_CHOICES
+    help_text: Optional[str] = Field(default=None, alias="helpText")
+    default_value: Optional[str] = Field(default=None, alias="defaultValue")
     order: int = Field(default=0, ge=0)
-    variable_name: Optional[str] = Field(None, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+    variable_name: Optional[str] = Field(
+        None, pattern=r"^[a-zA-Z_][a-zA-Z0-9_]*$", alias="variableName"
+    )
 
-    is_repeatable: bool = False
-    repeat_min: int = Field(default=0, ge=0)
-    repeat_max: Optional[int] = None
-    keep_last_value: bool = False
+    is_repeatable: bool = Field(default=False, alias="isRepeatable")
+    repeat_min: int = Field(default=0, ge=0, alias="repeatMin")
+    repeat_max: Optional[int] = Field(default=None, alias="repeatMax")
+    keep_last_value: bool = Field(default=False, alias="keepLastValue")
 
-    is_hidden: bool = False
-    is_read_only: bool = False
+    is_hidden: bool = Field(default=False, alias="isHidden")
+    is_read_only: bool = Field(default=False, alias="isReadOnly")
 
     validation: Optional[ValidationSchema] = None
     logic: Optional[QuestionLogicSchema] = None
@@ -114,9 +116,9 @@ class QuestionSchema(BaseEmbeddedSchema):
 
 
 class SectionLogicSchema(LogicComponentSchema):
-    is_repeatable: bool = False
-    repeat_min: int = Field(default=0, ge=0)
-    repeat_max: Optional[int] = None
+    is_repeatable: bool = Field(default=False, alias="isRepeatable")
+    repeat_min: int = Field(default=0, ge=0, alias="repeatMin")
+    repeat_max: Optional[int] = Field(default=None, alias="repeatMax")
 
 
 class SectionUISchema(UIComponentSchema):
@@ -130,18 +132,18 @@ SectionSchemaStruct = ForwardRef("SectionSchemaStruct")
 
 class SectionSchemaStruct(BaseEmbeddedSchema):
     title: str = Field(..., max_length=255)
-    description: Optional[str] = None
-    help_text: Optional[str] = None
+    description: Optional[str] = Field(default=None, alias="description")
+    help_text: Optional[str] = Field(default=None, alias="helpText")
     order: Optional[int] = None
     layout: str = Field(
         default="standard",
         description="Canonical section-internal layout for questions and nested sub-sections.",
     )
-    grid_columns: int = 2
-    is_hidden: bool = False
-    is_repeatable: bool = False
-    repeat_min: Optional[int] = None
-    repeat_max: Optional[int] = None
+    grid_columns: int = Field(default=2, alias="gridColumns")
+    is_hidden: bool = Field(default=False, alias="isHidden")
+    is_repeatable: bool = Field(default=False, alias="isRepeatable")
+    repeat_min: Optional[int] = Field(default=None, alias="repeatMin")
+    repeat_max: Optional[int] = Field(default=None, alias="repeatMax")
     conditional_logic: Optional[Dict[str, Any]] = None
     style: Optional[Dict[str, Any]] = None
 

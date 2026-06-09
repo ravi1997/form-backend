@@ -31,12 +31,11 @@ class TenantIsolatedSoftDeleteQuerySet(QuerySet):
         if has_request_context() and current_user:
             if "organization_id" in model._fields:
                 # Superadmins bypass automatic isolation for cross-tenant operations
-                user_roles = getattr(current_user, "roles", []) or []
+                user_roles = tuple(getattr(current_user, "roles", []) or ())
                 if "superadmin" not in user_roles:
-                    # STRICT: Overwrite any attempted manual filter with the actual user org
-                    query["organization_id"] = getattr(
-                        current_user, "organization_id", None
-                    )
+                    # STRICT: Snapshot the org once to avoid mid-call context drift.
+                    user_org = getattr(current_user, "organization_id", None)
+                    query["organization_id"] = user_org
 
         return super().__call__(q_obj, **query)
 
@@ -104,13 +103,11 @@ class BaseDocument(Document, TimestampMixin):
     def save(self, *args, **kwargs):
         self.update_timestamp()
 
-        # Enforce tenancy isolation during write operations
         if has_request_context() and current_user:
-            user_roles = getattr(current_user, "roles", []) or []
+            user_roles = tuple(getattr(current_user, "roles", []) or ())
             if "superadmin" not in user_roles:
                 user_org = getattr(current_user, "organization_id", None)
                 if user_org:
-                    # Fail-safe protection: enforce user's organization on save
                     self.organization_id = user_org
 
         return super().save(*args, **kwargs)

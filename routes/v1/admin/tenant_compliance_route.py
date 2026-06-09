@@ -197,7 +197,10 @@ def get_audit_export_status(task_id):
         result_val = res.result
         if isinstance(result_val, dict) and "export_uuid" in result_val:
             format_ext = result_val.get("filename", "").split(".")[-1] or "csv"
-            download_url = f"/mahasangraha/api/v1/compliance/audit/export/download/{result_val['export_uuid']}.{format_ext}"
+            download_url = (
+                f"/api/internal/v1/compliance/audit/export/download/"
+                f"{result_val['export_uuid']}.{format_ext}"
+            )
             
     return success_response(
         data={
@@ -232,4 +235,3 @@ def download_audit_export(export_uuid, format_ext):
         return error_response(message="Export file not found or unauthorized access", status_code=404)
         
     return send_from_directory(export_dir, filename, as_attachment=True)
-

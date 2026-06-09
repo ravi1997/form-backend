@@ -5,6 +5,7 @@ from tasks.notification_tasks import (
     process_notification_triggers,
     process_single_trigger,
     long_running_computation,
+    process_notification_retry_queue_task,
 )
 from tasks.ai_tasks import async_export_to_olap
 
@@ -82,3 +83,84 @@ def test_async_export_to_olap_invokes_analytics_stream(mock_process):
     async_export_to_olap.run(payload)
 
     mock_process.assert_called_once_with(payload)
+
+
+class _FakeRetryQuerySet:
+    def __init__(self, logs):
+        self._logs = logs
+
+    def order_by(self, *_args, **_kwargs):
+        return self
+
+    def limit(self, batch_size):
+        return self._logs[:batch_size]
+
+
+def _make_notification_log(channel="webhook", payload=None, attempt_count=0):
+    log = type("NotificationLogStub", (), {})()
+    log.id = "log-1"
+    log.channel = channel
+    log.payload = payload or {"action_config": {"url": "http://example.com"}}
+    log.attempt_count = attempt_count
+    log.status = "failed"
+    log.response = {}
+    log.error_message = None
+    log.sent_at = None
+    log.updated_at = None
+    log.save = lambda: None
+    return log
+
+
+@patch("tasks.notification_tasks.NotificationLog.objects")
+@patch("tasks.notification_tasks.NotificationService._call_webhook")
+def test_process_notification_retry_queue_task_delivers_failed_log(
+    mock_call_webhook, mock_objects
+):
+    log = _make_notification_log()
+    mock_call_webhook.return_value = {"ok": True}
+    mock_objects.return_value = _FakeRetryQuerySet([log])
+
+    result = process_notification_retry_queue_task()
+
+    assert result == {
+        "status": "completed",
+        "processed": 1,
+        "succeeded": 1,
+        "failed": 0,
+        "skipped": 0,
+    }
+    assert log.status == "sent"
+    assert log.attempt_count == 1
+    assert log.response == {"ok": True}
+    assert log.error_message == ""
+
+
+@patch("tasks.notification_tasks.NotificationLog.objects")
+@patch("tasks.notification_tasks.NotificationService._call_webhook", side_effect=Exception("boom"))
+def test_process_notification_retry_queue_task_marks_failure(
+    mock_call_webhook, mock_objects
+):
+    log = _make_notification_log()
+    mock_objects.return_value = _FakeRetryQuerySet([log])
+
+    result = process_notification_retry_queue_task()
+
+    assert result["failed"] == 1
+    assert log.status == "failed"
+    assert log.attempt_count == 1
+    assert log.error_message == "boom"
+
+
+@patch("tasks.notification_tasks.NotificationLog.objects")
+def test_process_notification_retry_queue_task_skips_unsupported_channel(
+    mock_objects,
+):
+    log = _make_notification_log(channel="sms")
+    mock_objects.return_value = _FakeRetryQuerySet([log])
+
+    result = process_notification_retry_queue_task()
+
+    assert result["skipped"] == 1
+    assert log.status == "skipped"
+    assert log.attempt_count == 1
+    assert "Unsupported notification channel" in log.error_message

@@ -31,7 +31,7 @@ def list_forms():
     """
     Compatibility endpoint for the dashboard client.
 
-    The Flutter dashboard expects GET /mahasangraha/api/v1/forms/, so we expose a
+    The Flutter dashboard expects GET /api/v1/forms/, so we expose a
     tenant-scoped listing here that mirrors the newer form listing behavior.
     """
     current_user = get_current_user()

@@ -20,6 +20,7 @@ from models.User import User
 from models.TokenBlocklist import TokenBlocklist
 from models.SystemSettings import SystemSettings
 from schemas.auth import TokenResponse
+from schemas.user import UserOut
 from services.redis_service import redis_service
 from utils.exceptions import UnauthorizedError
 
@@ -54,7 +55,7 @@ class AuthService(BaseService):
     def generate_tokens(self, user: User) -> TokenResponse:
         """
         Generates access and refresh tokens for a user using flask-jwt-extended.
-        Includes roles in the access token.
+        Keeps the documented claim contract for access tokens.
         """
         app_logger.info(f"Entering generate_tokens for User ID {user.id}")
         try:
@@ -63,17 +64,24 @@ class AuthService(BaseService):
             access_expires = timedelta(minutes=params["access_mins"])
             refresh_expires = timedelta(days=params["refresh_days"])
 
-            roles = list(getattr(user, "roles", []) or [])
-            if getattr(user, "is_admin", False) and "admin" not in roles:
-                roles.append("admin")
-
+            system_role = "super_admin" if getattr(user, "is_admin", False) else "user"
+            org_claims: list[dict[str, Any]] = []
             organization_id = getattr(user, "organization_id", None)
+            if organization_id:
+                role = getattr(user, "role", None) or getattr(user, "org_role", None)
+                org_claims.append(
+                    {
+                        "org_id": str(organization_id),
+                        "role": role or "org_viewer",
+                        "status": "active",
+                    }
+                )
 
             access_token = create_access_token(
                 identity=str(user.id),
                 additional_claims={
-                    "roles": roles,
-                    "organization_id": organization_id,
+                    "system_role": system_role,
+                    "orgs": org_claims,
                 },
                 expires_delta=access_expires,
             )
@@ -165,6 +173,74 @@ class AuthService(BaseService):
                 )
             raise
 
+    def _resolve_user_from_token(self, token: str) -> User:
+        """
+        Resolve a user from a verification or invite token.
+
+        Supports either a JWT token issued by the system or a token that was
+        embedded in the invite/verification link and later stored as a claim.
+        """
+        app_logger.info("Entering _resolve_user_from_token")
+        try:
+            payload = decode_token(token)
+            user_id = payload.get("sub")
+            email = payload.get("email") or payload.get("invitee_email")
+
+            user = None
+            if user_id:
+                user = User.objects(id=user_id).first()
+            if not user and email:
+                user = User.objects(email=email).first()
+
+            if not user:
+                raise UnauthorizedError("Invalid or expired token")
+
+            app_logger.info(
+                f"Successfully completed _resolve_user_from_token for user id={user.id}"
+            )
+            return user
+        except UnauthorizedError:
+            raise
+        except Exception as e:
+            error_logger.error(
+                f"Error resolving user from token: {str(e)}", exc_info=True
+            )
+            raise UnauthorizedError("Invalid or expired token")
+
+    def verify_email(self, token: str) -> User:
+        """
+        Marks a user's email as verified using a verification token.
+        """
+        app_logger.info("Entering verify_email")
+        user = self._resolve_user_from_token(token)
+        if not getattr(user, "email", None):
+            raise UnauthorizedError("User does not have an email address")
+
+        if not user.is_email_verified:
+            user.is_email_verified = True
+            user.save()
+            audit_logger.info(f"AUDIT: Email verified for user id={user.id}")
+
+        app_logger.info(f"Successfully completed verify_email for user id={user.id}")
+        return user
+
+    def accept_invite(self, token: str, password: Optional[str] = None) -> User:
+        """
+        Accepts an invite token, verifies the invited user, and optionally sets a password.
+        """
+        app_logger.info("Entering accept_invite")
+        user = self._resolve_user_from_token(token)
+
+        if password:
+            user.set_password(password)
+
+        user.is_active = True
+        user.is_email_verified = True
+        user.save()
+        audit_logger.info(f"AUDIT: Invite accepted for user id={user.id}")
+        app_logger.info(f"Successfully completed accept_invite for user id={user.id}")
+        return user
+
     def revoke_token(self, token: str) -> None:
         """
         Revokes a JWT token by its JTI.
@@ -195,6 +271,7 @@ class AuthService(BaseService):
 
         except Exception as e:
             error_logger.error(f"Failed to revoke token: {e}", exc_info=True)
+            raise
 
     def revoke_token_payload(self, payload: Dict[str, Any]) -> None:
         """
@@ -221,6 +298,7 @@ class AuthService(BaseService):
             error_logger.error(
                 f"Failed to revoke decoded token payload: {e}", exc_info=True
             )
+            raise
 
     def is_token_revoked(self, jti: str) -> bool:
         """Checks if a JTI exists in the blocklist (Redis first, then DB)."""

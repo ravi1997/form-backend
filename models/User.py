@@ -116,11 +116,6 @@ class User(BaseDocument, SoftDeleteMixin):
         else:
             self.save()
 
-    def reset_failed_logins(self):
-        self.failed_login_attempts = 0
-
-    def reset_failed_logins(self):
-        self.failed_login_attempts = 0
 
     def set_password(self, raw_password: str, expiry_days=90):
         salt = bcrypt.gensalt()

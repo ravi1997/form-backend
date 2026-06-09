@@ -5,6 +5,7 @@ Uses AuthService and UserService for all business logic.
 
 from flask import Blueprint, current_app, request, jsonify
 from flask_jwt_extended import (
+    decode_token,
     jwt_required,
     get_jwt,
     set_access_cookies,
@@ -73,7 +74,7 @@ def register():
         )
         return success_response(
             data={"user": UserOut.model_validate(user.model_dump()).model_dump()},
-            message="User registered successfully",
+            message="User registered successfully. Pending administrator approval.",
             status_code=201,
         )
     except Exception as e:
@@ -163,6 +164,8 @@ def login():
         data = {
             "access_token": token_data.access_token,
             "refresh_token": token_data.refresh_token,
+            "token_type": token_data.token_type,
+            "expires_in": token_data.expires_in,
             "user": UserOut.model_validate(user_schema.model_dump()).model_dump(),
         }
         resp, status_code = success_response(data=data, message="Login successful")
@@ -233,10 +236,135 @@ def request_otp():
         return error_response(message="OTP generation failed", status_code=500)
 
 
+# -------------------- EMAIL VERIFICATION --------------------
+
+
+@auth_bp.route("/verify-email", methods=["GET", "POST"])
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "Verify email",
+        "description": "Marks the authenticated user's email as verified using a verification token.",
+        "parameters": [
+            {
+                "name": "body",
+                "in": "body",
+                "required": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {"token": {"type": "string"}},
+                    "required": ["token"],
+                },
+            }
+        ],
+        "responses": {
+            "200": {"description": "Email verified successfully"},
+            "400": {"description": "Missing token"},
+            "401": {"description": "Invalid or expired token"},
+        },
+    }
+)
+@limiter.limit("5 per minute")
+def verify_email():
+    """Verify a user's email address from a token."""
+    app_logger.info("Entering verify_email")
+    data = request.get_json(silent=True) or {}
+    token = request.args.get("token") or data.get("token")
+    if not token:
+        return error_response(message="token required", status_code=400)
+
+    try:
+        user = auth_service.verify_email(str(token).strip())
+        token_data = auth_service.generate_tokens(user)
+        resp, status_code = success_response(
+            data={
+                "access_token": token_data.access_token,
+                "refresh_token": token_data.refresh_token,
+                "token_type": token_data.token_type,
+                "expires_in": token_data.expires_in,
+                "user": UserOut.model_validate(user.model_dump()).model_dump(),
+            },
+            message="Email verified successfully",
+        )
+        set_access_cookies(resp, token_data.access_token)
+        set_refresh_cookies(resp, token_data.refresh_token)
+        audit_logger.info(f"AUDIT: Email verification completed for user id={user.id}")
+        return resp, status_code
+    except UnauthorizedError as e:
+        app_logger.warning(f"Email verification failed: {e}")
+        return error_response(message=str(e), status_code=401)
+    except Exception as e:
+        error_logger.error(f"Email verification failed: {e}", exc_info=True)
+        return error_response(message="Email verification failed", status_code=500)
+
+
+# -------------------- INVITE ACCEPTANCE --------------------
+
+
+@auth_bp.route("/accept-invite/<token>", methods=["POST"])
+@swag_from(
+    {
+        "tags": ["Auth"],
+        "summary": "Accept invite",
+        "description": "Accepts an invite token, activates the user, and optionally sets a password.",
+        "parameters": [
+            {
+                "name": "token",
+                "in": "path",
+                "required": True,
+                "type": "string",
+            },
+            {
+                "name": "body",
+                "in": "body",
+                "required": False,
+                "schema": {
+                    "type": "object",
+                    "properties": {"password": {"type": "string"}},
+                },
+            },
+        ],
+        "responses": {
+            "200": {"description": "Invite accepted successfully"},
+            "401": {"description": "Invalid or expired token"},
+        },
+    }
+)
+@limiter.limit("5 per minute")
+def accept_invite(token):
+    """Accept a user invite and initialize the account."""
+    app_logger.info("Entering accept_invite")
+    data = request.get_json(silent=True) or {}
+    password = data.get("password")
+
+    try:
+        user = auth_service.accept_invite(str(token).strip(), password=password)
+        token_data = auth_service.generate_tokens(user)
+        resp, status_code = success_response(
+            data={
+                "access_token": token_data.access_token,
+                "refresh_token": token_data.refresh_token,
+                "user": UserOut.model_validate(user.model_dump()).model_dump(),
+            },
+            message="Invite accepted successfully",
+        )
+        set_access_cookies(resp, token_data.access_token)
+        set_refresh_cookies(resp, token_data.refresh_token)
+        audit_logger.info(f"AUDIT: Invite accepted for user id={user.id}")
+        return resp, status_code
+    except UnauthorizedError as e:
+        app_logger.warning(f"Invite acceptance failed: {e}")
+        return error_response(message=str(e), status_code=401)
+    except Exception as e:
+        error_logger.error(f"Invite acceptance failed: {e}", exc_info=True)
+        return error_response(message="Invite acceptance failed", status_code=500)
+
+
 # -------------------- TOKEN REFRESH --------------------
 
 
 @auth_bp.route("/refresh", methods=["POST"])
+@jwt_required(optional=True, refresh=True)
 @swag_from(
     {
         "tags": ["Auth"],
@@ -259,14 +387,20 @@ def request_otp():
         },
     }
 )
-@jwt_required(refresh=True)
 def refresh():
     """Issue a new access token using a valid refresh token."""
     app_logger.info("Entering refresh")
     try:
         from models.User import User
 
+        payload = request.get_json(silent=True) or {}
         current_user_id = get_jwt_identity()
+        if not current_user_id:
+            refresh_token = payload.get("refresh_token")
+            if not refresh_token:
+                return error_response(message="refresh_token required", status_code=400)
+            decoded = decode_token(str(refresh_token).strip())
+            current_user_id = decoded.get("sub")
         user = User.objects(
             id=current_user_id, is_active=True, is_deleted=False
         ).first()
@@ -281,6 +415,8 @@ def refresh():
         data = {
             "access_token": token_data.access_token,
             "refresh_token": token_data.refresh_token,
+            "token_type": token_data.token_type,
+            "expires_in": token_data.expires_in,
         }
         resp, status_code = success_response(data=data, message="Token refreshed")
 
@@ -439,4 +575,3 @@ def oidc_callback():
         return resp, status_code
     except Exception as e:
         return error_response(f"OIDC authentication failed: {str(e)}", 400)
-

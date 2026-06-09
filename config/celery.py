@@ -1,6 +1,7 @@
 from celery import Celery
 from kombu import Queue, Exchange
 from config.settings import settings
+from datetime import timedelta
 
 
 def get_redis_url(db):
@@ -117,6 +118,13 @@ celery_app.conf.update(
     broker_transport_options={
         "priority_steps": list(range(10)),
         "queue_order_strategy": "priority",
+    },
+    beat_schedule={
+        "process-notification-retry-queue": {
+            "task": "tasks.notification_tasks.process_notification_retry_queue_task",
+            "schedule": timedelta(minutes=1),
+            "options": {"queue": "celery"},
+        }
     },
 )
 
