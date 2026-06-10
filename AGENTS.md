@@ -1,76 +1,52 @@
 # RIDP Backend Agent Context
 
-Python/Flask backend for the RIDP Form Platform. Keep this file as the durable index; load task detail from `.agents/skills/<name>/SKILL.md` only when relevant.
+Python/Flask backend for the RIDP Form Platform. Use this file as the repo-level operating index.
 
-## Durable Subagent Orchestration
-All major coding, planning, reviews, and test runs are delegated to specialized, narrow-context subagents to keep parent model token usage extremely low and optimize context cost. For architecture and operations, see [.agents/skills/ORCHESTRATOR.md](file:///home/ravi/workspace/docker/apps/form-backend/.agents/skills/ORCHESTRATOR.md).
+## Canonical Paths
+- Docs: `/home/ravi/workspace/form-builder/docs`
+- Backend: `/home/ravi/workspace/docker/apps/form-backend`
+- Frontend: `/home/ravi/workspace/frontend`
 
-## Token Discipline
-- Keep parent prompts short: objective, constraints, exact files/symbols, and expected output only.
+## How to Work in This Repo
 - Use codebase-memory MCP first for code discovery: `search_graph`, `trace_path`, `get_code_snippet`, `query_graph`, `get_architecture`.
-- Send subagents one bounded task at a time. Do not bundle discovery, implementation, and verification unless the task is tiny.
-- Pass file paths, symbol names, and commands instead of pasting large context blocks.
-- Ask subagents to return only the decision, changed files, commands run, and residual risk.
-- If work spans backend and frontend, split by repo and keep each prompt repo-local.
-- Prefer targeted checks while iterating. Run broad gates only when contracts, auth, tenancy, generated code, or shared infrastructure changed.
 
-## Codex & Antigravity (AGY) Integration
+## Do This First
+- Read `CONTEXT.md` for the canonical rules if the task is architectural or contract-related.
+- Inspect the relevant route, service, or model file before editing.
+- Check whether the change affects tenancy, auth, async work, or generated client contracts.
+- Prefer graph discovery before grep unless you are searching literals or config text.
 
-Codex is installed locally at `/usr/bin/codex` and can be leveraged to delegate subtasks, generate/refactor code, or perform automated reviews.
-
-### Bidirectional Master-Worker Orchestration
-Codex and Antigravity can operate in a bidirectional loop where Codex acts as the Master architect and Antigravity behaves as the coding agent, or vice versa.
-
-* **Codex as Master**:
-  To run Codex in Master mode with full access to execute commands and coordinate progress:
-  ```bash
-  /usr/bin/codex exec -s danger-full-access - <<'EOF'
-  You are the Lead Master Software Architect. Execute the following goals.
-  If you need Antigravity to perform a task (e.g., read code, execute tests), run:
-  agy --print "Find all references to method X"
-  EOF
-  ```
-
-* **Delegating tasks from Codex to Antigravity (AGY)**:
-  Within Codex execution, use the `agy` CLI to request help or run sub-commands:
-  - `agy --print "Run pytest on tests/test_auth_service.py and return the summary"`
-  - `agy --print "Read and explain services/oidc_service.py"`
-
-* **Delegating tasks from Antigravity to Codex**:
-  Run `codex exec` with the prompt as an argument or via stdin:
-  - `codex exec "Write a unit test for the authentication routes under tests/"`
-  - `codex exec --sandbox read-only -o codex_output.md "Explain the DB schema mapping"`
-
-* **Code Reviews**:
-  - `codex review` (runs in the workspace directory)
-
+## Common Failure Modes
+- Missing org scoping on Mongo queries.
+- Route logic creeping into services.
+- Contract changes without OpenAPI and generated client updates.
+- Returning the wrong status code for async work or validation failures.
+- Skipping audit/error logging on state changes or failures.
 
 ## Skill Router
-- `ridp-backend-flask`: routes, schemas, services, models, authz, tenancy, Celery, OpenAPI, backend tests.
-- `ridp-api-contract-sync`: backend/frontend API compatibility, OpenAPI, generated Dart client, auth headers, response envelopes.
-- `ridp-senior-planner`: architecture, multi-step plans, migrations, refactors, risk analysis.
-- `ridp-code-review`: reviews, bug hunts, security/tenancy/auth audits.
-- `ridp-testing-strategy`: new/failing/flaky tests and coverage strategy.
-- `ridp-quality-gates`: final verification, lint/test/security/tooling readiness.
+- `ridp-backend-flask`: routes, services, models, auth, tenancy, Celery, OpenAPI, backend tests.
+- `ridp-api-contract-sync`: API compatibility, OpenAPI, generated Dart client, auth headers, envelopes.
+- `ridp-senior-planner`: architecture, migrations, refactors, risk analysis.
+- `ridp-code-review`: reviews, bugs, security, tenancy, auth audits.
+- `ridp-testing-strategy`: tests, flakiness, coverage, verification strategy.
+- `ridp-quality-gates`: final lint/test/security and handoff readiness.
 
-Project MCP defaults are in `.mcp.json`. Use the smallest relevant tool set. Validate agent tooling with `.agents/check-agent-tools.sh`.
+## Repo Priorities
+- Routes stay thin. Services own business logic. Engines own core algorithms.
+- Pydantic owns request/response boundaries.
+- Mongo queries must stay org-scoped unless the collection is explicitly exempted in `CONTEXT.md`.
+- Async work uses Celery and should return `202` with a `task_id`.
+- State changes need audit logging. Failures should be logged with stack context.
 
-## Hard Invariants
-- API prefix: `/mahasangraha/api/v1/`; Swagger UI: `/mahasangraha/docs`; frontend source: `/home/ravi/workspace/frontend`.
-- Tenant-owned queries must include `organization_id`; `superadmin` is the only cross-org exception.
-- `get()`, `__raw__`, and aggregations bypass automatic tenant filtering; scope them explicitly.
-- Soft delete with `is_deleted=True`; hard delete only for documented exceptions.
-- Services do not import Flask/request/JWT globals; routes stay thin.
-- All service input goes through Pydantic v2; new responses use `success_response` / `error_response`.
-- State changes need `audit_logger`; exceptions need `error_logger.error(..., exc_info=True)`.
-- Route/schema changes need `@swag_from`, OpenAPI regeneration, and generated frontend client update.
-- Async work uses Celery and returns `202` with `{ "task_id": "..." }`; do not use threads.
-- Auth supports Bearer and HttpOnly cookie modes; cookie writes require `X-CSRF-TOKEN-ACCESS`.
+## Safety and Data Rules
+- Never import Flask request/JWT globals into services.
+- Never run tenant-owned queries without the required org filter.
+- Never expose secrets or raw credentials to plugin subprocesses.
+- Preserve route/schema contract changes with OpenAPI updates and generated client updates when applicable.
 
-## Commands
+## Useful Commands
 ```bash
-make up-dev
-make restart
+git status --short
 make lint
 make test
 make openapi
@@ -78,4 +54,20 @@ make generate-dart-client
 docker compose run --rm backend pytest tests/test_file.py -v
 ```
 
-Before handoff, report checks run, skipped checks, and residual risk.
+## Verification Gates
+- Run `make lint` when routes, services, models, or shared utilities change.
+- Run `make openapi` when route or schema contracts change.
+- Run `make generate-dart-client` when API response or request shapes change.
+- Run targeted `pytest` for the touched backend area before handoff.
+
+## Pre-Handoff Checklist
+- `git status --short`
+- `make lint`
+- `make openapi` if contracts changed
+- `make generate-dart-client` if payloads changed
+- Targeted `pytest` for the touched area
+
+## Handoff Checklist
+- Report what you checked.
+- Report what you skipped.
+- Call out residual risk explicitly.

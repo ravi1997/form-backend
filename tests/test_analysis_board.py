@@ -1,3 +1,5 @@
+import json
+import importlib
 import pytest
 from unittest.mock import patch, MagicMock
 from concurrent.futures import ThreadPoolExecutor
@@ -441,9 +443,24 @@ def test_analysis_board_run_endpoints_return_history(app, db_connection):
 def test_analysis_export_persistence(db_connection):
     from services.analysis_run_service import analysis_run_service
 
+    board = AnalysisBoard(
+        title="Persisted Export Board",
+        project_id=str(uuid.uuid4()),
+        organization_id="org-1",
+        created_by="user-1",
+        nodes=[],
+    ).save()
+    run = AnalysisRun(
+        analysis_id=str(board.id),
+        organization_id="org-1",
+        trigger="on_demand",
+        triggered_by="user-1",
+        status="completed",
+    ).save()
+
     export = analysis_run_service.create_export(
-        analysis_id="analysis-1",
-        run_id="run-1",
+        analysis_id=str(board.id),
+        run_id=str(run.id),
         organization_id="org-1",
         created_by="user-1",
         export_format="csv",
@@ -453,8 +470,8 @@ def test_analysis_export_persistence(db_connection):
         status="ready",
     )
 
-    assert export.analysis_id == "analysis-1"
-    assert export.run_id == "run-1"
+    assert export.analysis_id == str(board.id)
+    assert export.run_id == str(run.id)
     assert export.format == "csv"
     assert export.status == "ready"
 
@@ -505,6 +522,13 @@ def test_analysis_board_export_endpoints_return_created_export(app, db_connectio
             created_by=user_id,
             nodes=[],
         ).save()
+        run = AnalysisRun(
+            analysis_id=str(board.id),
+            organization_id="org-1",
+            trigger="on_demand",
+            triggered_by=user_id,
+            status="completed",
+        ).save()
 
         client = app.test_client()
         with patch(
@@ -514,7 +538,7 @@ def test_analysis_board_export_endpoints_return_created_export(app, db_connectio
             create_resp = client.post(
                 f"/mahasangraha/api/v1/projects/{project_id}/analysis-boards/{board.id}/export",
                 json={
-                    "run_id": "run-1",
+                    "run_id": str(run.id),
                     "format": "csv",
                     "node_ids": ["node-1"],
                     "file_path": "/tmp/export.csv",
@@ -580,6 +604,13 @@ def test_analysis_board_export_downloads_ready_file(app, db_connection, tmp_path
             created_by=user_id,
             nodes=[],
         ).save()
+        run = AnalysisRun(
+            analysis_id=str(board.id),
+            organization_id="org-1",
+            trigger="on_demand",
+            triggered_by=user_id,
+            status="completed",
+        ).save()
 
         export_path = tmp_path / "analysis-export.csv"
         export_path.write_text("node_id,value\nnode-1,42\n", encoding="utf-8")
@@ -588,7 +619,7 @@ def test_analysis_board_export_downloads_ready_file(app, db_connection, tmp_path
 
         export = analysis_run_service.create_export(
             analysis_id=str(board.id),
-            run_id="run-1",
+            run_id=str(run.id),
             organization_id="org-1",
             created_by=user_id,
             export_format="csv",
@@ -610,3 +641,217 @@ def test_analysis_board_export_downloads_ready_file(app, db_connection, tmp_path
             assert resp.status_code == 200
             assert resp.data == export_path.read_bytes()
             assert resp.headers["Content-Disposition"].startswith("attachment;")
+
+
+def test_analysis_board_export_download_validation_and_missing_file(app, db_connection, tmp_path):
+    from flask_jwt_extended import create_access_token
+    from routes.v1.analysis_board_route import analysis_board_bp
+
+    try:
+        app.register_blueprint(
+            analysis_board_bp,
+            url_prefix="/mahasangraha/api/v1/projects/<project_id>/analysis-boards",
+        )
+    except AssertionError:
+        pass
+
+    with app.app_context():
+        user_id = str(uuid.uuid4())
+        User(
+            id=user_id,
+            username="download_error_tester",
+            email="download-error@test.com",
+            user_type="employee",
+            is_active=True,
+            roles=["admin"],
+            organization_id="org-1",
+        ).save()
+        token = create_access_token(
+            identity=user_id,
+            additional_claims={
+                "org_id": "org-1",
+                "organization_id": "org-1",
+                "roles": ["admin"],
+            },
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+        project_id = str(uuid.uuid4())
+        Project(
+            id=project_id,
+            title="Download Error Project",
+            organization_id="org-1",
+        ).save()
+
+        board = AnalysisBoard(
+            title="Download Error Board",
+            project_id=project_id,
+            organization_id="org-1",
+            created_by=user_id,
+            nodes=[],
+        ).save()
+        run = AnalysisRun(
+            analysis_id=str(board.id),
+            organization_id="org-1",
+            trigger="on_demand",
+            triggered_by=user_id,
+            status="completed",
+        ).save()
+
+        from services.analysis_run_service import analysis_run_service
+
+        not_ready_export = analysis_run_service.create_export(
+            analysis_id=str(board.id),
+            run_id=str(run.id),
+            organization_id="org-1",
+            created_by=user_id,
+            export_format="csv",
+            node_ids=["node-1"],
+            file_path=str(tmp_path / "pending.csv"),
+            file_size_bytes=0,
+            status="queued",
+        )
+        missing_file_export = analysis_run_service.create_export(
+            analysis_id=str(board.id),
+            run_id=str(run.id),
+            organization_id="org-1",
+            created_by=user_id,
+            export_format="csv",
+            node_ids=["node-1"],
+            file_path=str(tmp_path / "missing.csv"),
+            file_size_bytes=0,
+            status="ready",
+        )
+
+        client = app.test_client()
+        with patch(
+            "routes.v1.analysis_board_route.analysis_board_service.get_by_id",
+            return_value=board,
+        ):
+            not_ready_resp = client.get(
+                f"/mahasangraha/api/v1/projects/{project_id}/analysis-boards/{board.id}/export/{not_ready_export.id}/download",
+                headers=headers,
+            )
+            assert not_ready_resp.status_code == 404
+
+            missing_resp = client.get(
+                f"/mahasangraha/api/v1/projects/{project_id}/analysis-boards/{board.id}/export/{missing_file_export.id}/download",
+                headers=headers,
+            )
+            assert missing_resp.status_code == 404
+
+
+def test_analysis_export_generation_populates_file_path_csv_and_json(
+    db_connection, tmp_path, monkeypatch
+):
+    from services.analysis_run_service import analysis_run_service
+
+    monkeypatch.setattr(
+        importlib.import_module("config.settings").settings,
+        "EXPORT_STORAGE_ROOT",
+        str(tmp_path),
+    )
+
+    board = AnalysisBoard(
+        title="Generator Board",
+        project_id=str(uuid.uuid4()),
+        organization_id="org-1",
+        created_by="user-1",
+        nodes=[],
+    ).save()
+    run = AnalysisRun(
+        analysis_id=str(board.id),
+        organization_id="org-1",
+        trigger="on_demand",
+        triggered_by="user-1",
+        status="completed",
+    ).save()
+    AnalysisResult(
+        run_id=str(run.id),
+        analysis_id=str(board.id),
+        node_id="node-1",
+        organization_id="org-1",
+        output_type="value",
+        data={"value": 42},
+    ).save()
+    AnalysisResult(
+        run_id=str(run.id),
+        analysis_id=str(board.id),
+        node_id="node-2",
+        organization_id="org-1",
+        output_type="table",
+        data={"rows": [{"name": "alpha"}]},
+    ).save()
+
+    csv_export = analysis_run_service.create_export(
+        analysis_id=str(board.id),
+        run_id=str(run.id),
+        organization_id="org-1",
+        created_by="user-1",
+        export_format="csv",
+        node_ids=None,
+        file_path=None,
+        file_size_bytes=None,
+    )
+    assert csv_export.status == "completed"
+    assert csv_export.file_path
+    assert Path(csv_export.file_path).exists()
+    csv_content = Path(csv_export.file_path).read_text(encoding="utf-8")
+    assert "node-1" in csv_content
+    assert "42" in csv_content
+
+    json_export = analysis_run_service.create_export(
+        analysis_id=str(board.id),
+        run_id=str(run.id),
+        organization_id="org-1",
+        created_by="user-1",
+        export_format="json",
+        node_ids=None,
+        file_path=None,
+        file_size_bytes=None,
+    )
+    assert json_export.status == "completed"
+    assert json_export.file_path
+    assert Path(json_export.file_path).exists()
+    json_payload = json.loads(Path(json_export.file_path).read_text(encoding="utf-8"))
+    assert json_payload["run"]["id"] == str(run.id)
+    assert len(json_payload["results"]) == 2
+
+
+def test_analysis_export_generation_rejects_invalid_format(db_connection):
+    from services.analysis_run_service import analysis_run_service
+    from utils.exceptions import ValidationError
+
+    board = AnalysisBoard(
+        title="Invalid Export Board",
+        project_id=str(uuid.uuid4()),
+        organization_id="org-1",
+        created_by="user-1",
+        nodes=[],
+    ).save()
+    run = AnalysisRun(
+        analysis_id=str(board.id),
+        organization_id="org-1",
+        trigger="on_demand",
+        triggered_by="user-1",
+        status="completed",
+    ).save()
+    AnalysisResult(
+        run_id=str(run.id),
+        analysis_id=str(board.id),
+        node_id="node-1",
+        organization_id="org-1",
+        output_type="value",
+        data={"value": 1},
+    ).save()
+
+    with pytest.raises(ValidationError):
+        analysis_run_service.create_export(
+            analysis_id=str(board.id),
+            run_id=str(run.id),
+            organization_id="org-1",
+            created_by="user-1",
+            export_format="xml",
+            node_ids=None,
+            file_path=None,
+            file_size_bytes=None,
+        )

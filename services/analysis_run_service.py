@@ -1,12 +1,257 @@
+import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from logger.unified_logger import app_logger
-from models.AnalysisBoard import AnalysisBoard
-from models.AnalysisRun import AnalysisRun, AnalysisResult, AnalysisExport
+from models.AnalysisRun import AnalysisRun, AnalysisResult
+from services.export_job_service import export_job_service
+from services.export_serializers import (
+    build_analysis_export_payload,
+    dump_payload_to_json,
+    iter_analysis_export_rows,
+    serialize_analysis_run,
+)
+from services.storage_backend import export_storage_backend
+from utils.exceptions import ValidationError
 
 
 class AnalysisRunService:
+    def generate_analysis_export(
+        self,
+        run_id: str,
+        organization_id: str,
+        export_format: str,
+        node_ids: Optional[List[str]] = None,
+        analysis_id: Optional[str] = None,
+    ) -> tuple[str, int]:
+        export_format = (export_format or "").lower()
+        if export_format not in {"csv", "json", "excel"}:
+            raise ValidationError(
+                "Unsupported analysis export format. Supported formats are csv, json and excel."
+            )
+
+        run = self.get_run(analysis_id or "", run_id, organization_id) if analysis_id else None
+        if not run:
+            run = AnalysisRun.objects(id=run_id, organization_id=organization_id).first()
+        if not run:
+            raise ValidationError("Analysis run not found")
+
+        result_query = AnalysisResult.objects(
+            run_id=str(run_id), organization_id=organization_id
+        ).order_by("created_at")
+        if node_ids:
+            node_filter = {str(node_id) for node_id in node_ids}
+            result_query = result_query.filter(node_id__in=list(node_filter))
+
+        analysis_path = str(analysis_id or run.analysis_id)
+        export_dir = export_storage_backend.base_root / analysis_path / str(run_id)
+        export_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        file_path = export_dir / f"analysis_export_{timestamp}.{export_format}"
+
+        if export_format == "json":
+            self._write_json_export(file_path, serialize_analysis_run(run), result_query)
+        elif export_format == "excel":
+            result_list = list(result_query)
+            return self.generate_excel_export(run, results=result_list, file_path=file_path)
+        else:
+            self._write_csv_export(file_path, iter_analysis_export_rows(run, result_query))
+
+        return str(file_path), file_path.stat().st_size
+
+    def _write_csv_export(self, file_path: Path, rows) -> None:
+        import csv
+
+        with file_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=[
+                    "id",
+                    "analysis_id",
+                    "run_id",
+                    "node_id",
+                    "organization_id",
+                    "output_type",
+                    "row_count",
+                    "column_definitions",
+                    "cached_until",
+                    "created_at",
+                    "data",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(
+                    {
+                        **row,
+                        "data": json.dumps(row["data"], ensure_ascii=False, default=str),
+                    }
+                )
+
+    def _write_json_export(self, file_path: Path, run_payload: Dict[str, Any], rows) -> None:
+        with file_path.open("w", encoding="utf-8") as handle:
+            handle.write("{\n")
+            handle.write(f'  "run": {dump_payload_to_json(run_payload)},\n')
+            handle.write('  "results": [\n')
+            first = True
+            for row in rows:
+                if not first:
+                    handle.write(",\n")
+                handle.write("    ")
+                handle.write(dump_payload_to_json(row).replace("\n", "\n    "))
+                first = False
+            handle.write("\n  ]\n}\n")
+
+    def generate_excel_export(
+        self,
+        run: AnalysisRun,
+        results: Optional[List[AnalysisResult]] = None,
+        file_path: Optional[Path] = None,
+    ) -> tuple[str, int]:
+        payload = build_analysis_export_payload(
+            run, results or self.get_results(str(run.id), str(run.organization_id))
+        )
+        export_dir = (
+            file_path.parent
+            if file_path
+            else export_storage_backend.base_root
+            / str(run.analysis_id)
+            / str(run.id)
+        )
+        export_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        workbook_path = file_path or export_dir / f"analysis_export_{timestamp}.xlsx"
+
+        self._write_minimal_xlsx(
+            workbook_path,
+            {
+                "Run Metadata": [
+                    ["field", "value"],
+                    *[
+                        [
+                            field,
+                            json.dumps(value, ensure_ascii=False, default=str)
+                            if isinstance(value, (dict, list))
+                            else value,
+                        ]
+                        for field, value in payload["run"].items()
+                    ],
+                ],
+                "Node Results": [
+                    ["result_id", "node_id", "output_type", "row_count", "data"],
+                    *[
+                        [
+                            row["id"],
+                            row["node_id"],
+                            row["output_type"],
+                            row["row_count"],
+                            json.dumps(row["data"], ensure_ascii=False, default=str),
+                        ]
+                        for row in payload["results"]
+                    ],
+                ],
+            },
+        )
+        return str(workbook_path), workbook_path.stat().st_size
+
+    def _column_letter(self, index: int) -> str:
+        letters = ""
+        while index:
+            index, remainder = divmod(index - 1, 26)
+            letters = chr(65 + remainder) + letters
+        return letters or "A"
+
+    def _escape_xml(self, value: str) -> str:
+        return (
+            value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&apos;")
+        )
+
+    def _sheet_xml(self, rows: List[List[Any]]) -> str:
+        xml_rows = []
+        for row_idx, row in enumerate(rows, start=1):
+            cells = []
+            for col_idx, value in enumerate(row, start=1):
+                cell_ref = f"{self._column_letter(col_idx)}{row_idx}"
+                if value is None:
+                    cell = f'<c r="{cell_ref}"/>'
+                elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                    cell = f'<c r="{cell_ref}"><v>{value}</v></c>'
+                else:
+                    text = self._escape_xml(str(value))
+                    cell = (
+                        f'<c r="{cell_ref}" t="inlineStr">'
+                        f"<is><t>{text}</t></is></c>"
+                    )
+                cells.append(cell)
+            xml_rows.append(f"<row r=\"{row_idx}\">{''.join(cells)}</row>")
+        return (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            f"<sheetData>{''.join(xml_rows)}</sheetData>"
+            "</worksheet>"
+        )
+
+    def _write_minimal_xlsx(self, workbook_path: Path, sheets: Dict[str, List[List[Any]]]) -> None:
+        import zipfile
+
+        workbook_path.parent.mkdir(parents=True, exist_ok=True)
+        sheet_names = list(sheets.keys())
+        workbook_xml = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            "<sheets>"
+            + "".join(
+                f'<sheet name="{self._escape_xml(name)}" sheetId="{idx}" r:id="rId{idx}"/>'
+                for idx, name in enumerate(sheet_names, start=1)
+            )
+            + "</sheets></workbook>"
+        )
+        workbook_rels = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            + "".join(
+                f'<Relationship Id="rId{idx}" '
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+                f'Target="worksheets/sheet{idx}.xml"/>'
+                for idx in range(1, len(sheet_names) + 1)
+            )
+            + "</Relationships>"
+        )
+        content_types = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            + "".join(
+                f'<Override PartName="/xl/worksheets/sheet{idx}.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+                for idx in range(1, len(sheet_names) + 1)
+            )
+            + "</Types>"
+        )
+        root_rels = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+            'Target="xl/workbook.xml"/>'
+            "</Relationships>"
+        )
+        with zipfile.ZipFile(workbook_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", content_types)
+            archive.writestr("_rels/.rels", root_rels)
+            archive.writestr("xl/workbook.xml", workbook_xml)
+            archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+            for idx, sheet_name in enumerate(sheet_names, start=1):
+                archive.writestr(f"xl/worksheets/sheet{idx}.xml", self._sheet_xml(sheets[sheet_name]))
+
     def create_run(
         self,
         analysis_id: str,
@@ -94,23 +339,51 @@ class AnalysisRunService:
         node_ids: Optional[List[str]] = None,
         file_path: Optional[str] = None,
         file_size_bytes: Optional[int] = None,
-        status: str = "queued",
+        status: str = "pending",
         expires_in_days: int = 7,
-    ) -> AnalysisExport:
-        export = AnalysisExport(
-            analysis_id=str(analysis_id),
-            run_id=str(run_id),
+        queue_generation: bool = False,
+    ) -> Any:
+        run = AnalysisRun.objects(
+            id=str(run_id), analysis_id=str(analysis_id), organization_id=organization_id
+        ).first()
+        if not run:
+            raise ValidationError("Analysis run not found")
+
+        job = export_job_service.create_job(
+            analysis_run_id=str(run_id),
+            export_format=export_format,
             organization_id=organization_id,
-            created_by=created_by,
-            format=export_format,
+            analysis_id=str(analysis_id),
+            status="pending",
             node_ids=node_ids or [],
-            file_path=file_path,
-            file_size_bytes=file_size_bytes,
-            status=status,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=expires_in_days),
+            idempotency_key=f"{analysis_id}:{run_id}:{export_format}:{created_by or ''}",
+            expires_in_days=expires_in_days,
         )
-        export.save()
-        return export
+
+        if file_path:
+            effective_status = "pending" if str(status).lower() == "queued" else status
+            export_job_service.transition_status(
+                job,
+                effective_status,
+                file_path=file_path,
+                file_size_bytes=file_size_bytes,
+                last_error=None,
+            )
+        elif queue_generation:
+            from tasks.export_tasks import generate_analysis_export_task
+
+            export_job_service.transition_status(job, "queued")
+            generate_analysis_export_task.delay(str(job.id), export_format)
+        else:
+            generated_path, generated_size = self.generate_analysis_export(
+                run_id=run_id,
+                organization_id=organization_id,
+                export_format=export_format,
+                node_ids=node_ids,
+                analysis_id=analysis_id,
+            )
+            export_job_service.attach_file_path(job, generated_path, generated_size)
+        return job
 
 
 analysis_run_service = AnalysisRunService()

@@ -6,6 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from models.Form import Project
 from services.analysis_board_service import AnalysisBoardService
 from services.analysis_run_service import analysis_run_service
+from services.export_job_service import export_job_service
 from schemas.analysis_board import (
     AnalysisBoardCreateSchema,
     AnalysisBoardUpdateSchema,
@@ -357,9 +358,16 @@ def create_board_export(project_id, board_id):
             node_ids=payload.get("node_ids") or [],
             file_path=payload.get("file_path"),
             file_size_bytes=payload.get("file_size_bytes"),
-            status=payload.get("status", "queued"),
+            status=payload.get("status", "pending"),
+            queue_generation=payload.get("file_path") is None,
         )
         return success_response(data=export.to_dict(), status_code=201)
+    except NotFoundError as e:
+        error_logger.error(f"Create Analysis export not found: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=404)
+    except ValidationError as e:
+        error_logger.error(f"Create Analysis export validation error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
     except Exception as e:
         error_logger.error(f"Create Analysis export error: {str(e)}", exc_info=True)
         return error_response(message=str(e), status_code=400)
@@ -375,14 +383,13 @@ def get_board_export(project_id, board_id, export_id):
         if board.project_id != project_id:
             raise NotFoundError("Analysis Board not found in this project")
 
-        from models.AnalysisRun import AnalysisExport
-
-        export = AnalysisExport.objects(
-            id=export_id, analysis_id=board_id, organization_id=org_id
-        ).first()
+        export = export_job_service.get_job(export_id, organization_id=org_id)
         if not export:
             raise NotFoundError("Analysis export not found")
         return success_response(data=export.to_dict())
+    except NotFoundError as e:
+        error_logger.error(f"Get Analysis export not found: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=404)
     except Exception as e:
         error_logger.error(f"Get Analysis export error: {str(e)}", exc_info=True)
         return error_response(message=str(e), status_code=400)
@@ -398,15 +405,12 @@ def download_board_export(project_id, board_id, export_id):
         if board.project_id != project_id:
             raise NotFoundError("Analysis Board not found in this project")
 
-        from models.AnalysisRun import AnalysisExport
-
-        export = AnalysisExport.objects(
-            id=export_id, analysis_id=board_id, organization_id=org_id
-        ).first()
+        export = export_job_service.get_job(export_id, organization_id=org_id)
         if not export:
             raise NotFoundError("Analysis export not found")
 
-        if export.status != "ready" or not export.file_path:
+        export_status = str(export.status or "").lower()
+        if export_status in {"queued", "pending", "processing"} or not export.file_path:
             raise ValidationError("Analysis export is not ready for download")
 
         if not os.path.exists(export.file_path):
@@ -417,6 +421,12 @@ def download_board_export(project_id, board_id, export_id):
             as_attachment=True,
             download_name=os.path.basename(export.file_path),
         )
+    except ValidationError as e:
+        error_logger.error(f"Download Analysis export validation error: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+    except NotFoundError as e:
+        error_logger.error(f"Download Analysis export not found: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=404)
     except Exception as e:
         error_logger.error(f"Download Analysis export error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return error_response(message=str(e), status_code=500)

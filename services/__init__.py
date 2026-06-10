@@ -59,6 +59,10 @@ from .org_service import OrgService
 from .feature_flag_service import FeatureFlagService
 from .tombstone_service import TombstoneService
 from .analysis_run_service import AnalysisRunService, analysis_run_service
+from .export_serializers import build_analysis_export_payload
+from .export_retention_service import ExportRetentionService, export_retention_service
+from .export_job_service import ExportJobService, export_job_service
+from .storage_backend import LocalStorageBackend, S3StorageBackend, export_storage_backend
 
 __all__ = [
     "BaseService",
@@ -123,4 +127,12 @@ __all__ = [
     "TombstoneService",
     "AnalysisRunService",
     "analysis_run_service",
+    "build_analysis_export_payload",
+    "ExportRetentionService",
+    "export_retention_service",
+    "ExportJobService",
+    "export_job_service",
+    "LocalStorageBackend",
+    "S3StorageBackend",
+    "export_storage_backend",
 ]

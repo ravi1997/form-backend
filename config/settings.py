@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # Export limits
     MAX_EXPORT_RECORDS: int = Field(default=10000, ge=1000, le=100000)
     REQUIRE_EXPORT_CONSENT: bool = Field(default=True)
+    EXPORT_TTL_HOURS: int = Field(default=168, ge=1, le=24 * 30)
+    EXPORT_STORAGE_ROOT: str = Field(default="/tmp/analysis_exports")
+    EXPORT_STORAGE_BACKEND: str = Field(default="local")
 
     # Security headers
     HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds

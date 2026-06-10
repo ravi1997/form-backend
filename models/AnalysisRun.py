@@ -57,5 +57,8 @@ class AnalysisExport(BaseDocument):
     file_path = StringField()
     file_size_bytes = IntField()
     status = StringField(required=True, default="queued")
+    retry_count = IntField(default=0)
+    last_error = StringField()
+    idempotency_key = StringField()
     expires_at = DateTimeField()
     created_by = StringField()
