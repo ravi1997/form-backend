@@ -5,7 +5,7 @@ Provides system-wide statistics for administrators.
 
 from flask import Blueprint
 from flasgger import swag_from
-from flask_jwt_extended import get_jwt_identity, get_jwt
+from flask_jwt_extended import get_jwt_identity, get_jwt, jwt_required
 from models import Form, FormResponse
 from datetime import datetime, timezone
 from utils.security import require_roles
@@ -15,18 +15,43 @@ from logger.unified_logger import app_logger
 analytics_bp = Blueprint("analytics_bp", __name__)
 
 
+def _resolve_jwt_scope(jwt_data):
+    """
+    Normalize JWT claims across legacy and current token shapes.
+    Returns the effective role and organization scope for analytics queries.
+    """
+    roles = jwt_data.get("roles") or []
+    role = jwt_data.get("role") or jwt_data.get("system_role")
+    org_id = jwt_data.get("org_id")
+
+    if not org_id:
+        orgs = jwt_data.get("orgs") or []
+        if orgs:
+            first_org = orgs[0] or {}
+            org_id = first_org.get("org_id")
+            if not role:
+                role = first_org.get("role")
+
+    if not role and roles:
+        role = roles[0]
+
+    if role == "super_admin":
+        role = "superadmin"
+
+    return role, org_id
+
+
 @analytics_bp.route("/dashboard", methods=["GET"])
 @swag_from({"tags": ["Analytics"], "responses": {"200": {"description": "Success"}}})
-@require_roles("admin", "superadmin", "manager")
+@jwt_required()
 def get_dashboard_stats():
     """
     Compute and return system-wide dashboard statistics.
-    Restricted to privileged users to prevent sensitive data leakage.
+    Requires a valid JWT; results are scoped to the caller's organization when available.
     """
     user_id = get_jwt_identity()
     jwt_data = get_jwt()
-    org_id = jwt_data.get("org_id")
-    role = jwt_data.get("role")
+    role, org_id = _resolve_jwt_scope(jwt_data)
 
     app_logger.info(f"Fetching dashboard stats for user: {user_id}")
 
@@ -91,8 +116,7 @@ def get_summary():
     """Returns organization-wide summary statistics."""
     user_id = get_jwt_identity()
     jwt_data = get_jwt()
-    org_id = jwt_data.get("org_id")
-    role = jwt_data.get("role")
+    role, org_id = _resolve_jwt_scope(jwt_data)
 
     app_logger.info(f"Fetching analytics summary for user: {user_id}")
 

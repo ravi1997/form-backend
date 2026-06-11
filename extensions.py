@@ -45,7 +45,7 @@ limiter = Limiter(
     default_limits=["2000 per hour", "100 per minute"],
     storage_uri=limiter_storage,
 )
-talisman = Talisman()
+talisman = Talisman(force_https=False)
 
 # ── Shared Redis client (app cache DB) ───────────────────────────────────────
 # Used by idempotency middleware and other modules needing a simple

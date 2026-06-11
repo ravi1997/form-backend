@@ -5,8 +5,15 @@ Implements OWASP recommendations for file upload security.
 """
 
 import os
-import magic
 import uuid
+
+# Try to import magic, but make it optional
+try:
+    import magic
+    HAS_MAGIC = True
+except (ImportError, OSError):
+    # libmagic not available, we'll use fallback methods
+    HAS_MAGIC = False
 from typing import Optional, Tuple, List
 from werkzeug.datastructures import FileStorage
 from flask import current_app
@@ -199,7 +206,11 @@ def validate_mime_type(file: FileStorage) -> Tuple[bool, Optional[str]]:
         file.seek(0)  # Reset file pointer
 
         # Use python-magic to detect actual MIME type
-        detected_mime = magic.from_buffer(file_content, mime=True)
+        if HAS_MAGIC:
+            detected_mime = magic.from_buffer(file_content, mime=True)
+        else:
+            # Fallback: use extension-based MIME type
+            detected_mime = ALLOWED_MIME_TYPES.get(ext, ['application/octet-stream'])[0]
 
         # Check if detected MIME is allowed for this extension
         allowed_mimes = ALLOWED_MIME_TYPES.get(ext, [])

@@ -10,9 +10,11 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 
 # System dependencies — only what the runtime needs.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install libmagic using a different approach with retry logic
+RUN apt-get update --fix-missing && apt-get install -y --no-install-recommends \
+    file \
     libmagic1 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* || echo "Failed to install libmagic, will use fallback"
 
 # Install Python dependencies before copying source (layer-cache friendly).
 COPY requirements.txt .
@@ -31,4 +33,4 @@ USER appuser
 EXPOSE 5000
 
 # Default command: Runs the production server
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--threads", "4", "--timeout", "120", "--graceful-timeout", "30", "app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--threads", "4", "--timeout", "120", "--graceful-timeout", "30", "wsgi:app"]

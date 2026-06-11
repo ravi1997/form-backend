@@ -3,7 +3,72 @@ from flask import Flask
 from testcontainers.mongodb import MongoDbContainer
 from testcontainers.redis import RedisContainer
 import mongoengine
+import mongomock
 from utils.redis_client import redis_client
+
+
+class _MockRedisPipeline:
+    def __init__(self, client):
+        self.client = client
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def set(self, *args, **kwargs):
+        self.client.set(*args, **kwargs)
+        return self
+
+    def execute(self):
+        return None
+
+
+class _MockRedisClient:
+    def __init__(self):
+        self.store = {}
+        self.expiry = {}
+        self.queue = []
+
+    def ping(self):
+        return True
+
+    def get(self, key):
+        return self.store.get(key)
+
+    def set(self, key, value, ex=None):
+        self.store[key] = value
+        if ex is not None:
+            self.expiry[key] = ex
+        return True
+
+    def delete(self, *keys):
+        deleted = 0
+        for key in keys:
+            if key in self.store:
+                deleted += 1
+                self.store.pop(key, None)
+                self.expiry.pop(key, None)
+        return deleted
+
+    def expire(self, key, ttl):
+        if key in self.store:
+            self.expiry[key] = ttl
+            return True
+        return False
+
+    def rpush(self, queue_name, *values):
+        self.queue.extend(values)
+        return len(self.queue)
+
+    def lpop(self, queue_name):
+        if self.queue:
+            return self.queue.pop(0)
+        return None
+
+    def pipeline(self):
+        return _MockRedisPipeline(self)
 
 
 def _docker_is_available() -> bool:
@@ -40,13 +105,7 @@ def app_context(app):
 @pytest.fixture(scope="session")
 def mongo_container():
     if not DOCKER_AVAILABLE:
-        import os
-        uri = os.environ.get("MONGODB_URI", "mongodb://localhost:27017/form_backend")
-        if "form_backend" in uri:
-            uri = uri.replace("form_backend", "test_db")
-        else:
-            uri = uri.replace("27017/", "27017/test_db")
-        yield uri
+        yield "mongomock"
     else:
         try:
             with MongoDbContainer("mongo:6.0") as mongo:
@@ -58,15 +117,7 @@ def mongo_container():
 @pytest.fixture(scope="session")
 def redis_container():
     if not DOCKER_AVAILABLE:
-        import os
-        host = os.environ.get("REDIS_HOST", "shared-redis")
-        port = os.environ.get("REDIS_PORT", "6379")
-        password = os.environ.get("REDIS_PASSWORD", "")
-        if password:
-            uri = f"redis://:{password}@{host}:{port}/15"
-        else:
-            uri = f"redis://{host}:{port}/15"
-        yield uri
+        yield "mock://redis"
     else:
         try:
             with RedisContainer("redis:7.0-alpine") as redis:
@@ -82,7 +133,17 @@ def db_connection(mongo_container):
         mongoengine.disconnect()
     except Exception:
         pass
-    conn = mongoengine.connect("test_db", host=mongo_container, uuidRepresentation="standard")
+    if mongo_container == "mongomock":
+        conn = mongoengine.connect(
+            "test_db",
+            alias="default",
+            uuidRepresentation="standard",
+            mongo_client_class=mongomock.MongoClient,
+        )
+    else:
+        conn = mongoengine.connect(
+            "test_db", host=mongo_container, uuidRepresentation="standard"
+        )
     yield
     try:
         conn.drop_database("test_db")
@@ -97,27 +158,17 @@ def db_connection(mongo_container):
 @pytest.fixture(scope="function")
 def redis_mock(redis_container):
     """Mocks out the Redis cache client with the test container endpoint."""
-    import redis
     from services.redis_service import redis_service
 
-    # Configure redis_service client proxies with mock client
-    mock_client = redis.from_url(redis_container)
-    
-    # Override client proxies in redis_service
+    mock_client = _MockRedisClient()
     redis_service.cache.client = mock_client
     redis_service.session.client = mock_client
     redis_service.queue.client = mock_client
 
-    # Prevent configure_client from overwriting our mocked clients on app startup
     def mock_configure_client(name, config):
         pass
+
     redis_service.configure_client = mock_configure_client
 
     redis_client.cache = mock_client
     yield redis_client
-    try:
-        mock_client.flushdb()
-    except Exception:
-        pass
-
-

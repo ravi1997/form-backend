@@ -109,6 +109,22 @@ def test_csv_json_excel_export_generation(db_connection, tmp_path, monkeypatch):
         assert metadata_xml.find(".//a:c[@r='A1']/a:is/a:t", ns).text == "field"
         assert results_xml.find(".//a:c[@r='A1']/a:is/a:t", ns).text == "result_id"
 
+    pdf_export = analysis_run_service.create_export(
+        analysis_id=str(board.id),
+        run_id=str(run.id),
+        organization_id="org-1",
+        created_by="user-1",
+        export_format="pdf",
+        node_ids=None,
+    )
+    assert pdf_export.status == "completed"
+    assert pdf_export.file_path and Path(pdf_export.file_path).exists()
+    pdf_bytes = Path(pdf_export.file_path).read_bytes()
+    assert pdf_bytes.startswith(b"%PDF-1.4")
+    assert b"/Type /Catalog" in pdf_bytes
+    assert b"xref" in pdf_bytes
+    assert pdf_bytes.rstrip().endswith(b"%%EOF")
+
 
 def test_async_export_pipeline_populates_file_path_and_downloads(
     app, db_connection, monkeypatch, tmp_path

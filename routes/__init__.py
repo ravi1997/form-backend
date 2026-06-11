@@ -30,7 +30,7 @@ from routes.v1.task_route import task_bp
 from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
 from routes.v1.files_route import files_bp
-from routes.v1.report_route import report_bp
+# from routes.v1.report_route import report_bp  # TODO: Create this module or remove if not needed
 from routes.health import health_bp
 
 
@@ -88,9 +88,9 @@ def register_blueprints(app):
         analysis_board_bp,
         url_prefix=f"{public_prefix}/projects/<project_id>/analysis-boards",
     )
-    app.register_blueprint(
-        report_bp, url_prefix=f"{public_prefix}/projects/<project_id>/reports"
-    )
+    # app.register_blueprint(
+    #     report_bp, url_prefix=f"{public_prefix}/projects/<project_id>/reports"
+    # )
 
     # Workflows & Integrations
     app.register_blueprint(workflow_bp, url_prefix=f"{public_prefix}/workflows")

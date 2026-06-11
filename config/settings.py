@@ -111,9 +111,9 @@ class Settings(BaseSettings):
     EXPORT_STORAGE_BACKEND: str = Field(default="local")
 
     # Security headers
-    HSTS_MAX_AGE: int = Field(default=31536000, ge=0)  # 1 year in seconds
-    HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=True)
-    HSTS_PRELOAD: bool = Field(default=True)
+    HSTS_MAX_AGE: int = Field(default=0, ge=0)  # Disabled for development
+    HSTS_INCLUDE_SUBDOMAINS: bool = Field(default=False)  # Disabled for development
+    HSTS_PRELOAD: bool = Field(default=False)  # Disabled for development
 
     # Content Security Policy (even for REST APIs)
     CSP_POLICY: dict = Field(

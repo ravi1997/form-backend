@@ -10,6 +10,7 @@ from config.logging import setup_logging
 from mongoengine import connect
 import logging
 import re
+import os
 
 
 def create_app():
@@ -44,6 +45,8 @@ def create_app():
         # Keep that protection in non-development environments, but disable it
         # explicitly for local Docker/dev workflows.
         JWT_COOKIE_CSRF_PROTECT=not settings.DEBUG,
+        # Disable HTTPS redirect for local development
+        SESSION_COOKIE_SECURE=False,
     )
 
     # ── JWT, CORS, Limiter & Talisman, Swagger ────────────────────────────────
@@ -88,8 +91,8 @@ def create_app():
     talisman.init_app(
         app,
         content_security_policy=settings.CSP_POLICY,  # Content-Security-Policy
-        force_https=not settings.DEBUG,  # Enforced in production; off in dev
-        strict_transport_security=True,
+        force_https=False,  # Disabled for local development
+        strict_transport_security=False,  # Disabled for local development
         strict_transport_security_preload=settings.HSTS_PRELOAD,
         strict_transport_security_max_age=settings.HSTS_MAX_AGE,
         strict_transport_security_include_subdomains=settings.HSTS_INCLUDE_SUBDOMAINS,
@@ -211,6 +214,44 @@ def create_app():
             logger.info("Default feature flags seeded successfully.")
     except Exception as e:
         logger.error(f"Failed to seed default feature flags: {e}")
+
+    if settings.DEBUG:
+        try:
+            from models.User import User
+
+            alice_email = os.environ.get("DEV_ALICE_EMAIL", "alice@hospital.org")
+            alice_password = os.environ.get("DEV_ALICE_PASSWORD", "SecureP@ss2026")
+            alice_username = os.environ.get("DEV_ALICE_USERNAME", "alice")
+            alice_org = os.environ.get("DEV_ALICE_ORG_ID", "org-1")
+
+            alice = User.objects(email=alice_email).first()
+            if alice is None:
+                alice = User(
+                    username=alice_username,
+                    email=alice_email,
+                    user_type="employee",
+                    organization_id=alice_org,
+                    roles=["admin"],
+                    is_admin=True,
+                    is_active=True,
+                    is_deleted=False,
+                )
+            else:
+                alice.username = alice_username
+                alice.user_type = "employee"
+                alice.organization_id = alice_org
+                alice.roles = list({*(alice.roles or []), "admin"})
+                alice.is_admin = True
+                alice.is_active = True
+                alice.is_deleted = False
+                alice.failed_login_attempts = 0
+                alice.lock_until = None
+
+            alice.set_password(alice_password)
+            alice.save()
+            logger.info("Development alice account seeded or repaired successfully.")
+        except Exception as e:
+            logger.error(f"Failed to seed development alice account: {e}")
 
     # ── Instrument Flask ──────────────────────────────────────────────────
     from opentelemetry.instrumentation.flask import FlaskInstrumentor

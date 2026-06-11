@@ -1,5 +1,6 @@
 import pytest
 from datetime import timedelta
+from flask_jwt_extended import decode_token
 from services.auth_service import AuthService
 from utils.exceptions import UnauthorizedError
 from models.User import User
@@ -48,6 +49,11 @@ def test_generate_tokens(app, auth_service, mock_user):
         assert isinstance(tokens, TokenResponse)
         assert tokens.access_token is not None
         assert tokens.refresh_token is not None
+        payload = decode_token(tokens.access_token)
+        assert payload["roles"] == ["user"]
+        assert payload["role"] == "user"
+        assert payload["system_role"] == "user"
+        assert payload["orgs"] == []
 
 
 def test_validate_token_success(auth_service, mock_user):

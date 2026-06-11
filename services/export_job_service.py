@@ -34,7 +34,7 @@ class ExportJobService:
         expires_in_days: int = 7,
     ) -> ExportJob:
         export_format = (export_format or "").lower()
-        if export_format not in {"csv", "json", "excel"}:
+        if export_format not in {"csv", "json", "excel", "pdf"}:
             raise ValidationError("Unsupported analysis export format.")
         if status not in self.allowed_statuses:
             raise ValidationError(f"Unsupported export job status: {status}")

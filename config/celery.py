@@ -22,7 +22,6 @@ celery_app = Celery(
         "tasks.services",
         "tasks.form_tasks",
         "tasks.ai_tasks",
-        "tasks.report_tasks",
         "tasks.gdpr_tasks",
         "tasks.compliance_tasks",
     ],

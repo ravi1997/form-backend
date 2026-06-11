@@ -703,8 +703,33 @@ class ProjectService(BaseService):
 
             app_logger.info(f"Project {project_id} found")
             app_logger.info(f"Project forms: {project_doc.forms}")
-            # Extract safely avoiding dereferencing destroyed models
+            # Extract safely avoiding dereferencing destroyed models.
+            # Treat `Form.project` as the canonical link and merge any legacy
+            # `project.forms` references so stale project arrays do not hide
+            # valid forms from the dashboard.
             forms = []
+            seen_form_ids = set()
+
+            def _append_form(form_doc):
+                if not form_doc:
+                    return
+                form_id = getattr(form_doc, "id", None)
+                if not form_id:
+                    return
+                form_id_str = str(form_id)
+                if form_id_str in seen_form_ids:
+                    return
+                seen_form_ids.add(form_id_str)
+                forms.append(form_doc)
+
+            direct_forms = Form.objects(
+                project=project_doc.id,
+                is_deleted=False,
+                **({"organization_id": organization_id} if organization_id else {}),
+            )
+            for direct_form in direct_forms:
+                _append_form(direct_form)
+
             for form_ref in project_doc.forms or []:
                 try:
                     app_logger.info(f"Form reference {form_ref}")
@@ -729,20 +754,7 @@ class ProjectService(BaseService):
                         app_logger.warning(f"Form {form_id} not found")
                         continue
                     app_logger.info(f"Form {form_id} found")
-                    form_payload = FormSerializer.serialize(form.to_dict())
-                    form_payload["organization_id"] = str(
-                        getattr(form, "organization_id", organization_id)
-                    )
-                    form_payload["project"] = (
-                        str(form_payload["project"])
-                        if form_payload.get("project") is not None
-                        else None
-                    )
-                    if form_payload.get("active_version") is not None:
-                        form_payload["active_version"] = str(
-                            form_payload["active_version"]
-                        )
-                    forms.append(FormSchema.model_validate(form_payload))
+                    _append_form(form)
                 except Exception as e:
                     app_logger.warning(
                         f"Error in list_forms_in_project for Project ID {project_id}: {str(e)}"
@@ -752,7 +764,7 @@ class ProjectService(BaseService):
             app_logger.info(
                 f"Successfully completed list_forms_in_project for Project ID {project_id} with total forms {len(forms)}"
             )
-            return forms
+            return [FormSerializer.serialize(form.to_dict()) for form in forms]
         except Exception as e:
             if not isinstance(e, NotFoundError):
                 error_logger.error(

@@ -138,4 +138,4 @@ def list_forms_in_project(project_id):
     result = project_service.list_forms_in_project(
         project_id, organization_id=current_user.organization_id
     )
-    return success_response(data=[item.model_dump(by_alias=True) for item in result])
+    return success_response(data=result)

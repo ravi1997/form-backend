@@ -64,7 +64,16 @@ class AuthService(BaseService):
             access_expires = timedelta(minutes=params["access_mins"])
             refresh_expires = timedelta(days=params["refresh_days"])
 
-            system_role = "super_admin" if getattr(user, "is_admin", False) else "user"
+            user_roles = list(getattr(user, "roles", []) or [])
+            if getattr(user, "is_admin", False) and "admin" not in user_roles:
+                user_roles.append("admin")
+            if getattr(user, "is_admin", False) and "superadmin" in user_roles:
+                system_role = "super_admin"
+            elif getattr(user, "is_admin", False):
+                system_role = "admin"
+            else:
+                system_role = "user"
+
             org_claims: list[dict[str, Any]] = []
             organization_id = getattr(user, "organization_id", None)
             if organization_id:
@@ -72,7 +81,7 @@ class AuthService(BaseService):
                 org_claims.append(
                     {
                         "org_id": str(organization_id),
-                        "role": role or "org_viewer",
+                        "role": role or (user_roles[0] if user_roles else "org_viewer"),
                         "status": "active",
                     }
                 )
@@ -80,6 +89,9 @@ class AuthService(BaseService):
             access_token = create_access_token(
                 identity=str(user.id),
                 additional_claims={
+                    "roles": user_roles,
+                    "role": user_roles[0] if user_roles else system_role,
+                    "org_id": str(organization_id) if organization_id else None,
                     "system_role": system_role,
                     "orgs": org_claims,
                 },
