@@ -2,6 +2,7 @@ from . import form_bp
 from flasgger import swag_from
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from bson.binary import Binary, UuidRepresentation
 from models import Form, FormResponse
 from routes.v1.form.helper import get_current_user, has_form_permission
 from mongoengine import DoesNotExist
@@ -12,9 +13,208 @@ from utils.response_helper import success_response, error_response, FormSerializ
 from services.form_service import FormService
 from services.filter_builder_service import FilterBuilderService
 from utils.exceptions import ValidationError as ServiceValidationError
+from utils.access_policy_utils import policy_list, policy_value
+from uuid import UUID
 
 advanced_responses_bp = Blueprint("advanced_responses", __name__)
 form_service = FormService()
+
+ACCESS_POLICY_FIELD_ALIASES = {
+    "access_mode": ("accessMode", "access_mode"),
+    "allowed_user_ids": ("allowedUserIds", "allowed_user_ids"),
+    "allowed_group_ids": ("allowedGroupIds", "allowed_group_ids"),
+    "allowed_roles": ("allowedRoles", "allowed_roles"),
+    "require_login": ("requireLogin", "require_login"),
+    "private_access_message": ("privateAccessMessage", "private_access_message"),
+    "password_protected": ("passwordProtected", "password_protected"),
+    "password_hash": ("passwordHash", "password_hash"),
+    "password_hint": ("passwordHint", "password_hint"),
+    "password_prompt_enabled": (
+        "passwordPromptEnabled",
+        "password_prompt_enabled",
+    ),
+    "invite_only": ("inviteOnly", "invite_only"),
+    "invites": ("invites",),
+    "invite_required_for_submission": (
+        "inviteRequiredForSubmission",
+        "invite_required_for_submission",
+    ),
+    "submission_limit_enabled": (
+        "submissionLimitEnabled",
+        "submission_limit_enabled",
+    ),
+    "submission_limit_count": (
+        "submissionLimitCount",
+        "submission_limit_count",
+    ),
+    "submission_limit_scope": ("submissionLimitScope", "submission_limit_scope"),
+    "submission_limit_action": ("submissionLimitAction", "submission_limit_action"),
+    "limit_reached_message": ("limitReachedMessage", "limit_reached_message"),
+    "response_identity_mode": ("responseIdentityMode", "response_identity_mode"),
+    "require_login_for_response": (
+        "requireLoginForResponse",
+        "require_login_for_response",
+    ),
+    "collect_name": ("collectName", "collect_name"),
+    "collect_email": ("collectEmail", "collect_email"),
+    "store_user_id_on_response": (
+        "storeUserIdOnResponse",
+        "store_user_id_on_response",
+    ),
+    "can_view_responses": ("canViewResponses", "can_view_responses"),
+    "can_edit_responses": ("canEditResponses", "can_edit_responses"),
+    "can_delete_responses": ("canDeleteResponses", "can_delete_responses"),
+    "response_visibility": ("responseVisibility", "response_visibility"),
+    "can_create_versions": ("canCreateVersions", "can_create_versions"),
+    "can_edit_design": ("canEditDesign", "can_edit_design"),
+    "can_clone_form": ("canCloneForm", "can_clone_form"),
+    "can_manage_access": ("canManageAccess", "can_manage_access"),
+    "can_view_audit_logs": ("canViewAuditLogs", "can_view_audit_logs"),
+    "can_delete_form": ("canDeleteForm", "can_delete_form"),
+    "form_visibility": ("formVisibility", "form_visibility"),
+    "allowed_departments": ("allowedDepartments", "allowed_departments"),
+}
+
+
+def _normalize_access_policy_payload(data):
+    normalized = {}
+    for canonical_key, aliases in ACCESS_POLICY_FIELD_ALIASES.items():
+        for alias in aliases:
+            if alias in data and data[alias] is not None:
+                normalized[canonical_key] = data[alias]
+                break
+    return normalized
+
+
+def _serialize_lookup_value(value):
+    if isinstance(value, dict):
+        return {key: _serialize_lookup_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_serialize_lookup_value(item) for item in value]
+    if isinstance(value, UUID):
+        return str(value)
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
+
+
+def _lookup_value_matches(actual_value, expected_value):
+    if isinstance(actual_value, dict):
+        return False
+    if isinstance(actual_value, list):
+        return any(_lookup_value_matches(item, expected_value) for item in actual_value)
+
+    actual_normalized = _serialize_lookup_value(actual_value)
+    expected_normalized = _serialize_lookup_value(expected_value)
+    if actual_normalized == expected_normalized:
+        return True
+    if actual_normalized is None or expected_normalized is None:
+        return False
+    return str(actual_normalized).strip() == str(expected_normalized).strip()
+
+
+def _build_lookup_candidates(form, question_id):
+    candidates = {}
+
+    def register(candidate_key, metadata):
+        key = str(candidate_key or "").strip()
+        if not key:
+            return
+        bucket = candidates.setdefault(key, [])
+        if metadata not in bucket:
+            bucket.append(metadata)
+
+    register(
+        question_id,
+        {
+            "question_id": question_id,
+            "variable_name": None,
+            "section_id": None,
+        },
+    )
+
+    versions = getattr(form, "versions", None) or []
+    latest_version = versions[-1] if versions else None
+    snapshot = getattr(latest_version, "resolved_snapshot", {}) if latest_version else {}
+    sections = snapshot.get("sections", []) if isinstance(snapshot, dict) else []
+
+    def walk(section_list, parent_section_ids=None):
+        parent_section_ids = list(parent_section_ids or [])
+        for section in section_list or []:
+            section_id = str(section.get("id") or "").strip()
+            next_section_ids = parent_section_ids + ([section_id] if section_id else [])
+            for question in section.get("questions", []) or []:
+                raw_question_id = str(question.get("id") or "").strip()
+                variable_name = str(question.get("variable_name") or "").strip()
+                metadata = {
+                    "question_id": raw_question_id or variable_name or question_id,
+                    "variable_name": variable_name or None,
+                    "section_id": section_id or None,
+                    "section_path": next_section_ids,
+                }
+                for candidate_key in (raw_question_id, variable_name):
+                    register(candidate_key, metadata)
+            walk(section.get("sections", []), next_section_ids)
+
+    walk(sections)
+    return candidates
+
+
+def _collect_lookup_matches(node, candidates, expected_value, path=None):
+    path = list(path or [])
+    matches = []
+
+    if isinstance(node, dict):
+        for key, value in node.items():
+            key_str = str(key)
+            next_path = path + [key_str]
+
+            if key_str in candidates and _lookup_value_matches(value, expected_value):
+                for metadata in candidates[key_str]:
+                    match = {
+                        "question_id": metadata.get("question_id"),
+                        "field_key": key_str,
+                        "path": next_path,
+                        "value": _serialize_lookup_value(value),
+                    }
+                    if metadata.get("variable_name"):
+                        match["variable_name"] = metadata["variable_name"]
+                    if metadata.get("section_id"):
+                        match["section_id"] = metadata["section_id"]
+                    if metadata.get("section_path"):
+                        match["section_path"] = metadata["section_path"]
+                    matches.append(match)
+
+            matches.extend(
+                _collect_lookup_matches(value, candidates, expected_value, next_path)
+            )
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            matches.extend(
+                _collect_lookup_matches(item, candidates, expected_value, path + [index])
+            )
+
+    return matches
+
+
+def _dedupe_lookup_matches(matches):
+    unique_matches = []
+    seen = set()
+
+    for match in matches:
+        signature = (
+            tuple(str(part) for part in match.get("path", [])),
+            match.get("field_key"),
+            match.get("question_id"),
+            match.get("section_id"),
+            match.get("variable_name"),
+        )
+        if signature in seen:
+            continue
+        seen.add(signature)
+        unique_matches.append(match)
+
+    return unique_matches
 
 
 @advanced_responses_bp.route("/", methods=["GET"])
@@ -157,58 +357,112 @@ def fetch_same_form_data(form_id):
     Fetch data from same form response where some question may have match for a value.
     Query Params: question_id, value
     """
-    question_id = request.args.get("question_id")
-    value = request.args.get("value")
+    question_id = (request.args.get("question_id") or "").strip()
+    value = (request.args.get("value") or "").strip()
 
-    app_logger.info(
-        f"Fetching same form data for form {form_id}: question_id={question_id}, value={value}"
+    safe_log_info(
+        app_logger,
+        "Fetching same form data for form %s and question %s",
+        form_id,
+        question_id,
     )
 
-    if not all([question_id, value]):
-        return jsonify({"error": "Missing question_id or value"}), 400
+    missing_fields = {}
+    if not question_id:
+        missing_fields["question_id"] = ["required"]
+    if not value:
+        missing_fields["value"] = ["required"]
+    if missing_fields:
+        return error_response(
+            message="Missing required query parameter(s)",
+            field_errors=missing_fields,
+            status_code=400,
+        )
 
     try:
         current_user = get_current_user()
+        if not current_user:
+            return error_response(message="User not found", status_code=401)
+
+        try:
+            form_uuid = UUID(str(form_id))
+        except ValueError:
+            return error_response(message="Invalid form ID format", status_code=400)
+
         form = Form.objects.get(
-            id=form_id, organization_id=current_user.organization_id
+            id=form_uuid,
+            organization_id=current_user.organization_id,
+            is_deleted=False,
         )
 
         if not has_form_permission(current_user, form, "view"):
             error_logger.warning(
                 f"Unauthorized same-form data fetch attempt by user {current_user.id} for form {form_id}"
             )
-            return jsonify({"error": "Unauthorized to view this form"}), 403
+            return error_response(message="Unauthorized to view this form", status_code=403)
 
-        responses = FormResponse.objects(
-            __raw__={
-                "form": form.id,
-                "deleted": False,
-                "$or": (
-                    [
-                        {f"data.{section.get('id')}.{question_id}": value}
-                        for section in (
-                            form.versions[-1].resolved_snapshot.get("sections", [])
-                            if form.versions
-                            else []
-                        )
-                    ]
-                    if form.versions
-                    else []
-                ),
-            }
+        target_form_binary = Binary.from_uuid(
+            form_uuid, uuid_representation=UuidRepresentation.PYTHON_LEGACY
         )
+        response_query = FormResponse.objects(
+            __raw__={
+                "organization_id": current_user.organization_id,
+                "form": target_form_binary,
+                "is_deleted": False,
+            }
+        ).order_by("-submitted_at")
+
+        lookup_candidates = _build_lookup_candidates(form, question_id)
+
+        items = []
+        for response in response_query:
+            response_payload = {}
+            if hasattr(response, "get_decrypted_data") and callable(
+                response.get_decrypted_data
+            ):
+                response_payload = response.get_decrypted_data() or {}
+            else:
+                response_payload = getattr(response, "data", {}) or {}
+
+            matches = _dedupe_lookup_matches(
+                _collect_lookup_matches(response_payload, lookup_candidates, value)
+            )
+            if not matches:
+                continue
+
+            items.append(
+                {
+                    "response_metadata": {
+                        "response_id": str(response.id),
+                        "submitted_at": _serialize_lookup_value(
+                            getattr(response, "submitted_at", None)
+                        ),
+                        "submitted_by": getattr(response, "submitted_by", None),
+                        "status": getattr(response, "status", None),
+                        "review_status": getattr(response, "review_status", None),
+                    },
+                    "matched_data": matches,
+                }
+            )
+
+        result = {
+            "form_id": str(form.id),
+            "query": {"question_id": question_id, "value": value},
+            "count": len(items),
+            "items": items,
+        }
 
         app_logger.info(
-            f"Fetched {len(responses)} same-form responses for form {form_id}"
+            f"Fetched {len(items)} same-form responses for form {form_id}"
         )
-        return jsonify([r.to_mongo().to_dict() for r in responses]), 200
+        return success_response(data=result)
 
     except DoesNotExist:
         error_logger.warning(f"Form {form_id} not found during same-form data fetch")
-        return jsonify({"error": "Form not found"}), 404
+        return error_response(message="Form not found", status_code=404)
     except Exception as e:
-        error_logger.error(f"Error fetching same-form data: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        error_logger.error(f"Error fetching same-form data: {str(e)}", exc_info=True)
+        return error_response(message=str(e), status_code=500)
 
 
 @advanced_responses_bp.route("/<form_id>/responses/questions", methods=["GET"])
@@ -384,7 +638,7 @@ def get_form_access_control(form_id):
         }
 
         # Context details
-        policy = form.access_policy if hasattr(form, "access_policy") else None
+        policy = getattr(form, "access_policy", None) or None
 
         app_logger.info(f"Access control report generated for form {form_id}")
         return (
@@ -402,13 +656,25 @@ def get_form_access_control(form_id):
                     "policy_summary": (
                         {
                             "visibility": (
-                                policy.form_visibility if policy else "legacy"
+                                policy_value(policy, "form_visibility", "formVisibility")
+                                if policy
+                                else "legacy"
                             ),
                             "response_scope": (
-                                policy.response_visibility if policy else "legacy"
+                                policy_value(
+                                    policy, "response_visibility", "responseVisibility"
+                                )
+                                if policy
+                                else "legacy"
                             ),
                             "allowed_departments": (
-                                policy.allowed_departments if policy else []
+                                policy_list(
+                                    policy,
+                                    "allowed_departments",
+                                    "allowedDepartments",
+                                )
+                                if policy
+                                else []
                             ),
                         }
                         if policy
@@ -465,33 +731,12 @@ def update_access_policy(form_id):
 
         pol_data = data.get("access_policy", data)
 
-        # Initialize if missing
-        if not form.access_policy:
-            from models import AccessPolicy
+        if not isinstance(form.access_policy, dict):
+            form.access_policy = dict(form.access_policy or {})
 
-            form.access_policy = AccessPolicy()
-
-        # Update fields
-        fields = [
-            "can_view_responses",
-            "can_edit_responses",
-            "can_delete_responses",
-            "response_visibility",
-            "can_create_versions",
-            "can_edit_design",
-            "can_clone_form",
-            "can_manage_access",
-            "can_view_audit_logs",
-            "can_delete_form",
-            "form_visibility",
-            "allowed_departments",
-        ]
-
-        updated_fields = []
-        for field in fields:
-            if field in pol_data:
-                setattr(form.access_policy, field, pol_data[field])
-                updated_fields.append(field)
+        normalized_updates = _normalize_access_policy_payload(pol_data)
+        updated_fields = sorted(normalized_updates.keys())
+        form.access_policy.update(normalized_updates)
 
         form.save()
         audit_logger.info(
@@ -501,7 +746,7 @@ def update_access_policy(form_id):
             jsonify(
                 {
                     "message": "Access policy updated successfully",
-                    "policy": form.access_policy.to_mongo().to_dict(),
+                    "policy": form.access_policy,
                 }
             ),
             200,

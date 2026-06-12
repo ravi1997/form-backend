@@ -6,6 +6,7 @@ from models.Form import Form, Project
 from models.AccessControl import ResourceAccessControl
 from logger.unified_logger import app_logger
 from utils.sensitive_data_redaction import safe_log_info
+from utils.access_policy_utils import policy_list, policy_value
 
 
 class AccessControlService:
@@ -103,11 +104,7 @@ class AccessControlService:
             return False
 
         # 6. Access Policy / Form ACLs
-        policy = (
-            form.access_policy
-            if hasattr(form, "access_policy") and form.access_policy
-            else None
-        )
+        policy = getattr(form, "access_policy", None) or None
 
         # VIEW FORM
         if action == "view":
@@ -119,15 +116,17 @@ class AccessControlService:
                 )
                 return True
             if policy:
-                if policy.form_visibility == "public":
+                if policy_value(policy, "form_visibility", "formVisibility") == "public":
                     safe_log_info(
                         app_logger,
                         "View permission granted for user %s via public policy",
                         user_id_str,
                     )
                     return True
-                if policy.form_visibility == "restricted":
-                    if user_dept and user_dept in (policy.allowed_departments or []):
+                if policy_value(policy, "form_visibility", "formVisibility") == "restricted":
+                    if user_dept and user_dept in policy_list(
+                        policy, "allowed_departments", "allowedDepartments"
+                    ):
                         safe_log_info(
                             app_logger,
                             "View permission granted for user %s via department %s",
@@ -135,7 +134,9 @@ class AccessControlService:
                             user_dept,
                         )
                         return True
-                    if is_in_list(policy.can_view_responses):
+                    if is_in_list(
+                        policy_list(policy, "can_view_responses", "canViewResponses")
+                    ):
                         safe_log_info(
                             app_logger,
                             "View permission granted for user %s via can_view_responses list",
@@ -165,7 +166,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_edit_design):
+            if policy and is_in_list(
+                policy_list(policy, "can_edit_design", "canEditDesign")
+            ):
                 safe_log_info(
                     app_logger,
                     "Edit permission granted for user %s via policy can_edit_design",
@@ -184,7 +187,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_manage_access):
+            if policy and is_in_list(
+                policy_list(policy, "can_manage_access", "canManageAccess")
+            ):
                 safe_log_info(
                     app_logger,
                     "Manage access permission granted for user %s via policy can_manage_access",
@@ -205,7 +210,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_view_responses):
+            if policy and is_in_list(
+                policy_list(policy, "can_view_responses", "canViewResponses")
+            ):
                 safe_log_info(
                     app_logger,
                     "View responses permission granted for user %s via policy can_view_responses",
@@ -226,7 +233,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_edit_responses):
+            if policy and is_in_list(
+                policy_list(policy, "can_edit_responses", "canEditResponses")
+            ):
                 safe_log_info(
                     app_logger,
                     "Edit responses permission granted for user %s via policy can_edit_responses",
@@ -247,7 +256,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_delete_responses):
+            if policy and is_in_list(
+                policy_list(policy, "can_delete_responses", "canDeleteResponses")
+            ):
                 safe_log_info(
                     app_logger,
                     "Delete responses permission granted for user %s via policy can_delete_responses",
@@ -270,7 +281,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_view_audit_logs):
+            if policy and is_in_list(
+                policy_list(policy, "can_view_audit_logs", "canViewAuditLogs")
+            ):
                 safe_log_info(
                     app_logger,
                     "View audit permission granted for user %s via policy can_view_audit_logs",
@@ -291,7 +304,9 @@ class AccessControlService:
                     user_id_str,
                 )
                 return True
-            if policy and is_in_list(policy.can_delete_form):
+            if policy and is_in_list(
+                policy_list(policy, "can_delete_form", "canDeleteForm")
+            ):
                 safe_log_info(
                     app_logger,
                     "Delete form permission granted for user %s via policy can_delete_form",
@@ -534,4 +549,3 @@ class AccessControlService:
                 else:
                     masked_data[field] = "****"
         return masked_data
-

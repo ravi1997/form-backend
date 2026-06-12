@@ -3,11 +3,13 @@ import hashlib
 import hmac
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 import requests
 
 from config.settings import settings
 from models.WebhookDeliveryLog import WebhookDeliveryLog
+from models import Form, Trigger
 from services.redis_service import redis_service
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
@@ -26,21 +28,85 @@ class WebhookService:
     @classmethod
     def list_webhooks(cls, form_id, user_id):
         app_logger.info(f"Listing webhooks for form {form_id} by user {user_id}")
-        return []
+        form = Form.objects(id=form_id, is_deleted=False).first()
+        if not form:
+            return []
+        if user_id and not cls._can_manage_form(form, str(user_id)):
+            app_logger.warning(
+                f"User {user_id} not authorized to list webhooks for form {form_id}"
+            )
+            return []
+
+        webhooks = [
+            cls._serialize_trigger(form, trigger)
+            for trigger in (form.triggers or [])
+            if getattr(trigger, "action_type", None) == "webhook"
+        ]
+        webhooks.sort(key=lambda item: (item.get("order") or "", item.get("name") or ""))
+        return webhooks
 
     @classmethod
     def create_webhook(cls, **kwargs):
-        app_logger.info("Creating new webhook stub")
-        audit_logger.info(
-            "Webhook created (stub)",
-            extra={"event": "webhook_created", "webhook_id": "stub_webhook_id"},
+        app_logger.info("Creating new webhook")
+        form_id = kwargs.get("form_id")
+        if not form_id:
+            raise ValueError("form_id is required")
+
+        form = Form.objects(id=form_id, is_deleted=False).first()
+        if not form:
+            raise ValueError("Form not found")
+
+        user_id = kwargs.get("user_id") or kwargs.get("created_by")
+        if user_id and not cls._can_manage_form(form, str(user_id)):
+            raise PermissionError("User is not authorized to manage webhooks for this form")
+
+        webhook_id = str(kwargs.get("webhook_id") or kwargs.get("id") or uuid4())
+        existing = cls.get_webhook(webhook_id, user_id)
+        if existing:
+            raise ValueError("Webhook already exists")
+
+        trigger = Trigger(
+            name=kwargs.get("name") or webhook_id,
+            event_type=kwargs.get("event_type") or kwargs.get("event") or "on_submit",
+            action_type="webhook",
+            action_config=dict(kwargs.get("action_config") or kwargs.get("config") or {}),
+            custom_script=kwargs.get("custom_script"),
+            is_active=kwargs.get("is_active", True),
+            order=str(kwargs.get("order") or (len(form.triggers or []) + 1)),
+            meta_data=dict(kwargs.get("meta_data") or {}),
         )
-        return {"id": "stub_webhook_id"}
+        trigger.meta_data["webhook_id"] = webhook_id
+        trigger.meta_data.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+        trigger.meta_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        if kwargs.get("description"):
+            trigger.meta_data["description"] = kwargs["description"]
+
+        form.triggers = list(form.triggers or [])
+        form.triggers.append(trigger)
+        form.save()
+
+        created = cls._serialize_trigger(form, trigger)
+        audit_logger.info(
+            "Webhook created",
+            extra={
+                "event": "webhook_created",
+                "webhook_id": webhook_id,
+                "form_id": form_id,
+                "created_by": str(user_id or ""),
+            },
+        )
+        return created
 
     @classmethod
     def get_webhook(cls, webhook_id, user_id):
         app_logger.info(f"Fetching webhook {webhook_id} for user {user_id}")
-        return None
+        match = cls._find_webhook(webhook_id)
+        if not match:
+            return None
+        form, trigger = match
+        if user_id and not cls._can_manage_form(form, str(user_id)):
+            return None
+        return cls._serialize_trigger(form, trigger)
 
     @classmethod
     def construct_delivery_envelope(cls, payload, attempt=1):
@@ -55,6 +121,21 @@ class WebhookService:
     @classmethod
     def delete_webhook(cls, webhook_id, user_id):
         app_logger.info(f"Deleting webhook {webhook_id} by user {user_id}")
+        match = cls._find_webhook(webhook_id)
+        if not match:
+            return False
+        form, trigger = match
+        if user_id and not cls._can_manage_form(form, str(user_id)):
+            raise PermissionError(
+                "User is not authorized to delete webhooks for this form"
+            )
+
+        form.triggers = [
+            existing
+            for existing in (form.triggers or [])
+            if cls._trigger_id(existing) != webhook_id
+        ]
+        form.save()
         audit_logger.info(
             f"Webhook {webhook_id} deleted by user {user_id}",
             extra={
@@ -68,11 +149,42 @@ class WebhookService:
     @classmethod
     def trigger_test(cls, webhook_id, user_id):
         app_logger.info(f"Triggering test for webhook {webhook_id} by user {user_id}")
-        return {"success": True}
+        match = cls._find_webhook(webhook_id)
+        if not match:
+            raise ValueError("Webhook not found")
+        form, trigger = match
+        if user_id and not cls._can_manage_form(form, str(user_id)):
+            raise PermissionError("User is not authorized to test this webhook")
+
+        action_config = trigger.action_config or {}
+        url = action_config.get("url")
+        if not url:
+            raise ValueError("Webhook URL is required")
+
+        payload = {
+            "event": "webhook.test",
+            "webhook_id": webhook_id,
+            "form_id": str(form.id),
+            "created_by": str(user_id or ""),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "trigger_name": trigger.name,
+        }
+        return cls.send_webhook(
+            url=url,
+            payload=payload,
+            webhook_id=webhook_id,
+            form_id=str(form.id),
+            created_by=str(user_id) if user_id else None,
+            max_retries=int(action_config.get("max_retries", cls.DEFAULT_MAX_RETRIES)),
+            headers=action_config.get("headers"),
+            timeout=int(action_config.get("timeout", 30)),
+        )
 
     @classmethod
     def get_logs(cls, webhook_id, user_id, limit=50):
         app_logger.info(f"Fetching logs for webhook {webhook_id} by user {user_id}")
+        if webhook_id:
+            return cls.get_webhook_logs(webhook_id=webhook_id, limit=limit)
         return cls.get_webhook_logs(limit=limit)
 
     @classmethod
@@ -261,12 +373,17 @@ class WebhookService:
     @classmethod
     def get_webhook_logs(
         cls,
+        webhook_id: Optional[str] = None,
         url: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        app_logger.info(f"Fetching webhook logs (url={url}, status={status})")
+        app_logger.info(
+            f"Fetching webhook logs (webhook_id={webhook_id}, url={url}, status={status})"
+        )
         query = WebhookDeliveryLog.objects
+        if webhook_id:
+            query = query(webhook_id=webhook_id)
         if url:
             query = query(url=url)
         if status:
@@ -469,6 +586,50 @@ class WebhookService:
         log = WebhookDeliveryLog.from_record(record)
         log.save()
         return log
+
+    @classmethod
+    def _trigger_id(cls, trigger: Trigger) -> str:
+        meta_data = getattr(trigger, "meta_data", {}) or {}
+        return str(meta_data.get("webhook_id") or meta_data.get("id") or "")
+
+    @classmethod
+    def _serialize_trigger(cls, form: Form, trigger: Trigger) -> Dict[str, Any]:
+        meta_data = dict(getattr(trigger, "meta_data", {}) or {})
+        webhook_id = cls._trigger_id(trigger) or meta_data.get("webhook_id") or ""
+        return {
+            "id": webhook_id,
+            "webhook_id": webhook_id,
+            "form_id": str(form.id),
+            "name": trigger.name,
+            "event_type": trigger.event_type,
+            "action_type": trigger.action_type,
+            "action_config": dict(trigger.action_config or {}),
+            "custom_script": trigger.custom_script,
+            "is_active": bool(trigger.is_active),
+            "order": trigger.order,
+            "meta_data": meta_data,
+        }
+
+    @classmethod
+    def _find_webhook(cls, webhook_id: str):
+        if not webhook_id:
+            return None
+        for form in Form.objects(is_deleted=False):
+            for trigger in (form.triggers or []):
+                if getattr(trigger, "action_type", None) != "webhook":
+                    continue
+                if cls._trigger_id(trigger) == str(webhook_id):
+                    return form, trigger
+        return None
+
+    @classmethod
+    def _can_manage_form(cls, form: Form, user_id: str) -> bool:
+        if not user_id:
+            return False
+        if str(getattr(form, "created_by", "")) == str(user_id):
+            return True
+        editors = [str(editor) for editor in (form.editors or [])]
+        return str(user_id) in editors
 
 
 webhook_service = WebhookService()

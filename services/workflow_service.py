@@ -9,7 +9,7 @@ from mongoengine.errors import DoesNotExist
 from logger.unified_logger import app_logger, audit_logger, error_logger
 from services.base import BaseService
 from utils.exceptions import NotFoundError, StateTransitionError, ForbiddenError
-from models import WorkflowInstance, User, FormResponse
+from models import WorkflowInstance, User, FormResponse, UserGroup
 from models.WorkflowInstance import ApprovalLog  # FIX: was missing, caused NameError
 from schemas.workflow_instance import WorkflowInstanceSchema
 from schemas.base import InboundPayloadSchema
@@ -109,6 +109,12 @@ class WorkflowInstanceService(BaseService):
                 "Critical Error: Current workflow step definition is missing"
             )
 
+        try:
+            user = User.objects.get(id=user_id)
+        except DoesNotExist:
+            error_logger.error(f"Approving user {user_id} not found in database")
+            raise NotFoundError(f"Approving user {user_id} not found")
+
         # Check if user already approved this step (prevent double-counting)
         step_key = str(instance.current_step_order)
         if step_key not in instance.step_approvals:
@@ -122,9 +128,17 @@ class WorkflowInstanceService(BaseService):
 
         is_authorized = any(str(u_id) == user_id for u_id in current_step.approvers)
         if not is_authorized and current_step.approver_groups:
-            # Placeholder: In a real system, we'd check group membership
-            # For this pass, we'll assume the service layer or RBAC decorator handled group check if passed
-            pass
+            group_ids = [str(getattr(group, "id", group)) for group in current_step.approver_groups]
+            for group in UserGroup.objects(
+                id__in=group_ids,
+                organization_id=instance.organization_id,
+                is_deleted=False,
+                is_active=True,
+            ):
+                members = group.members or []
+                if any(str(getattr(member, "id", member)) == user_id for member in members):
+                    is_authorized = True
+                    break
 
         if not is_authorized:
             app_logger.warning(
@@ -133,14 +147,6 @@ class WorkflowInstanceService(BaseService):
             raise ForbiddenError(
                 "You are not authorized to approve/reject at this step"
             )
-
-        # ── Fetch Actor User ────────────────────────────────────────────────
-        # FIX: catch DoesNotExist instead of letting it propagate as 500
-        try:
-            user = User.objects.get(id=user_id)
-        except DoesNotExist:
-            error_logger.error(f"Approving user {user_id} not found in database")
-            raise NotFoundError(f"Approving user {user_id} not found")
 
         # ── Record History ──────────────────────────────────────────────────
         log_entry = ApprovalLog(
@@ -295,7 +301,22 @@ class WorkflowInstanceService(BaseService):
                 continue
 
             # Check if user is one of the approvers
-            if user_id in current_step.approvers:
+            is_direct = user_id in [str(u) for u in (current_step.approvers or [])]
+            is_group = False
+            if not is_direct and current_step.approver_groups:
+                group_ids = [str(g) for g in (current_step.approver_groups or [])]
+                for group in UserGroup.objects(
+                    id__in=group_ids,
+                    organization_id=organization_id,
+                    is_deleted=False,
+                    is_active=True,
+                ):
+                    members = group.members or []
+                    if any(str(getattr(member, "id", member)) == user_id for member in members):
+                        is_group = True
+                        break
+
+            if is_direct or is_group:
                 # Check if they have not approved yet
                 step_key = str(instance.current_step_order)
                 approved_users = (

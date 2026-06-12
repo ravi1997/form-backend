@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Union
 import requests
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from models.components import Trigger
+from utils.script_engine import execute_safe_script
 
 
 class NotificationService:
@@ -133,12 +134,17 @@ class NotificationService:
     @staticmethod
     def _run_custom_logic(script: str, data: Dict):
         """
-        SAFE execution of dynamic scripts.
-        In production, this should use a restricted sandbox (like PyExecJS or a secure eval).
+        Execute a small expression-only script safely.
+        This keeps the existing execute_script notification path usable without
+        enabling arbitrary code execution.
         """
-        app_logger.warning("Attempted custom script execution")
-        error_logger.error("Custom script execution blocked for security reasons.")
-        raise NotImplementedError("Custom scripts are disabled for security reasons.")
+        app_logger.info("Executing safe custom notification logic")
+        result = execute_safe_script(script or "", input_data=data or {})
+        audit_logger.info(
+            "Custom notification logic executed",
+            extra={"event": "notification_custom_logic", "result": result.get("result")},
+        )
+        return result
 
 
 class NotificationObservability:

@@ -28,6 +28,33 @@ def test_has_form_permission_blocks_cross_tenant_access():
     assert has_form_permission(user, form, "submit") is False
 
 
+def test_has_form_permission_reads_dict_access_policy():
+    user = SimpleNamespace(
+        id="user-2",
+        roles=["manager"],
+        department="ops",
+        organization_id="org-a",
+        is_superadmin_check=lambda: False,
+    )
+    form = SimpleNamespace(
+        id="form-2",
+        organization_id="org-a",
+        created_by="creator-1",
+        viewers=[],
+        editors=[],
+        submitters=[],
+        is_public=False,
+        access_policy={
+            "formVisibility": "restricted",
+            "allowedDepartments": ["ops"],
+            "canViewResponses": ["manager"],
+        },
+    )
+
+    assert has_form_permission(user, form, "view") is True
+    assert has_form_permission(user, form, "view_responses") is True
+
+
 def test_event_bus_message_get_supports_decoded_redis_payloads():
     message = {"payload": '{"ok": true}', "organization_id": "org-1"}
 

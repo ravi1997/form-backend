@@ -84,8 +84,51 @@ def _backend_widget(widget):
     }
 
 
-def _docs_dashboard(dashboard):
-    widgets = [_docs_widget(widget) for widget in (dashboard.widgets or [])]
+def _resolve_widget_payloads(dashboard, org_id, runtime_filters=None):
+    widgets_data = []
+    for w in dashboard.widgets or []:
+        from bson import DBRef
+
+        raw_form_ref = w._data.get("form_ref") if hasattr(w, "_data") else None
+        form_id_str = None
+        if raw_form_ref:
+            if isinstance(raw_form_ref, DBRef):
+                form_id_str = str(raw_form_ref.id)
+            elif hasattr(raw_form_ref, "id"):
+                form_id_str = str(raw_form_ref.id)
+            else:
+                form_id_str = str(raw_form_ref)
+        widget_dict = {
+            "id": str(w.id),
+            "title": w.title,
+            "type": w.type,
+            "form_ref": form_id_str,
+            "group_by_field": w.group_by_field,
+            "aggregate_field": w.aggregate_field,
+            "calculation_type": w.calculation_type,
+            "filters": w.filters or {},
+            "size": w.size,
+            "color_scheme": w.color_scheme,
+            "position_x": w.position_x,
+            "position_y": w.position_y,
+            "width": w.width,
+            "height": w.height,
+            "display_columns": w.display_columns or [],
+            "config": w.config or {},
+        }
+        widget_schema = WidgetSchema(**widget_dict)
+        widgets_data.append(
+            resolve_widget_data(widget_schema, org_id, runtime_filters)
+        )
+    return widgets_data
+
+
+def _docs_dashboard(dashboard, widgets_override=None):
+    widgets = (
+        widgets_override
+        if widgets_override is not None
+        else [_docs_widget(widget) for widget in (dashboard.widgets or [])]
+    )
     return {
         "_id": str(dashboard.id),
         "org_id": str(getattr(dashboard, "organization_id", "")),
@@ -229,7 +272,14 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
     pipeline = [{"$match": raw_query}]
 
     try:
-        if widget.type in ["chart_bar", "chart_pie", "chart_line"]:
+        if widget.type in [
+            "chart_bar",
+            "chart_pie",
+            "chart_line",
+            "bar_chart",
+            "pie_chart",
+            "line_chart",
+        ]:
             group_by = widget.group_by_field
             agg_field = widget.aggregate_field
             calc_type = widget.calculation_type
@@ -265,10 +315,10 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             values = [r["value"] for r in results]
             res_data = {"labels": labels, "values": values}
 
-        elif widget.type in ["counter", "kpi"]:
+        elif widget.type in ["counter", "kpi", "kpi_card"]:
             res_data = FormResponse.objects(**mongo_query).count()
 
-        elif widget.type in ["table", "list_view"]:
+        elif widget.type in ["table", "list_view", "data_table"]:
             limit = widget.config.get("limit", 10)
             results = (
                 FormResponse.objects(**mongo_query)
@@ -327,16 +377,20 @@ def get_dashboard(slug):
                 real_key = key[7:]
                 runtime_filters[real_key] = val
 
-        # Resolve Widget Data
-        widgets_data = [resolve_widget_data(w, org_id, runtime_filters) for w in dashboard.widgets]
-
-        result = dashboard.model_dump()
-        result["widgets"] = widgets_data
+        # Resolve widget data for runtime preview.
+        widgets_data = _resolve_widget_payloads(
+            dashboard,
+            org_id,
+            runtime_filters,
+        )
+        payload = _docs_dashboard(dashboard, widgets_override=widgets_data)
 
         app_logger.info(
             f"Dashboard {slug} data retrieved successfully for user {user_id}"
         )
-        return success_response(data={"dashboard": _docs_dashboard(dashboard)})
+        return success_response(
+            data={**payload, "widgets": widgets_data, "dashboard": payload}
+        )
     except NotFoundError:
         app_logger.warning(
             f"Dashboard {slug} not found for org {org_id} (requested by user {user_id})"
@@ -366,6 +420,27 @@ def get_dashboard_canvas(dashboard_id):
 
     try:
         canvas = dashboard_service.get_canvas(dashboard_id, organization_id=org_id)
+        include_data = str(request.args.get("include_data", "")).lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if include_data:
+            from models.Dashboard import Dashboard
+
+            dashboard = Dashboard.objects.get(
+                id=dashboard_id, organization_id=org_id, is_deleted=False
+            )
+            runtime_filters = {}
+            for key, val in request.args.items():
+                if key.startswith("filter_"):
+                    runtime_filters[key[7:]] = val
+            canvas["widgets"] = _resolve_widget_payloads(
+                dashboard,
+                org_id,
+                runtime_filters,
+            )
         return success_response(data=canvas)
     except NotFoundError:
         return error_response(message="Dashboard not found", status_code=404)

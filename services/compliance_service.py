@@ -185,8 +185,8 @@ class ComplianceService(BaseService):
         # Update tenant usage submissions count
         if pruned_count > 0:
             total_active_submissions = FormResponse.objects(organization_id=organization_id, is_deleted=False).count()
-            settings.usage_submissions_count = total_active_submissions
-            settings.save()
+            tenant_settings.usage_submissions_count = total_active_submissions
+            tenant_settings.save()
 
         audit_logger.info(f"AUDIT: Executed retention policy for tenant {organization_id}. Pruned: {pruned_count}, Held: {held_count}")
         return {"pruned_count": pruned_count, "held_count": held_count, "pruned_ids": pruned_ids}
