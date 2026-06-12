@@ -38,6 +38,7 @@ def test_process_action_allows_group_members():
     instance = _make_workflow_instance()
     service = WorkflowInstanceService()
     service.model = SimpleNamespace(objects=lambda **kwargs: _Query([instance]))
+    service._to_schema = lambda document: SimpleNamespace(status=document.status)
 
     user = SimpleNamespace(id="user-1")
     group = SimpleNamespace(
@@ -65,6 +66,7 @@ def test_list_pending_approvals_includes_group_members():
     instance = _make_workflow_instance()
     service = WorkflowInstanceService()
     service.model = SimpleNamespace(objects=lambda **kwargs: _Query([instance]))
+    service._to_schema = lambda document: document
 
     group = SimpleNamespace(
         id="group-1",
