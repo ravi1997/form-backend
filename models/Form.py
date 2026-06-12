@@ -25,6 +25,26 @@ from models.base import BaseDocument, BaseEmbeddedDocument, SoftDeleteMixin
 from models.components import Condition, Trigger, LogicComponent, UIComponent
 from models.Taxonomy import TaxonomyItem
 
+
+def default_data_export_settings():
+    return {
+        "csv_defaults": {
+            "delimiter": ",",
+            "header_mode": "labels",
+            "empty_field_value": "",
+            "date_format": "iso8601",
+            "timezone": "UTC",
+            "encoding": "utf-8",
+            "include_attachments": False,
+        },
+        "retention_days": None,
+        "field_mapping": {},
+        "anonymization": {
+            "mode": "none",
+            "fields": [],
+        },
+    }
+
 # --- Question Specific Components ---
 
 
@@ -125,6 +145,18 @@ class ResponseTemplate(BaseEmbeddedDocument):
     structure = StringField()
     tags = ListField(StringField())
     meta_data = DictField()
+
+
+class QuickResponse(BaseEmbeddedDocument):
+    """Reusable quick-fill preset for response drafting."""
+
+    name = StringField(required=True, max_length=255)
+    description = StringField()
+    tags = ListField(StringField(), default=list)
+    visibility = StringField(choices=["personal", "project", "org"], default="personal")
+    owner_id = StringField()
+    field_values = DictField(default=dict)
+    is_archived = BooleanField(default=False)
 
 
 # --- Core Hierarchy Models ---
@@ -298,10 +330,16 @@ class Form(BaseDocument, SoftDeleteMixin):
         "collection": "forms",
         "indexes": [
             "slug",
+            "slug_history",
             "status",
             "created_by",
             "active_version",
             "organization_id",
+            {
+                "fields": ["organization_id", "advanced_settings.internal_code"],
+                "name": "org_internal_code_idx",
+                "sparse": True,
+            },
         ],
         "index_background": True,
     }
@@ -340,6 +378,11 @@ class Form(BaseDocument, SoftDeleteMixin):
     style = DictField()
     workflows = DictField()
     access_policy = DictField()
+    submission_settings = DictField()
+    data_export_settings = DictField(default=default_data_export_settings)
+    advanced_settings = DictField(default=dict)
+    slug_history = ListField(StringField(), default=list)
+    quick_responses = ListField(EmbeddedDocumentField(QuickResponse), default=list)
     response_templates = ListField(EmbeddedDocumentField(ResponseTemplate))
     triggers = ListField(EmbeddedDocumentField(Trigger))
 
@@ -521,6 +564,10 @@ class FormVersion(BaseDocument):
     snapshot_ref = ReferenceField(SnapshotStore)
     translations = DictField()
     access_policy = DictField()
+    submission_settings = DictField()
+    data_export_settings = DictField(default=default_data_export_settings)
+    advanced_settings = DictField(default=dict)
+    quick_responses = ListField(EmbeddedDocumentField(QuickResponse), default=list)
     status = StringField(choices=STATUS_CHOICES, default="draft")
     classification_enabled = BooleanField(default=False)
     classification_taxonomy = ListField(EmbeddedDocumentField(TaxonomyItem))
@@ -558,7 +605,31 @@ class FormVersion(BaseDocument):
                         data["id"] = str(data.pop("_id"))
                     sections_data.append(data)
 
-        return {"sections": sections_data}
+        snapshot = {"sections": sections_data}
+        submission_settings = getattr(self, "submission_settings", None)
+        if submission_settings is not None:
+            snapshot["submission_settings"] = submission_settings
+        quick_responses = getattr(self, "quick_responses", None)
+        if quick_responses is not None:
+            quick_response_snapshots = []
+            for qr in quick_responses:
+                if hasattr(qr, "to_mongo"):
+                    data = qr.to_mongo().to_dict()
+                elif isinstance(qr, dict):
+                    data = dict(qr)
+                else:
+                    data = {}
+                if "_id" in data:
+                    data["id"] = str(data.pop("_id"))
+                quick_response_snapshots.append(data)
+            snapshot["quick_responses"] = quick_response_snapshots
+        data_export_settings = getattr(self, "data_export_settings", None)
+        if data_export_settings is not None:
+            snapshot["data_export_settings"] = data_export_settings
+        advanced_settings = getattr(self, "advanced_settings", None)
+        if advanced_settings is not None:
+            snapshot["advanced_settings"] = advanced_settings
+        return snapshot
 
 
 class ProjectVersion(BaseDocument):

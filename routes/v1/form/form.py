@@ -30,12 +30,17 @@ from utils.idempotency import require_idempotency
 from models import Section
 from tasks.form_tasks import async_clone_form, async_publish_form
 from services.form_service import (
+    AdvancedSettingsSchema,
     FormService,
     FormCreateSchema,
     FormUpdateSchema,
     ProjectService,
 )
-from routes.v1.form.helper import has_form_permission, apply_translations
+from routes.v1.form.helper import (
+    has_form_permission,
+    apply_translations,
+    resolve_translation_language,
+)
 from models.AuditLog import AuditLog
 from models.Form import Form, Project, FormVersion, Version
 from models.enumerations import (
@@ -240,10 +245,23 @@ def get_form(form_id):
 
         form_dict = form.to_mongo().to_dict()
 
-        lang = request.args.get("lang")
-        if lang:
-            app_logger.info(f"Applying translation '{lang}' for form {form_id}")
-            form_dict = apply_translations(form_dict, lang)
+        requested_lang = request.args.get("lang")
+        if requested_lang:
+            app_logger.info(
+                f"Applying translation '{requested_lang}' for form {form_id}"
+            )
+            advanced_settings = form_dict.get("advanced_settings") or {}
+            resolved_lang = resolve_translation_language(
+                form_dict.get("translations") or {},
+                requested_lang=requested_lang,
+                fallback_lang=advanced_settings.get("fallback_language")
+                or advanced_settings.get("locale_default")
+                or form_dict.get("default_language"),
+                default_lang=advanced_settings.get("locale_default")
+                or form_dict.get("default_language"),
+            )
+            if resolved_lang:
+                form_dict = apply_translations(form_dict, resolved_lang)
 
         # Ensure nested section trees are available to the frontend builder
         # through the active version snapshot, not just as flat section refs.
@@ -255,25 +273,60 @@ def get_form(form_id):
                     if hasattr(latest_version, "resolved_snapshot")
                     else {}
                 ) or {}
-                if resolved_snapshot.get("sections"):
-                    versions = form_dict.get("versions") or []
-                    if versions:
+                versions = form_dict.get("versions") or []
+                resolved_submission_settings = resolved_snapshot.get(
+                    "submission_settings"
+                )
+                resolved_quick_responses = resolved_snapshot.get("quick_responses")
+                resolved_data_export_settings = resolved_snapshot.get(
+                    "data_export_settings"
+                )
+                resolved_advanced_settings = resolved_snapshot.get("advanced_settings")
+                if versions:
+                    if resolved_snapshot.get("sections"):
                         versions[-1]["sections"] = resolved_snapshot["sections"]
-                        form_dict["versions"] = versions
-                    else:
-                        form_dict["versions"] = [
-                            {
-                                "version": getattr(
-                                    latest_version.version,
-                                    "version_string",
-                                    "1.0.0",
-                                ),
-                                "sections": resolved_snapshot["sections"],
-                                "created_at": getattr(
-                                    latest_version, "created_at", None
-                                ),
-                            }
-                        ]
+                    if resolved_submission_settings is not None:
+                        versions[-1]["submission_settings"] = (
+                            resolved_submission_settings
+                        )
+                    if resolved_quick_responses is not None:
+                        versions[-1]["quick_responses"] = resolved_quick_responses
+                    if resolved_data_export_settings is not None:
+                        versions[-1]["data_export_settings"] = (
+                            resolved_data_export_settings
+                        )
+                    if resolved_advanced_settings is not None:
+                        versions[-1]["advanced_settings"] = resolved_advanced_settings
+                    form_dict["versions"] = versions
+                elif resolved_snapshot.get("sections") or (
+                    resolved_submission_settings is not None
+                    or resolved_quick_responses is not None
+                    or resolved_data_export_settings is not None
+                    or resolved_advanced_settings is not None
+                ):
+                    form_dict["versions"] = [
+                        {
+                            "version": getattr(
+                                latest_version.version,
+                                "version_string",
+                                "1.0.0",
+                            ),
+                            "sections": resolved_snapshot.get("sections", []),
+                            "submission_settings": (
+                                resolved_submission_settings or {}
+                            ),
+                            "quick_responses": (resolved_quick_responses or []),
+                            "data_export_settings": (
+                                resolved_data_export_settings or {}
+                            ),
+                            "advanced_settings": (
+                                resolved_advanced_settings or {}
+                            ),
+                            "created_at": getattr(
+                                latest_version, "created_at", None
+                            ),
+                        }
+                    ]
         except Exception:
             app_logger.warning(
                 f"Unable to inject resolved nested sections for form {form_id}",
@@ -335,6 +388,12 @@ def update_form(form_id):
             "metadata",
             "access_policy",
             "accessPolicy",
+            "submission_settings",
+            "submissionSettings",
+            "quick_responses",
+            "quickResponses",
+            "data_export_settings",
+            "dataExportSettings",
             "style",
             "ui_type",
             "description",
@@ -504,6 +563,18 @@ def import_form():
     data = request.get_json() or {}
 
     try:
+        advanced_payload = data.get("advanced_settings", data.get("advancedSettings"))
+        if isinstance(advanced_payload, dict):
+            normalized_advanced = AdvancedSettingsSchema.model_validate(
+                advanced_payload
+            ).model_dump(exclude_unset=True, exclude_none=True)
+            data["advanced_settings"] = normalized_advanced
+            data["advancedSettings"] = normalized_advanced
+            if normalized_advanced.get("slug"):
+                data["slug"] = normalized_advanced.get("slug")
+            if normalized_advanced.get("locale_default"):
+                data["default_language"] = normalized_advanced.get("locale_default")
+
         # Basic validation of import payload
         title = data.get("title")
         slug = data.get("slug")
@@ -526,6 +597,7 @@ def import_form():
             default_language=data.get("default_language", "en"),
             style=data.get("style", {}),
             translations=data.get("translations", {}),
+            advanced_settings=data.get("advanced_settings", {}),
         )
 
         # Import sections recursively if provided
@@ -816,6 +888,27 @@ def _serialize_form_version(form_version):
             "created_at": getattr(form_version, "created_at", None),
             "sections": snapshot.get("sections", []),
             "translations": getattr(form_version, "translations", {}) or {},
+            "submission_settings": snapshot.get(
+                "submission_settings",
+                getattr(form_version, "submission_settings", {}) or {},
+            ),
+            "quick_responses": snapshot.get(
+                "quick_responses",
+                [
+                    item.to_mongo().to_dict()
+                    if hasattr(item, "to_mongo")
+                    else item
+                    for item in (getattr(form_version, "quick_responses", []) or [])
+                ],
+            ),
+            "data_export_settings": snapshot.get(
+                "data_export_settings",
+                getattr(form_version, "data_export_settings", {}) or {},
+            ),
+            "advanced_settings": snapshot.get(
+                "advanced_settings",
+                getattr(form_version, "advanced_settings", {}) or {},
+            ),
         },
         preserve_fields=("meta_data",),
     )
@@ -1128,6 +1221,8 @@ def restore_project_form_version(form_id, version):
         canvas["sections"] = snapshot.get("sections", [])
         if snapshot.get("translations") is not None:
             canvas["translations"] = snapshot["translations"]
+        if snapshot.get("quick_responses") is not None:
+            canvas["quick_responses"] = snapshot["quick_responses"]
         form_service.sync_form_canvas(
             str(form.id), current_user.organization_id, canvas
         )
@@ -1163,7 +1258,10 @@ def create_project_form_version(form_id):
             organization_id=current_user.organization_id,
             is_deleted=False,
         )
-        if data.get("sections") or data.get("versions"):
+        if any(
+            key in data
+            for key in ("sections", "versions", "quick_responses", "quickResponses")
+        ):
             form_service.sync_form_canvas(
                 str(form.id), current_user.organization_id, data
             )
@@ -1195,7 +1293,10 @@ def update_project_form_version(form_id, version):
         form_version = _find_form_version(form, version)
         if not form_version:
             return error_response(message="Version not found", status_code=404)
-        if data.get("sections") or data.get("versions"):
+        if any(
+            key in data
+            for key in ("sections", "versions", "quick_responses", "quickResponses")
+        ):
             form_service.sync_form_canvas(
                 str(form.id), current_user.organization_id, data
             )

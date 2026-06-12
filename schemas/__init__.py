@@ -6,12 +6,14 @@ from .components import (
     TriggerSchema,
 )
 from .form import (
+    AdvancedSettingsSchema,
     OptionSchema,
     ValidationSchema,
     ConditionalValidationSchema,
     QuestionLogicSchema,
     QuestionUISchema,
     ResponseTemplateSchema,
+    SubmissionSettingsSchema,
     QuestionSchema,
     SectionLogicSchema,
     SectionUISchema,
@@ -51,12 +53,14 @@ __all__ = [
     "LogicComponentSchema",
     "UIComponentSchema",
     "TriggerSchema",
+    "AdvancedSettingsSchema",
     "OptionSchema",
     "ValidationSchema",
     "ConditionalValidationSchema",
     "QuestionLogicSchema",
     "QuestionUISchema",
     "ResponseTemplateSchema",
+    "SubmissionSettingsSchema",
     "QuestionSchema",
     "SectionLogicSchema",
     "SectionUISchema",
@@ -92,4 +96,3 @@ __all__ = [
     "FeatureFlagOrgOverrideSchema",
     "FeatureFlagSchema",
 ]
-

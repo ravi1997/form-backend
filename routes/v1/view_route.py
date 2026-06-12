@@ -1,7 +1,11 @@
 from flask import Blueprint, render_template, request, jsonify
 from flasgger import swag_from
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from routes.v1.form.helper import apply_translations, get_current_user
+from routes.v1.form.helper import (
+    apply_translations,
+    get_current_user,
+    resolve_translation_language,
+)
 from models import Form
 from mongoengine import DoesNotExist
 from logger.unified_logger import app_logger, error_logger
@@ -99,15 +103,26 @@ def view_form(form_id):
                 app_logger.warning(f"Form {form_id} has expired (expires_at: {exp_at})")
                 return jsonify({"error": "Form has expired"}), 403
 
-        lang = request.args.get("lang")
         form_dict = form.to_mongo().to_dict()
         if "_id" in form_dict:
             form_dict["id"] = str(form_dict.pop("_id"))
-        if lang:
-            app_logger.info(
-                f"Applying translations for language: {lang} on form {form_id}"
+        requested_lang = request.args.get("lang")
+        if requested_lang:
+            advanced_settings = form_dict.get("advanced_settings") or {}
+            resolved_lang = resolve_translation_language(
+                form_dict.get("translations") or {},
+                requested_lang=requested_lang,
+                fallback_lang=advanced_settings.get("fallback_language")
+                or advanced_settings.get("locale_default")
+                or form_dict.get("default_language"),
+                default_lang=advanced_settings.get("locale_default")
+                or form_dict.get("default_language"),
             )
-            form_dict = apply_translations(form_dict, lang)
+            if resolved_lang:
+                app_logger.info(
+                    f"Applying translations for language: {resolved_lang} on form {form_id}"
+                )
+                form_dict = apply_translations(form_dict, resolved_lang)
         return render_template("view.html", form=form_dict)
     except DoesNotExist:
         app_logger.warning(f"Form view failed: ID {form_id} not found")

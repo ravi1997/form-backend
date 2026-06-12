@@ -10,6 +10,7 @@ from services.base import BaseService
 from models.LegalHold import LegalHold
 from models.EvidenceLog import EvidenceLog
 from models.Response import FormResponse
+from models.Form import Form
 from models.TenantSettings import TenantSettings
 from utils.exceptions import ValidationError
 
@@ -106,29 +107,56 @@ class ComplianceService(BaseService):
         Finds and deletes expired responses based on tenant's retention policy.
         Bypasses soft delete and deletes permanently, but strictly blocks if legal hold is active.
         """
-        settings = TenantSettings.get_or_create(organization_id)
-        retention_days = settings.retention_days
-        if not retention_days or retention_days <= 0:
-            return {"pruned_count": 0, "held_count": 0}
+        tenant_settings = TenantSettings.get_or_create(organization_id)
+        default_retention_days = tenant_settings.retention_days
+        if not default_retention_days or default_retention_days <= 0:
+            default_retention_days = None
 
-        threshold_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
-
-        # Query all responses for this organization submitted before the threshold
-        # We use __raw__ or all_with_deleted/objects to make sure we query correct items
+        # Evaluate each response against its form-specific retention setting when present.
         expired_responses = FormResponse.objects(
             organization_id=organization_id,
-            submitted_at__lt=threshold_date,
-            is_deleted=False
+            is_deleted=False,
         )
 
         pruned_count = 0
         held_count = 0
         pruned_ids = []
+        form_retention_cache = {}
+        now = datetime.now(timezone.utc)
 
         for resp in expired_responses:
+            if not resp.submitted_at:
+                continue
+
             # Check legal hold on the response itself or its form
-            form_ref = resp._data.get("form") if hasattr(resp, "_data") else None
-            form_id_str = str(form_ref.id) if hasattr(form_ref, "id") else str(form_ref) if form_ref else None
+            form_ref = getattr(resp, "form", None)
+            if form_ref is None and hasattr(resp, "_data"):
+                form_ref = resp._data.get("form")
+            form_id_str = (
+                str(form_ref.id)
+                if hasattr(form_ref, "id")
+                else str(form_ref)
+                if form_ref
+                else None
+            )
+
+            retention_days = default_retention_days
+            if form_id_str:
+                if form_id_str not in form_retention_cache:
+                    form_doc = Form.objects(id=form_id_str, organization_id=organization_id).only(
+                        "data_export_settings"
+                    ).first()
+                    form_settings = dict(getattr(form_doc, "data_export_settings", None) or {})
+                    form_retention_cache[form_id_str] = form_settings.get("retention_days")
+                form_retention_days = form_retention_cache.get(form_id_str)
+                if form_retention_days is not None:
+                    retention_days = form_retention_days
+
+            if not retention_days or retention_days <= 0:
+                continue
+            threshold_date = now - timedelta(days=retention_days)
+            if resp.submitted_at >= threshold_date:
+                continue
 
             if self.is_held("response", resp.id) or (form_id_str and self.is_held("form", form_id_str)):
                 held_count += 1

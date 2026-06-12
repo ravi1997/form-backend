@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from flasgger import swag_from
 from mongoengine import DoesNotExist
+from mongoengine.queryset.visitor import Q
 from datetime import datetime, timezone
 
 from models import Form
@@ -94,7 +95,7 @@ def check_slug():
     app_logger.info(f"Checking slug availability for: {slug}")
     if not slug:
         return error_response(message="slug parameter is required", status_code=400)
-    exists = Form.objects(slug=slug).first() is not None
+    exists = Form.objects.filter(Q(slug=slug) | Q(slug_history=slug)).first() is not None
     app_logger.info(f"Slug availability for {slug}: {not exists}")
     return success_response(data={"available": not exists})
 

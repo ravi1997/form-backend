@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+from mongoengine.queryset.visitor import Q
 from logger.unified_logger import (
     app_logger,
     error_logger,
@@ -10,10 +11,17 @@ from logger.unified_logger import (
 from logger.sla import enforce_sla
 from services.base import BaseService
 from services.access_control_service import AccessControlService
-from utils.exceptions import NotFoundError, StateTransitionError
+from utils.exceptions import ConflictError, NotFoundError, StateTransitionError
 from utils.response_helper import FormSerializer
-from models import Form, Project, Version, FormVersion, Section
-from schemas.form import FormSchema, ProjectSchema
+from models import Form, Project, Version, FormVersion, Section, QuickResponse
+from schemas.form import (
+    AdvancedSettingsSchema,
+    DataExportSettingsSchema,
+    FormSchema,
+    ProjectSchema,
+    QuickResponseSchema,
+    SubmissionSettingsSchema,
+)
 from schemas.base import InboundPayloadSchema
 from services.section_service import SectionService
 
@@ -34,6 +42,167 @@ from services.event_bus import event_bus
 class FormService(BaseService):
     def __init__(self):
         super().__init__(model=Form, schema=FormSchema)
+
+    @staticmethod
+    def _normalize_slug(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        slug = str(value).strip().lower()
+        return slug or None
+
+    @staticmethod
+    def _normalize_locale(value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip().replace("_", "-")
+        if not text:
+            return None
+        parts = [part for part in text.split("-") if part]
+        if not parts:
+            return None
+        language = parts[0].lower()
+        if len(parts) == 1:
+            return language
+        region = parts[1].upper() if len(parts[1]) == 2 else parts[1].lower()
+        rest = [part.lower() for part in parts[2:]]
+        return "-".join([language, region, *rest]) if rest else "-".join(
+            [language, region]
+        )
+
+    @staticmethod
+    def _snapshot_quick_response(quick_response: Any) -> Dict[str, Any]:
+        if hasattr(quick_response, "to_mongo"):
+            data = quick_response.to_mongo().to_dict()
+        elif hasattr(quick_response, "model_dump"):
+            data = quick_response.model_dump(exclude_none=True)
+        elif isinstance(quick_response, dict):
+            data = dict(quick_response)
+        else:
+            data = {}
+        if "_id" in data:
+            data["id"] = str(data.pop("_id"))
+        return data
+
+    def _validate_advanced_settings_uniqueness(
+        self,
+        organization_id: str,
+        *,
+        form_id: Optional[str],
+        slug: Optional[str],
+        internal_code: Optional[str],
+    ) -> None:
+        if slug:
+            slug_query = Form.objects(
+                organization_id=organization_id,
+                is_deleted=False,
+            ).filter(Q(slug=slug) | Q(slug_history=slug))
+            if form_id:
+                slug_query = slug_query.filter(id__ne=form_id)
+            if slug_query.first():
+                raise ConflictError(
+                    "Slug is already in use or reserved by another form."
+                )
+
+        if internal_code:
+            code_query = Form.objects(
+                organization_id=organization_id,
+                is_deleted=False,
+                advanced_settings__internal_code=internal_code,
+            )
+            if form_id:
+                code_query = code_query.filter(id__ne=form_id)
+            if code_query.first():
+                raise ConflictError(
+                    "Internal code is already in use by another form."
+                )
+
+    def _prepare_advanced_settings_payload(
+        self,
+        *,
+        organization_id: str,
+        form_id: Optional[str],
+        existing_advanced_settings: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        resolved_slug: Optional[str] = None,
+        resolved_locale_default: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        existing = dict(existing_advanced_settings or {})
+        incoming = dict(payload or {})
+
+        payload_model = AdvancedSettingsSchema.model_validate(incoming)
+        normalized_payload = payload_model.model_dump(exclude_unset=True, exclude_none=True)
+
+        merged = dict(existing)
+        merged.update(normalized_payload)
+
+        slug = self._normalize_slug(
+            resolved_slug or merged.get("slug") or existing.get("slug")
+        )
+        locale_default = self._normalize_locale(
+            resolved_locale_default
+            or merged.get("locale_default")
+            or existing.get("locale_default")
+            or "en"
+        )
+
+        if slug:
+            merged["slug"] = slug
+        if locale_default:
+            merged["locale_default"] = locale_default
+
+        fallback_language = self._normalize_locale(
+            merged.get("fallback_language") or locale_default or "en"
+        )
+        if fallback_language:
+            merged["fallback_language"] = fallback_language
+
+        merged["api_identifiers"] = dict(merged.get("api_identifiers") or {})
+        merged["experimental_flags"] = dict(merged.get("experimental_flags") or {})
+
+        self._validate_advanced_settings_uniqueness(
+            organization_id,
+            form_id=form_id,
+            slug=slug,
+            internal_code=merged.get("internal_code"),
+        )
+        return merged
+
+    def _apply_advanced_settings_to_form(
+        self,
+        form_doc: Form,
+        *,
+        organization_id: str,
+        payload: Optional[Dict[str, Any]],
+        resolved_slug: Optional[str] = None,
+        resolved_locale_default: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        advanced_settings = self._prepare_advanced_settings_payload(
+            organization_id=organization_id,
+            form_id=str(getattr(form_doc, "id", "")) or None,
+            existing_advanced_settings=getattr(form_doc, "advanced_settings", None),
+            payload=payload,
+            resolved_slug=resolved_slug,
+            resolved_locale_default=resolved_locale_default,
+        )
+
+        previous_slug = getattr(form_doc, "slug", None)
+        current_slug = advanced_settings.get("slug") or previous_slug
+        current_locale = advanced_settings.get("locale_default") or getattr(
+            form_doc, "default_language", None
+        )
+
+        if previous_slug and current_slug and previous_slug != current_slug:
+            slug_history = list(getattr(form_doc, "slug_history", []) or [])
+            if previous_slug not in slug_history:
+                slug_history.append(previous_slug)
+            form_doc.slug_history = slug_history
+
+        if current_slug:
+            form_doc.slug = current_slug
+        if current_locale:
+            form_doc.default_language = current_locale
+        form_doc.advanced_settings = advanced_settings
+        return advanced_settings
 
     def delete(
         self, doc_id: str, organization_id: str = None, hard_delete: bool = False
@@ -191,6 +360,17 @@ class FormService(BaseService):
             payload["sections"] = nested_payloads
             return payload
 
+        def _has_sections_payload(payload: Dict[str, Any]) -> bool:
+            if not isinstance(payload, dict):
+                return False
+            if "sections" in payload:
+                return True
+            versions = payload.get("versions", []) if isinstance(payload, dict) else []
+            if not versions:
+                return False
+            first_version = versions[0] if isinstance(versions[0], dict) else {}
+            return "sections" in first_version
+
         def _extract_sections(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
             sections = payload.get("sections", []) if isinstance(payload, dict) else []
             if sections:
@@ -205,8 +385,9 @@ class FormService(BaseService):
                 else []
             )
 
+        sections_payload_present = _has_sections_payload(canvas_data)
         sections_data = (
-            _extract_sections(canvas_data) if isinstance(canvas_data, dict) else []
+            _extract_sections(canvas_data) if sections_payload_present else []
         )
         normalized_sections = []
 
@@ -228,7 +409,8 @@ class FormService(BaseService):
         for section_payload in sections_data:
             normalized_sections.append(build_section(section_payload))
 
-        form_doc.sections = normalized_sections
+        if sections_payload_present:
+            form_doc.sections = normalized_sections
         if "title" in canvas_data:
             form_doc.title = canvas_data["title"]
         if "status" in canvas_data:
@@ -256,6 +438,68 @@ class FormService(BaseService):
         )
         if access_policy is not None:
             form_doc.access_policy = access_policy
+        advanced_settings = canvas_data.get(
+            "advanced_settings", canvas_data.get("advancedSettings")
+        )
+        if (
+            advanced_settings is not None
+            or "slug" in canvas_data
+            or "default_language" in canvas_data
+        ):
+            resolved_slug = (
+                (advanced_settings or {}).get("slug")
+                if isinstance(advanced_settings, dict)
+                else None
+            ) or canvas_data.get("slug") or getattr(form_doc, "slug", None)
+            resolved_locale_default = (
+                (advanced_settings or {}).get("locale_default")
+                if isinstance(advanced_settings, dict)
+                else None
+            ) or (
+                (advanced_settings or {}).get("localeDefault")
+                if isinstance(advanced_settings, dict)
+                else None
+            ) or canvas_data.get("default_language") or getattr(
+                form_doc, "default_language", None
+            )
+            self._apply_advanced_settings_to_form(
+                form_doc,
+                organization_id=organization_id,
+                payload=advanced_settings if isinstance(advanced_settings, dict) else None,
+                resolved_slug=resolved_slug,
+                resolved_locale_default=resolved_locale_default,
+            )
+        submission_settings = canvas_data.get(
+            "submission_settings", canvas_data.get("submissionSettings")
+        )
+        if submission_settings is not None:
+            form_doc.submission_settings = (
+                SubmissionSettingsSchema.model_validate(submission_settings)
+                .model_dump(exclude_unset=True, exclude_none=True)
+            )
+        quick_responses = canvas_data.get(
+            "quick_responses", canvas_data.get("quickResponses")
+        )
+        if quick_responses is not None:
+            form_doc.quick_responses = [
+                QuickResponse(
+                    **QuickResponseSchema.model_validate(
+                        item.model_dump(exclude_none=True)
+                        if hasattr(item, "model_dump")
+                        else item
+                    ).model_dump(exclude_none=True)
+                )
+                for item in (quick_responses or [])
+                if item is not None
+            ]
+        data_export_settings = canvas_data.get(
+            "data_export_settings", canvas_data.get("dataExportSettings")
+        )
+        if data_export_settings is not None:
+            form_doc.data_export_settings = (
+                DataExportSettingsSchema.model_validate(data_export_settings)
+                .model_dump(exclude_none=True)
+            )
         if "active_version" in canvas_data:
             active_version_value = canvas_data["active_version"]
             version_doc = None
@@ -315,6 +559,20 @@ class FormService(BaseService):
         workflows = getattr(form_doc, "workflows", None)
         if workflows is not None:
             snapshot["workflows"] = workflows
+        submission_settings = getattr(form_doc, "submission_settings", None)
+        if submission_settings is not None:
+            snapshot["submission_settings"] = submission_settings
+        data_export_settings = getattr(form_doc, "data_export_settings", None)
+        if data_export_settings is not None:
+            snapshot["data_export_settings"] = data_export_settings
+        quick_responses = getattr(form_doc, "quick_responses", None)
+        if quick_responses is not None:
+            snapshot["quick_responses"] = [
+                self._snapshot_quick_response(item) for item in quick_responses
+            ]
+        advanced_settings = getattr(form_doc, "advanced_settings", None)
+        if advanced_settings is not None:
+            snapshot["advanced_settings"] = advanced_settings
         return snapshot
 
     def sync_draft_version(self, form_id: str, organization_id: str) -> FormVersion:
@@ -379,6 +637,38 @@ class FormService(BaseService):
             except Exception:
                 # Older schemas may not expose access_policy on FormVersion.
                 pass
+        if hasattr(form_version, "submission_settings") and hasattr(
+            form_doc, "submission_settings"
+        ):
+            try:
+                form_version.submission_settings = form_doc.submission_settings
+            except Exception:
+                # Older schemas may not expose submission_settings on FormVersion.
+                pass
+        if hasattr(form_version, "data_export_settings") and hasattr(
+            form_doc, "data_export_settings"
+        ):
+            try:
+                form_version.data_export_settings = form_doc.data_export_settings
+            except Exception:
+                # Older schemas may not expose data_export_settings on FormVersion.
+                pass
+        if hasattr(form_version, "quick_responses") and hasattr(
+            form_doc, "quick_responses"
+        ):
+            try:
+                form_version.quick_responses = form_doc.quick_responses
+            except Exception:
+                # Older schemas may not expose quick_responses on FormVersion.
+                pass
+        if hasattr(form_version, "advanced_settings") and hasattr(
+            form_doc, "advanced_settings"
+        ):
+            try:
+                form_version.advanced_settings = form_doc.advanced_settings
+            except Exception:
+                # Older schemas may not expose advanced_settings on FormVersion.
+                pass
 
         form_version.save()
         form_doc.save()
@@ -400,6 +690,40 @@ class FormService(BaseService):
                 tenant_service.check_form_quota(create_schema.organization_id)
 
             data = create_schema.model_dump(exclude_unset=True, exclude={"sections"})
+            if data.get("data_export_settings") is not None:
+                data["data_export_settings"] = (
+                    DataExportSettingsSchema.model_validate(
+                        data["data_export_settings"]
+                    ).model_dump(exclude_none=True)
+                )
+            quick_responses = data.get("quick_responses")
+            if quick_responses is not None:
+                data["quick_responses"] = [
+                    QuickResponse(
+                        **QuickResponseSchema.model_validate(
+                            item.model_dump(exclude_none=True)
+                            if hasattr(item, "model_dump")
+                            else item
+                        ).model_dump(exclude_none=True)
+                    )
+                    for item in (quick_responses or [])
+                    if item is not None
+                ]
+            advanced_settings = self._prepare_advanced_settings_payload(
+                organization_id=create_schema.organization_id,
+                form_id=None,
+                existing_advanced_settings=None,
+                payload=data.get("advanced_settings"),
+                resolved_slug=data.get("slug"),
+                resolved_locale_default=data.get("default_language"),
+            )
+            data["advanced_settings"] = advanced_settings
+            data["slug"] = advanced_settings.get("slug") or data.get("slug")
+            data["default_language"] = (
+                advanced_settings.get("locale_default")
+                or data.get("default_language")
+                or "en"
+            )
             form_doc = self.model(**data)
             form_doc.save()
 
@@ -429,9 +753,62 @@ class FormService(BaseService):
     ) -> FormSchema:
         app_logger.info(f"Entering FormService.update for Form ID {form_id}")
         try:
+            current_form = self.model.objects(
+                id=form_id,
+                organization_id=organization_id,
+                is_deleted=False,
+            ).first()
+            if not current_form:
+                raise NotFoundError("Form not found for update")
+
+            old_slug = getattr(current_form, "slug", None)
+            current_advanced_settings = getattr(current_form, "advanced_settings", None)
+            payload_advanced_settings = getattr(update_schema, "advanced_settings", None)
+            if payload_advanced_settings is not None or getattr(update_schema, "slug", None):
+                advanced_settings = self._prepare_advanced_settings_payload(
+                    organization_id=organization_id or current_form.organization_id,
+                    form_id=str(current_form.id),
+                    existing_advanced_settings=current_advanced_settings,
+                    payload=(
+                        payload_advanced_settings.model_dump(exclude_unset=True, exclude_none=True)
+                        if hasattr(payload_advanced_settings, "model_dump")
+                        else payload_advanced_settings
+                    ),
+                    resolved_slug=getattr(update_schema, "slug", None) or old_slug,
+                    resolved_locale_default=getattr(update_schema, "default_language", None)
+                    or getattr(current_form, "default_language", None),
+                )
+                update_schema.advanced_settings = advanced_settings
+                update_schema.slug = advanced_settings.get("slug") or old_slug
+                update_schema.default_language = advanced_settings.get(
+                    "locale_default"
+                ) or getattr(current_form, "default_language", None)
+            payload_data_export_settings = getattr(update_schema, "data_export_settings", None)
+            if payload_data_export_settings is not None:
+                update_schema.data_export_settings = (
+                    DataExportSettingsSchema.model_validate(
+                        payload_data_export_settings.model_dump(
+                            exclude_none=True
+                        )
+                        if hasattr(payload_data_export_settings, "model_dump")
+                        else payload_data_export_settings
+                    ).model_dump(exclude_none=True)
+                )
+
             form = super().update(
                 form_id, update_schema, organization_id=organization_id
             )
+            updated_advanced_settings = getattr(update_schema, "advanced_settings", None)
+            new_slug = getattr(update_schema, "slug", None)
+            if old_slug and new_slug and old_slug != new_slug:
+                history = list(getattr(current_form, "slug_history", []) or [])
+                if old_slug not in history:
+                    history.append(old_slug)
+                self.model.objects(
+                    id=form_id, organization_id=organization_id
+                ).update_one(set__slug_history=history)
+                if updated_advanced_settings is not None:
+                    current_form.slug_history = history
             event_bus.publish("form.indexed", form.model_dump())
             audit_logger.info(f"AUDIT: Form updated with ID {form_id}")
             app_logger.info(
@@ -449,9 +826,14 @@ class FormService(BaseService):
         """Fetch form securely bounded by tenant slug."""
         app_logger.info(f"Entering get_by_slug: {slug} for org {organization_id}")
         try:
-            form_doc = self.model.objects(
-                slug=slug, organization_id=organization_id, is_deleted=False
-            ).first()
+            form_doc = (
+                self.model.objects(
+                    organization_id=organization_id,
+                    is_deleted=False,
+                )
+                .filter(Q(slug=slug) | Q(slug_history=slug))
+                .first()
+            )
 
             if not form_doc:
                 app_logger.debug(f"Form '{slug}' not found in org {organization_id}")
@@ -552,6 +934,11 @@ class FormService(BaseService):
             }
             if getattr(form_doc, "workflows", None) is not None:
                 snapshot_data["workflows"] = form_doc.workflows
+            quick_responses = getattr(form_doc, "quick_responses", None)
+            if quick_responses is not None:
+                snapshot_data["quick_responses"] = [
+                    self._snapshot_quick_response(item) for item in quick_responses
+                ]
 
             # --- Snapshot Hardening (Phase 4) ---
             from models.Form import SnapshotStore
@@ -581,6 +968,7 @@ class FormService(BaseService):
                 status="published",
                 snapshot_ref=store,
                 translations=form_doc.translations or {},  # Keep for compatibility
+                quick_responses=list(getattr(form_doc, "quick_responses", []) or []),
             )
             snapshot.save()
             self._stamp_sections_with_version(form_doc, new_version, snapshot)

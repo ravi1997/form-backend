@@ -78,6 +78,19 @@ def async_clone_form(
             except Exception:
                 pass
 
+        cloned_advanced_settings = dict(getattr(original, "advanced_settings", None) or {})
+        cloned_advanced_settings["slug"] = final_slug
+        cloned_advanced_settings.pop("internal_code", None)
+        cloned_advanced_settings["api_identifiers"] = {}
+        if not cloned_advanced_settings.get("locale_default"):
+            cloned_advanced_settings["locale_default"] = (
+                getattr(original, "default_language", None) or "en"
+            )
+        if not cloned_advanced_settings.get("fallback_language"):
+            cloned_advanced_settings["fallback_language"] = cloned_advanced_settings.get(
+                "locale_default"
+            )
+
         new_form = Form(
             title=final_title,
             slug=final_slug,
@@ -94,6 +107,10 @@ def async_clone_form(
             style=original.style,
             response_templates=original.response_templates,
             triggers=original.triggers,
+            default_language=cloned_advanced_settings.get("locale_default")
+            or getattr(original, "default_language", "en"),
+            supported_languages=original.supported_languages,
+            advanced_settings=cloned_advanced_settings,
         )
         new_form.save()
 

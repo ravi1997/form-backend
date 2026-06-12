@@ -66,6 +66,48 @@ def apply_translations(form_dict, lang):
     return translated
 
 
+def resolve_translation_language(
+    translations: dict,
+    requested_lang: str = None,
+    fallback_lang: str = None,
+    default_lang: str = None,
+):
+    """Select the first available translation language in precedence order."""
+    if not isinstance(translations, dict):
+        return None
+
+    def _variants(value):
+        if not value:
+            return []
+        text = str(value).strip().replace("_", "-")
+        if not text:
+            return []
+        parts = [part for part in text.split("-") if part]
+        if not parts:
+            return []
+        base = parts[0].lower()
+        if len(parts) == 1:
+            return [base]
+        region = parts[1].upper() if len(parts[1]) == 2 else parts[1].lower()
+        tail = [part.lower() for part in parts[2:]]
+        normalized = "-".join([base, region, *tail]) if tail else "-".join([base, region])
+        variants = [normalized]
+        if base not in variants:
+            variants.append(base)
+        return variants
+
+    candidates = []
+    for candidate in (requested_lang, fallback_lang, default_lang):
+        for variant in _variants(candidate):
+            if variant not in candidates:
+                candidates.append(variant)
+
+    for candidate in candidates:
+        if translations.get(candidate):
+            return candidate
+    return None
+
+
 def get_current_user():
     app_logger.info("Entering get_current_user helper")
     user_id = get_jwt_identity()

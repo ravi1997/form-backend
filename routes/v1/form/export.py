@@ -4,7 +4,8 @@ import csv
 import io
 import json
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from routes.v1.form.helper import get_current_user, has_form_permission
 from routes.v1.form import form_bp
 from flask import Response, request, jsonify
@@ -18,15 +19,79 @@ from config.settings import settings
 from utils.sensitive_data_redaction import safe_log_info, safe_log_error
 
 
+def _response_data(response):
+    if hasattr(response, "get_decrypted_data"):
+        try:
+            return response.get_decrypted_data()
+        except Exception:
+            pass
+    if hasattr(response, "data"):
+        return dict(getattr(response, "data") or {})
+    return {}
+
+
+def _anonymization_settings(form):
+    export_settings = getattr(form, "data_export_settings", None) or {}
+    if hasattr(export_settings, "model_dump"):
+        export_settings = export_settings.model_dump(
+            exclude_unset=True, exclude_none=True
+        )
+    anonymization = dict(export_settings.get("anonymization") or {})
+    anonymization.setdefault("mode", "none")
+    anonymization.setdefault("fields", [])
+    anonymization["fields"] = {
+        str(field).strip()
+        for field in anonymization.get("fields") or []
+        if str(field).strip()
+    }
+    return anonymization
+
+
+def _mask_json_value(value, mode: str):
+    if value is None:
+        return None
+    if mode == "remove":
+        return None
+    if mode == "hash":
+        import hashlib
+
+        return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+    if isinstance(value, (list, dict)):
+        return "[REDACTED]"
+    text = str(value)
+    if len(text) <= 4:
+        return "****"
+    return f"{text[:2]}****{text[-2:]}"
+
+
+def _format_export_datetime(value, csv_defaults: dict):
+    if not value:
+        return ""
+    if not isinstance(value, datetime):
+        return str(value)
+    dt_value = value
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+    timezone_name = csv_defaults.get("timezone") or "UTC"
+    try:
+        dt_value = dt_value.astimezone(ZoneInfo(timezone_name))
+    except Exception:
+        dt_value = dt_value.astimezone(timezone.utc)
+    date_format = (csv_defaults.get("date_format") or "iso8601").strip().lower()
+    if date_format in {"iso", "iso8601"}:
+        return dt_value.isoformat()
+    try:
+        return dt_value.strftime(csv_defaults.get("date_format"))
+    except Exception:
+        return dt_value.isoformat()
+
+
 # -------------------- Helper for Streaming Export --------------------
 def stream_form_csv(form, responses, version_id=None):
     """
     Generates CSV content row by row for streaming responses.
     """
     from models.Form import FormVersion
-
-    headers = ["response_id", "submitted_by", "submitted_at", "status"]
-    field_mapping = []  # List of {var_name, label}
 
     # Resolve Version Snapshot
     version_doc = None
@@ -37,6 +102,64 @@ def stream_form_csv(form, responses, version_id=None):
             id=form.active_version_id, form=form.id
         ).first()
 
+    export_settings = {}
+    if isinstance(getattr(form, "data_export_settings", None), dict):
+        export_settings = dict(form.data_export_settings)
+    elif version_doc:
+        try:
+            snapshot = version_doc.resolved_snapshot or {}
+        except Exception:
+            snapshot = {}
+        if isinstance(snapshot.get("data_export_settings"), dict):
+            export_settings = dict(snapshot["data_export_settings"])
+
+    csv_defaults = export_settings.get("csv_defaults") or {}
+    delimiter = csv_defaults.get("delimiter") or ","
+    header_mode = (csv_defaults.get("header_mode") or "labels").strip().lower()
+    empty_field_value = csv_defaults.get("empty_field_value", "")
+    anonymization = export_settings.get("anonymization") or {}
+    anonymized_fields = set(anonymization.get("fields") or [])
+    anonymization_mode = (anonymization.get("mode") or "none").strip().lower()
+    field_mapping = export_settings.get("field_mapping") or {}
+
+    def _header_for_question(var_name, label):
+        mapped = field_mapping.get(var_name)
+        mapped_label = None
+        mapped_anonymize = False
+        if isinstance(mapped, dict):
+            mapped_label = (
+                mapped.get("label")
+                or mapped.get("alias")
+                or mapped.get("header_label")
+            )
+            mapped_anonymize = bool(mapped.get("anonymize"))
+        elif mapped is not None:
+            mapped_label = str(mapped)
+
+        if header_mode == "keys":
+            return mapped_label or var_name, mapped_anonymize
+        return mapped_label or label or var_name, mapped_anonymize
+
+    def _anonymize_value(var_name, value, anonymize_flag=False):
+        if value in (None, ""):
+            return value
+        if (
+            anonymization_mode == "none"
+            and not anonymize_flag
+            and var_name not in anonymized_fields
+        ):
+            return value
+        if anonymization_mode == "remove":
+            return empty_field_value
+        if anonymization_mode == "hash":
+            import hashlib
+
+            return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+        return "[REDACTED]"
+
+    headers = ["response_id", "submitted_by", "submitted_at", "status"]
+    field_mapping_rows = []  # List of {var_name, anonymize_flag}
+
     if version_doc:
         snapshot = version_doc.resolved_snapshot
         sections = snapshot.get("sections", [])
@@ -45,14 +168,19 @@ def stream_form_csv(form, responses, version_id=None):
             for question in section.get("questions", []):
                 var_name = question.get("variable_name")
                 if var_name:
-                    headers.append(f"{prefix}{question.get('label')}")
-                    field_mapping.append({"var_name": var_name})
+                    header_label, mapped_anonymize = _header_for_question(
+                        var_name, question.get("label")
+                    )
+                    headers.append(f"{prefix}{header_label}" if header_mode != "keys" else header_label)
+                    field_mapping_rows.append(
+                        {"var_name": var_name, "anonymize": mapped_anonymize}
+                    )
     else:
         headers.append("data (raw)")
 
     # Yield header
     output = io.StringIO()
-    writer = csv.writer(output)
+    writer = csv.writer(output, delimiter=delimiter)
     writer.writerow(headers)
     yield output.getvalue()
     output.truncate(0)
@@ -62,19 +190,20 @@ def stream_form_csv(form, responses, version_id=None):
         row = [
             str(r.id),
             r.submitted_by,
-            r.submitted_at.isoformat() if r.submitted_at else "",
+            _format_export_datetime(r.submitted_at, csv_defaults),
             r.status or "submitted",
         ]
+        response_data = _response_data(r)
 
         if not version_doc:
-            row.append(json.dumps(r.data))
+            row.append(json.dumps(response_data))
         else:
-            for mapping in field_mapping:
+            for mapping in field_mapping_rows:
                 var_name = mapping["var_name"]
-                val = r.data.get(var_name, "")
+                val = response_data.get(var_name, "")
                 if isinstance(val, (list, dict)):
                     val = json.dumps(val)
-                row.append(val)
+                row.append(_anonymize_value(var_name, val, mapping["anonymize"]))
 
         writer.writerow(row)
         yield output.getvalue()
@@ -132,6 +261,12 @@ def export_responses_csv(form_id):
                 )
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_settings = getattr(form, "data_export_settings", None) or {}
+        if hasattr(export_settings, "model_dump"):
+            export_settings = export_settings.model_dump(
+                exclude_unset=True, exclude_none=True
+            )
+        csv_defaults = dict(export_settings.get("csv_defaults") or {})
 
         safe_log_info(
             audit_logger,
@@ -142,7 +277,7 @@ def export_responses_csv(form_id):
 
         return Response(
             stream_form_csv(form, responses),
-            mimetype="text/csv",
+            mimetype=f"text/csv; charset={csv_defaults.get('encoding', 'utf-8')}",
             headers={
                 "Content-Disposition": f"attachment;filename=form_{form_id}_{timestamp}.csv",
                 "X-Content-Type-Options": "nosniff",
@@ -161,6 +296,7 @@ def stream_form_json(form, responses):
     """
     Generates JSON content iteratively for streaming responses.
     """
+    anonymization = _anonymization_settings(form)
     metadata = {
         "id": str(form.id),
         "title": form.title,
@@ -178,7 +314,17 @@ def stream_form_json(form, responses):
     for r in responses:
         if not first:
             yield ","
-        yield json.dumps(r.to_dict(), default=str)
+        payload = r.to_dict() if hasattr(r, "to_dict") else {}
+        response_data = _response_data(r)
+        if anonymization.get("mode") != "none":
+            for field in list(response_data.keys()):
+                if field in anonymization["fields"]:
+                    response_data[field] = _mask_json_value(
+                        response_data.get(field), anonymization["mode"]
+                    )
+        payload["data"] = response_data
+        payload.pop("encrypted_data", None)
+        yield json.dumps(payload, default=str)
         first = False
 
     yield "]}"
