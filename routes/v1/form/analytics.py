@@ -211,9 +211,10 @@ def get_full_analytics(form_id):
 
         # 1. Total Submissions
         responses = FormResponse.objects(form=form.id, is_deleted=False).only(
-            "submitted_at", "data"
+            "submitted_at", "data", "is_draft"
         )
         total = responses.count()
+        completed = sum(1 for response in responses if not getattr(response, "is_draft", False))
 
         # 2. Trends (Last 7 days including today)
         now = datetime.now(timezone.utc)
@@ -306,9 +307,7 @@ def get_full_analytics(form_id):
             jsonify(
                 {
                     "totalSubmissions": total,
-                    "completionRate": (
-                        0.0 if total == 0 else 0.85
-                    ),  # Mocked as requested
+                    "completionRate": 0.0 if total == 0 else round(completed / total, 4),
                     "trends": trends,
                     "fieldDistributions": field_dist_map,
                 }

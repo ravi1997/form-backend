@@ -359,7 +359,7 @@ class AccessControlService:
             from models.Form import Form
 
             try:
-                form = Form.objects(id=response.form.id).first()
+                form = Form.objects(id=response.form).first()
                 if form:
                     if action == "view":
                         return AccessControlService.check_form_permission(

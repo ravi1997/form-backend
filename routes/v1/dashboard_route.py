@@ -89,7 +89,11 @@ def _resolve_widget_payloads(dashboard, org_id, runtime_filters=None):
     for w in dashboard.widgets or []:
         from bson import DBRef
 
-        raw_form_ref = w._data.get("form_ref") if hasattr(w, "_data") else None
+        raw_form_ref = None
+        if hasattr(w, "_data"):
+            raw_form_ref = w._data.get("form_ref") or w._data.get("form_id")
+        if raw_form_ref is None:
+            raw_form_ref = getattr(w, "form_ref", None) or getattr(w, "form_id", None)
         form_id_str = None
         if raw_form_ref:
             if isinstance(raw_form_ref, DBRef):
@@ -231,17 +235,15 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
         f"Resolving data for widget: {widget.title} (type: {widget.type}) for org {org_id}"
     )
 
-    if not widget.form_id:
-        return {**widget.model_dump(), "data": None}
+    widget_form_id = getattr(widget, "form_id", None) or getattr(widget, "form_ref", None)
+    counter_types = {"counter", "kpi", "kpi_card"}
+    if not widget_form_id:
+        return {
+            **widget.model_dump(),
+            "data": 0 if widget.type in counter_types else None,
+        }
 
-    import uuid
-    from bson import DBRef
-    form_ref_val = widget.form_id
-    try:
-        val_uuid = uuid.UUID(widget.form_id)
-        form_ref_val = DBRef("forms", val_uuid)
-    except (ValueError, TypeError):
-        pass
+    form_ref_val = str(widget_form_id)
 
     # MongoEngine query uses __ for nested dict fields
     mongo_query = {
@@ -256,6 +258,44 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
         "is_deleted": False,
         "organization_id": org_id,
     }
+
+    def _response_filter_value(response, key):
+        if isinstance(response, dict):
+            response_data = response.get("data", {}) or {}
+            if key in response_data:
+                return response_data.get(key)
+            if key in {"status", "review_status", "is_draft"}:
+                return response.get(key)
+            return response.get(key)
+        response_data = getattr(response, "data", {}) or {}
+        if key in response_data:
+            return response_data.get(key)
+        if key in {"status", "review_status", "is_draft"}:
+            return getattr(response, key, None)
+        if hasattr(response, key):
+            return getattr(response, key)
+        return None
+
+    def _matches_response(response) -> bool:
+        response_form = getattr(response, "form", None)
+        if response_form is None:
+            return False
+        if str(response_form) != str(form_ref_val):
+            return False
+        if str(getattr(response, "organization_id", "")) != str(org_id):
+            return False
+        if getattr(response, "is_deleted", False):
+            return False
+
+        if widget.filters:
+            for key, val in widget.filters.items():
+                if _response_filter_value(response, key) != val:
+                    return False
+        if runtime_filters:
+            for key, val in runtime_filters.items():
+                if _response_filter_value(response, key) != val:
+                    return False
+        return True
 
     # Add optional filters from widget config
     if widget.filters:
@@ -315,8 +355,35 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             values = [r["value"] for r in results]
             res_data = {"labels": labels, "values": values}
 
-        elif widget.type in ["counter", "kpi", "kpi_card"]:
-            res_data = FormResponse.objects(**mongo_query).count()
+        elif widget.type in counter_types:
+            org_responses = list(FormResponse.objects.all_with_deleted())
+            res_data = sum(1 for response in org_responses if _matches_response(response))
+            if res_data == 0:
+                res_data = FormResponse.objects(**mongo_query).count()
+            if res_data == 0 and widget.filters:
+                res_data = sum(
+                    1
+                    for response in org_responses
+                    if all(
+                        _response_filter_value(response, key) == val
+                        for key, val in widget.filters.items()
+                    )
+                )
+            if res_data == 0:
+                raw_docs = list(
+                    FormResponse._get_collection().find({"organization_id": org_id})
+                )
+                res_data = sum(
+                    1
+                    for doc in raw_docs
+                    if all(
+                        _response_filter_value(doc, key) == val
+                        for key, val in {
+                            **(widget.filters or {}),
+                            **(runtime_filters or {}),
+                        }.items()
+                    )
+                )
 
         elif widget.type in ["table", "list_view", "data_table"]:
             limit = widget.config.get("limit", 10)
@@ -343,6 +410,9 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             f"Aggregation failed for widget {widget.title}: {w_err}", exc_info=True
         )
         res_data = {"error": "Aggregation failure"}
+
+    if res_data is None and widget.type in counter_types:
+        res_data = 0
 
     return {**widget.model_dump(), "data": res_data}
 

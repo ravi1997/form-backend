@@ -124,8 +124,7 @@ def summarize_stream(form_id: str):
     def generate():
         try:
             summarizer = SummarizationService()
-            # This is a placeholder for actual streaming logic if the service supports it
-            # For now, we'll just return the full summary in chunks
+            # Return the current summary as a single SSE event.
             summary = summarizer.summarize_form(str(form.id), response_ids=response_ids)
             app_logger.info(f"Exiting summarize_stream for form_id: {form_id}")
             yield f"data: {json.dumps({'content': summary, 'done': True})}\n\n"

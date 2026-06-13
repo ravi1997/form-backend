@@ -445,6 +445,24 @@ class ReportConfig(BaseEmbeddedDocument):
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
 
+class AnomalyThreshold(BaseDocument):
+    meta = {
+        "collection": "anomaly_thresholds",
+        "indexes": ["form_id", "organization_id", "-created_at"],
+    }
+
+    form_id = StringField(required=True)
+    organization_id = StringField(required=True)
+    thresholds = DictField(required=True)
+    baseline_stats = DictField(default=dict)
+    sensitivity = StringField(default="auto")
+    response_count = IntField(default=0)
+    created_by = StringField(required=True)
+    reason = StringField()
+    is_manual = BooleanField(default=False)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+
 class Project(BaseDocument, SoftDeleteMixin):
     """Container for related Forms and Sub-projects."""
 

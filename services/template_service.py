@@ -23,7 +23,10 @@ class FormBlueprintService(BaseService):
         """Fetch curated, official market templates."""
         app_logger.info("Listing official blueprints")
         try:
-            blueprints = self.list_all(is_official=True)
+            blueprints = [
+                self._to_schema(blueprint)
+                for blueprint in self.model.objects(is_official=True, is_deleted=False)
+            ]
             app_logger.info(f"Retrieved {len(blueprints)} official blueprints")
             return blueprints
         except Exception as e:

@@ -155,7 +155,10 @@ class ComplianceService(BaseService):
             if not retention_days or retention_days <= 0:
                 continue
             threshold_date = now - timedelta(days=retention_days)
-            if resp.submitted_at >= threshold_date:
+            submitted_at = resp.submitted_at
+            if submitted_at and submitted_at.tzinfo is None:
+                submitted_at = submitted_at.replace(tzinfo=timezone.utc)
+            if submitted_at >= threshold_date:
                 continue
 
             if self.is_held("response", resp.id) or (form_id_str and self.is_held("form", form_id_str)):

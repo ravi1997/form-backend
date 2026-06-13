@@ -28,6 +28,42 @@ class BaseAIProvider(ABC):
 
         return sanitize_text(text)
 
+    def _heuristic_anomaly_scan(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        anomalies: List[Dict[str, Any]] = []
+        suspicious_values = {"", "n/a", "na", "none", "null", "test", "sample"}
+
+        for index, record in enumerate(data):
+            if not isinstance(record, dict):
+                anomalies.append(
+                    {
+                        "index": index,
+                        "issue": "non_object_record",
+                        "severity": "low",
+                    }
+                )
+                continue
+
+            record_issues = []
+            for key, value in record.items():
+                if value is None:
+                    record_issues.append({"field": key, "issue": "null_value"})
+                    continue
+                if isinstance(value, str) and value.strip().lower() in suspicious_values:
+                    record_issues.append({"field": key, "issue": "suspicious_placeholder"})
+                if isinstance(value, (int, float)) and value < 0:
+                    record_issues.append({"field": key, "issue": "negative_numeric_value"})
+
+            if record_issues:
+                anomalies.append(
+                    {
+                        "index": index,
+                        "issues": record_issues,
+                        "severity": "medium" if len(record_issues) > 1 else "low",
+                    }
+                )
+
+        return anomalies
+
     @abstractmethod
     def detect_anomalies(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         pass
@@ -66,10 +102,11 @@ class LocalHeuristicProvider(BaseAIProvider):
 
     def detect_anomalies(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         app_logger.debug("LocalHeuristicProvider: Detecting anomalies")
-        # Simple heuristic: look for outliers in numeric fields if possible
-        # For now, just a placeholder that marks nothing
-        app_logger.debug("LocalHeuristicProvider: Finished anomaly detection (no-op)")
-        return []
+        result = self._heuristic_anomaly_scan(data)
+        app_logger.debug(
+            f"LocalHeuristicProvider: Finished anomaly detection with {len(result)} findings"
+        )
+        return result
 
     def classify_sentiment(self, text: str) -> Dict[str, Any]:
         app_logger.debug("LocalHeuristicProvider: Classifying sentiment")
@@ -173,9 +210,8 @@ class OllamaProvider(BaseAIProvider):
         retry=retry_if_exception_type(requests.RequestException),
     )
     def detect_anomalies(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Hardened anomaly detection path
-        app_logger.info("OllamaProvider: Running anomaly detection (stub)")
-        return []
+        app_logger.info("OllamaProvider: Running anomaly detection (heuristic fallback)")
+        return self._heuristic_anomaly_scan(data)
 
     @retry(
         wait=wait_exponential(multiplier=1, min=2, max=10),

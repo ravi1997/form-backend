@@ -173,7 +173,11 @@ def create_app():
     import sys
 
     try:
-        connect(host=settings.MONGODB_URI, serverSelectionTimeoutMS=5000)
+        connect(
+            host=settings.MONGODB_URI,
+            serverSelectionTimeoutMS=5000,
+            uuidRepresentation="pythonLegacy",
+        )
         from mongoengine.connection import get_db
 
         get_db().command("ping")

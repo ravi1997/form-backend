@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required
 from models import Form, ApprovalWorkflow, WorkflowStep
 from utils.response_helper import success_response, error_response
 from utils.security_helpers import get_current_user
-from logger.unified_logger import app_logger, error_logger, audit_logger
+from logger.unified_logger import app_logger, audit_logger
 
 workflow_bp = Blueprint("workflow", __name__)
 
@@ -97,20 +97,6 @@ def _parse_uuid(value, label="id"):
         return None, error_response(f"Invalid {label} format", status_code=400)
 
 
-# Verify if models are loaded
-HAS_WORKFLOW_MODEL = True
-try:
-    _ = ApprovalWorkflow
-    _ = WorkflowStep
-except NameError:
-    HAS_WORKFLOW_MODEL = False
-    error_logger.warning("Workflow models not found. Workflow routes will return 501.")
-
-
-def _no_model():
-    return error_response("Workflow feature not available", status_code=501)
-
-
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 
@@ -126,9 +112,6 @@ def _no_model():
 @jwt_required()
 def create_workflow():
     """Create a new multi-step approval workflow."""
-    if not HAS_WORKFLOW_MODEL:
-        return _no_model()
-
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
 
@@ -193,9 +176,6 @@ def create_workflow():
 @jwt_required()
 def list_workflows():
     """List all workflows for the current organization."""
-    if not HAS_WORKFLOW_MODEL:
-        return _no_model()
-
     current_user = get_current_user()
     trigger_form_id = request.args.get("trigger_form_id")
     filters = {"organization_id": current_user.organization_id, "is_deleted": False}
@@ -225,9 +205,6 @@ def list_workflows():
 @jwt_required()
 def get_workflow(workflow_id):
     """Get detailed workflow definition."""
-    if not HAS_WORKFLOW_MODEL:
-        return _no_model()
-
     current_user = get_current_user()
     workflow_uuid, err = _parse_uuid(workflow_id, "workflow_id")
     if err:
@@ -279,9 +256,6 @@ def list_pending_approvals():
 @jwt_required()
 def update_workflow(workflow_id):
     """Update an existing workflow."""
-    if not HAS_WORKFLOW_MODEL:
-        return _no_model()
-
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
 
@@ -332,9 +306,6 @@ def update_workflow(workflow_id):
 @jwt_required()
 def delete_workflow(workflow_id):
     """Soft-delete a workflow."""
-    if not HAS_WORKFLOW_MODEL:
-        return _no_model()
-
     current_user = get_current_user()
     workflow_uuid, err = _parse_uuid(workflow_id, "workflow_id")
     if err:
@@ -376,9 +347,6 @@ def list_form_workflows(form_id):
 @jwt_required()
 def create_form_workflow(form_id):
     """Create a workflow scoped to a specific form."""
-    if not HAS_WORKFLOW_MODEL:
-        return _no_model()
-
     current_user = get_current_user()
     data = request.get_json(silent=True) or {}
     data["trigger_form_id"] = form_id

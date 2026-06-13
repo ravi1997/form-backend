@@ -24,15 +24,15 @@ class OllamaService:
 
     @staticmethod
     def chat_stream(*args, **kwargs):
-        app_logger.info("Initiating Ollama chat stream (stub)")
-        yield {"content": "Ollama service unavailable (stub)", "done": True}
+        app_logger.info("Initiating Ollama chat stream (unavailable fallback)")
+        yield {"content": "Ollama service unavailable", "done": True}
 
     @staticmethod
     def chat_stream_with_fallback(*args, **kwargs):
-        app_logger.info("Initiating Ollama chat stream with fallback (stub)")
-        yield {"content": "Ollama service unavailable (stub)", "done": True}
+        app_logger.info("Initiating Ollama chat stream with fallback")
+        yield {"content": "Ollama service unavailable", "done": True}
 
     @staticmethod
     def chat(*args, **kwargs):
-        app_logger.info("Performing Ollama chat (stub)")
-        return {"content": "Ollama service unavailable (stub)", "done": True}
+        app_logger.info("Performing Ollama chat (unavailable fallback)")
+        return {"content": "Ollama service unavailable", "done": True}

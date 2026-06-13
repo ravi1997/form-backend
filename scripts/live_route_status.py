@@ -112,7 +112,7 @@ def main():
         json={
             "title": "Patient Intake",
             "description": "Project for testing",
-            "help_text": "demo",
+            "help_text": "Route status validation run",
             "organization_id": org_id,
             "status": "draft",
             "sub_projects": [],

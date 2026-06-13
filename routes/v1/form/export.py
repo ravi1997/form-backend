@@ -86,6 +86,50 @@ def _format_export_datetime(value, csv_defaults: dict):
         return dt_value.isoformat()
 
 
+def _attachment_field_names(version_doc) -> set[str]:
+    attachment_types = {
+        "file_upload",
+        "multi_file_upload",
+        "multi-file_upload",
+        "signature",
+        "signature_pad",
+    }
+    attachment_fields: set[str] = set()
+    if not version_doc:
+        return attachment_fields
+
+    try:
+        snapshot = version_doc.resolved_snapshot or {}
+    except Exception:
+        snapshot = {}
+
+    def walk(sections):
+        for section in sections or []:
+            if not isinstance(section, dict):
+                continue
+            for question in section.get("questions", []) or []:
+                if not isinstance(question, dict):
+                    continue
+                field_type = str(
+                    question.get("field_type")
+                    or question.get("fieldType")
+                    or ""
+                ).strip()
+                variable_name = str(
+                    question.get("variable_name")
+                    or question.get("variableName")
+                    or ""
+                ).strip()
+                if field_type in attachment_types and variable_name:
+                    attachment_fields.add(variable_name)
+            nested_sections = section.get("sections", []) or []
+            if nested_sections:
+                walk(nested_sections)
+
+    walk(snapshot.get("sections", []))
+    return attachment_fields
+
+
 # -------------------- Helper for Streaming Export --------------------
 def stream_form_csv(form, responses, version_id=None):
     """
@@ -97,10 +141,20 @@ def stream_form_csv(form, responses, version_id=None):
     version_doc = None
     if version_id:
         version_doc = FormVersion.objects(id=version_id, form=form.id).first()
-    elif form.active_version:
-        version_doc = FormVersion.objects(
-            id=form.active_version_id, form=form.id
-        ).first()
+    else:
+        active_version_id = getattr(form, "active_version_id", None)
+        if active_version_id is None and hasattr(form, "_data"):
+            active_version_id = form._data.get("active_version")
+        if active_version_id:
+            version_doc = FormVersion.objects(
+                id=active_version_id, form=form.id
+            ).first()
+        if version_doc is None:
+            version_doc = (
+                FormVersion.objects(form=form.id)
+                .order_by("-created_at")
+                .first()
+            )
 
     export_settings = {}
     if isinstance(getattr(form, "data_export_settings", None), dict):
@@ -121,6 +175,12 @@ def stream_form_csv(form, responses, version_id=None):
     anonymized_fields = set(anonymization.get("fields") or [])
     anonymization_mode = (anonymization.get("mode") or "none").strip().lower()
     field_mapping = export_settings.get("field_mapping") or {}
+    include_attachments = bool(
+        csv_defaults.get("include_attachments")
+        if "include_attachments" in csv_defaults
+        else csv_defaults.get("includeAttachments")
+    )
+    attachment_fields = _attachment_field_names(version_doc)
 
     def _header_for_question(var_name, label):
         mapped = field_mapping.get(var_name)
@@ -201,6 +261,8 @@ def stream_form_csv(form, responses, version_id=None):
             for mapping in field_mapping_rows:
                 var_name = mapping["var_name"]
                 val = response_data.get(var_name, "")
+                if var_name in attachment_fields and not include_attachments:
+                    val = empty_field_value
                 if isinstance(val, (list, dict)):
                     val = json.dumps(val)
                 row.append(_anonymize_value(var_name, val, mapping["anonymize"]))
@@ -297,6 +359,22 @@ def stream_form_json(form, responses):
     Generates JSON content iteratively for streaming responses.
     """
     anonymization = _anonymization_settings(form)
+    export_settings = getattr(form, "data_export_settings", None) or {}
+    if hasattr(export_settings, "model_dump"):
+        export_settings = export_settings.model_dump(
+            exclude_unset=True, exclude_none=True
+        )
+    csv_defaults = dict(export_settings.get("csv_defaults") or {})
+    include_attachments = bool(
+        csv_defaults.get("include_attachments")
+        if "include_attachments" in csv_defaults
+        else csv_defaults.get("includeAttachments")
+    )
+    attachment_fields = _attachment_field_names(
+        getattr(form, "active_version", None)
+        or getattr(form, "active_version_doc", None)
+        or (form.versions[-1] if getattr(form, "versions", None) else None)
+    )
     metadata = {
         "id": str(form.id),
         "title": form.title,
@@ -322,6 +400,10 @@ def stream_form_json(form, responses):
                     response_data[field] = _mask_json_value(
                         response_data.get(field), anonymization["mode"]
                     )
+        if not include_attachments:
+            for field in list(response_data.keys()):
+                if field in attachment_fields:
+                    response_data[field] = None
         payload["data"] = response_data
         payload.pop("encrypted_data", None)
         yield json.dumps(payload, default=str)

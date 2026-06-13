@@ -19,7 +19,7 @@ class ExternalSMSService:
         self.api_url = (
             os.getenv("AIIMS_SMS_API_URL")
             or os.getenv("SMS_API_URL")
-            or "http://stub-sms-api.com"
+            or ""
         ).rstrip("/")
         self.api_token = os.getenv("AIIMS_SMS_API_TOKEN") or os.getenv("SMS_API_TOKEN")
         self.sms_path = os.getenv("AIIMS_SMS_SEND_PATH", "/sms")
@@ -33,6 +33,10 @@ class ExternalSMSService:
         return headers
 
     def _post(self, path: str, payload: Dict[str, Any]) -> requests.Response:
+        if not self.api_url:
+            raise RuntimeError(
+                "SMS API URL is not configured. Set AIIMS_SMS_API_URL or SMS_API_URL."
+            )
         url = f"{self.api_url}{path}"
         app_logger.info(f"Calling AIIMS SMS endpoint: POST {url}")
         response = requests.post(

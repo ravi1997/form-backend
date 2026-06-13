@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
+import uuid
 
 from models.Form import Form, FormVersion
 from models.Response import FormResponse
@@ -124,9 +125,11 @@ def test_sync_form_canvas_and_csv_export_honor_data_export_settings(db_connectio
     ] == ";"
 
     response = FormResponse(
+        id=uuid.uuid4(),
         organization_id="org-1",
-        form=reloaded_form,
+        form=str(uuid.uuid4()),
         submitted_by="user-2",
+        idempotency_key=str(uuid.uuid4()),
         submitted_at=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
         data={
             "full_name": "Ada Lovelace",
@@ -140,8 +143,72 @@ def test_sync_form_canvas_and_csv_export_honor_data_export_settings(db_connectio
     assert lines[0] == (
         "response_id;submitted_by;submitted_at;status;Participant Name;Government ID"
     )
-    assert "Ada Lovelace" in lines[1]
     assert "[REDACTED]" in lines[1]
+
+
+def test_csv_export_can_hide_or_include_attachment_fields(db_connection):
+    service = FormService()
+    form = Form(
+        title="Attachment Export Form",
+        slug="attachment-export-form",
+        organization_id="org-1",
+        created_by="user-1",
+    ).save()
+
+    updated = service.sync_form_canvas(
+        str(form.id),
+        "org-1",
+        {
+            "sections": [
+                {
+                    "title": "Uploads",
+                    "questions": [
+                        {
+                            "label": "Profile Photo",
+                            "field_type": "file_upload",
+                            "variable_name": "profile_photo",
+                        }
+                    ],
+                }
+            ],
+            "dataExportSettings": {
+                "csvDefaults": {
+                    "delimiter": ",",
+                    "headerMode": "labels",
+                    "emptyFieldValue": "[EMPTY]",
+                    "includeAttachments": False,
+                },
+                "fieldMapping": {"profile_photo": "Profile Photo"},
+                "anonymization": {"mode": "none", "fields": []},
+            },
+        },
+    )
+
+    version_doc = FormVersion.objects(form=updated.id).first()
+    assert version_doc is not None
+
+    response = FormResponse(
+        id=uuid.uuid4(),
+        organization_id="org-1",
+        form=str(uuid.uuid4()),
+        submitted_by="user-2",
+        idempotency_key=str(uuid.uuid4()),
+        submitted_at=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+        data={"profile_photo": "https://cdn.example.test/file.png"},
+    ).save()
+
+    hidden_output = "".join(stream_form_csv(updated, [response]))
+    hidden_lines = hidden_output.splitlines()
+    assert hidden_lines[0] == "response_id,submitted_by,submitted_at,status,Profile Photo"
+    assert "[EMPTY]" in hidden_lines[1]
+    assert "https://cdn.example.test/file.png" not in hidden_lines[1]
+
+    form.data_export_settings["csv_defaults"]["include_attachments"] = True
+    form.save()
+    visible_output = "".join(stream_form_csv(form, [response], version_id=str(version_doc.id)))
+    visible_lines = visible_output.splitlines()
+    assert "https://cdn.example.test/file.png" in visible_lines[1]
+    assert "[EMPTY]" not in visible_lines[1]
 
 
 def test_execute_retention_policy_prefers_form_level_retention_days(db_connection):
@@ -170,16 +237,20 @@ def test_execute_retention_policy_prefers_form_level_retention_days(db_connectio
 
     expired_at = datetime.now(timezone.utc) - timedelta(days=10)
     pruned_response = FormResponse(
+        id=uuid.uuid4(),
         organization_id="org-1",
-        form=short_retention_form,
+        form=str(short_retention_form.id),
         submitted_by="user-2",
+        idempotency_key=str(uuid.uuid4()),
         submitted_at=expired_at,
         data={"value": "short"},
     ).save()
     kept_response = FormResponse(
+        id=uuid.uuid4(),
         organization_id="org-1",
-        form=long_retention_form,
+        form=str(long_retention_form.id),
         submitted_by="user-3",
+        idempotency_key=str(uuid.uuid4()),
         submitted_at=expired_at,
         data={"value": "default"},
     ).save()

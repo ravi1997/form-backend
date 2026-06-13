@@ -10,6 +10,7 @@ from mongoengine import (
     UUIDField,
 )
 from datetime import datetime, timezone
+from uuid import UUID
 from models.base import BaseDocument, SoftDeleteMixin
 
 
@@ -47,9 +48,9 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
     organization_id = StringField(required=True)
 
     # Context References
-    project = ReferenceField("Project")
-    form = ReferenceField("Form", required=True)
-    form_version = ReferenceField("FormVersion")
+    project = StringField()
+    form = UUIDField(required=True, binary=False)
+    form_version = StringField()
     version = StringField()
     commit_id = UUIDField(binary=False)
     detached_data = DictField(default=dict)
@@ -106,6 +107,9 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
         """
         from utils.encryption import encrypt_value
         from models.Form import Form, FormVersion
+
+        if isinstance(self.commit_id, UUID):
+            self.commit_id = str(self.commit_id)
 
         # 1. Identify sensitive fields from the version snapshot
         sensitive_fields = set()
@@ -207,6 +211,22 @@ class SavedSearch(BaseDocument):
     form = ReferenceField("Form", required=True)
     user_id = StringField(required=True)
     query_json = DictField(required=True)
+    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+
+
+class SearchHistory(BaseDocument):
+    meta = {
+        "collection": "search_history",
+        "indexes": ["form_id", "user_id", "-created_at"],
+    }
+
+    form_id = StringField(required=True)
+    user_id = StringField(required=True)
+    query = StringField(required=True)
+    results_count = IntField(default=0)
+    parsed_intent = DictField(default=dict)
+    search_type = StringField(default="nlp")
+    cached = BooleanField(default=False)
     created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
 
 

@@ -46,6 +46,51 @@ class FormResponseService(BaseService):
     def __init__(self):
         super().__init__(model=FormResponse, schema=FormResponseSchema)
 
+    def _collect_section_analytics(self, sections):
+        events = []
+
+        def walk(nodes):
+            for node in nodes or []:
+                metadata = {}
+                if isinstance(node, dict):
+                    metadata = dict(node.get("metadata") or node.get("meta_data") or {})
+                    section_id = node.get("id")
+                    title = node.get("title")
+                    children = node.get("sections") or []
+                else:
+                    metadata = dict(getattr(node, "metadata", {}) or {})
+                    section_id = getattr(node, "id", None)
+                    title = getattr(node, "title", None)
+                    children = getattr(node, "sections", []) or []
+
+                analytics_event = (
+                    metadata.get("analyticsEvent")
+                    or metadata.get("analytics_event")
+                    or ""
+                ).strip()
+                if analytics_event or any(
+                    metadata.get(flag) is True
+                    for flag in ("trackView", "trackCompletion", "trackDwellTime")
+                ):
+                    events.append(
+                        {
+                            "section_id": str(section_id) if section_id is not None else None,
+                            "title": title,
+                            "event_name": analytics_event or None,
+                            "track_view": metadata.get("trackView", metadata.get("track_view", True)),
+                            "track_completion": metadata.get(
+                                "trackCompletion", metadata.get("track_completion", True)
+                            ),
+                            "track_dwell_time": metadata.get(
+                                "trackDwellTime", metadata.get("track_dwell_time", False)
+                            ),
+                        }
+                    )
+                walk(children)
+
+        walk(sections)
+        return events
+
     def get_decrypted_response(
         self, response_id: str, organization_id: str
     ) -> Dict[str, Any]:
@@ -258,7 +303,7 @@ class FormResponseService(BaseService):
                 form_uuid = uuid.UUID(data.form) if isinstance(data.form, str) else data.form
                 existing = FormResponse.objects(
                     __raw__={
-                        "form": form_uuid,
+                        "form": str(form_uuid),
                         "organization_id": data.organization_id,
                         "idempotency_key": idempotency_key,
                         "is_deleted": False,
@@ -328,9 +373,11 @@ class FormResponseService(BaseService):
                     version_doc = Version.objects(id=active_version_id).first()
                     if version_doc:
                         data.version = version_doc.version_string
-                        data.commit_id = getattr(
+                        commit_id = getattr(
                             form_doc, "active_publish_commit_id", None
                         ) or getattr(form_doc, "head_commit_id", None)
+                        if commit_id is not None:
+                            data.commit_id = str(commit_id)
 
                     fv = None
                     if version_doc:
@@ -361,7 +408,7 @@ class FormResponseService(BaseService):
                     form_uuid = uuid.UUID(data.form) if isinstance(data.form, str) else data.form
                     existing = FormResponse.objects(
                         __raw__={
-                            "form": form_uuid,
+                            "form": str(form_uuid),
                             "organization_id": data.organization_id,
                             "idempotency_key": idempotency_key,
                             "is_deleted": False,
@@ -403,6 +450,31 @@ class FormResponseService(BaseService):
             try:
                 from services import event_bus
 
+                section_analytics = []
+                try:
+                    form_for_analytics = Form.objects(
+                        id=data.form, organization_id=data.organization_id, is_deleted=False
+                    ).first()
+                    if form_for_analytics is not None:
+                        sections = getattr(form_for_analytics, "sections", []) or []
+                        if not sections:
+                            active_version = getattr(form_for_analytics, "_data", {}).get(
+                                "active_version"
+                            )
+                            versions = getattr(form_for_analytics, "versions", []) or []
+                            if active_version and versions:
+                                for version in versions:
+                                    if str(getattr(version, "version", "")) == str(
+                                        active_version
+                                    ):
+                                        sections = getattr(version, "sections", []) or []
+                                        break
+                        section_analytics = self._collect_section_analytics(sections)
+                except Exception as analytics_err:
+                    error_logger.warning(
+                        f"Failed to collect section analytics metadata: {analytics_err}"
+                    )
+
                 event_bus.publish(
                     "form.submitted",
                     {
@@ -410,6 +482,7 @@ class FormResponseService(BaseService):
                         "response_id": str(response.id),
                         "organization_id": data.organization_id,
                         "data": data.data,
+                        "analytics": {"section_events": section_analytics},
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                 )

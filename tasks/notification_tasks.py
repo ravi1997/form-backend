@@ -61,6 +61,10 @@ def process_single_trigger(self, trigger_data, context_data):
             NotificationService._call_webhook(
                 trigger_data.get("action_config", {}), context_data
             )
+        elif action_type == "email_notification":
+            NotificationService._call_external_api(
+                trigger_data.get("action_config", {}), context_data
+            )
         elif action_type == "api_call":
             NotificationService._call_external_api(
                 trigger_data.get("action_config", {}), context_data
@@ -125,6 +129,10 @@ def _deliver_notification_log(notification_log):
 
     if channel == "webhook":
         response = NotificationService._call_webhook(
+            action_config, context_data
+        )
+    elif channel in {"email", "email_notification"}:
+        response = NotificationService._call_external_api(
             action_config, context_data
         )
     elif channel == "api_call":

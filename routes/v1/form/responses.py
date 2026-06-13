@@ -340,7 +340,7 @@ def sync_responses(form_id):
 
             existing = FormResponse.objects(
                 __raw__={
-                    "form": form.id,
+                    "form": str(form.id),
                     "organization_id": current_user.organization_id,
                     "idempotency_key": idempotency_key,
                     "is_deleted": False,

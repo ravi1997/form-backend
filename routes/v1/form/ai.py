@@ -140,6 +140,21 @@ def simple_sentiment_analyzer(text: str) -> Tuple[str, int]:
         return "neutral", 0
 
 
+def _collect_numeric_values(obj: Any) -> List[float]:
+    numbers: List[float] = []
+    if isinstance(obj, dict):
+        for value in obj.values():
+            numbers.extend(_collect_numeric_values(value))
+    elif isinstance(obj, list):
+        for value in obj:
+            numbers.extend(_collect_numeric_values(value))
+    elif isinstance(obj, (int, float)):
+        numbers.append(float(obj))
+    elif isinstance(obj, str) and obj.isdigit():
+        numbers.append(float(int(obj)))
+    return numbers
+
+
 @ai_bp.route("/<form_id>/responses/<response_id>/analyze", methods=["POST"])
 @swag_from(
     {
@@ -424,47 +439,12 @@ def get_field_suggestions() -> Tuple[Any, int]:
         data = request.get_json()
         current_form = data.get("current_form")
 
-        if current_form:
-            result = AIService.get_suggestions(current_form)
-            app_logger.info("AI field suggestions fetched from AIService")
-            return jsonify(result), 200
+        if not current_form:
+            return jsonify({"error": "current_form is required"}), 400
 
-        # Fallback to simulated suggestions if form context is missing
-        theme = data.get("theme", "").lower()
-        suggestions = []
-        if "feedback" in theme or "survey" in theme:
-            suggestions = [
-                {
-                    "label": "How did you hear about us?",
-                    "field_type": "select",
-                    "options": ["Social Media", "Friend", "Ad"],
-                },
-                {
-                    "label": "On a scale of 1-10, how likely are you to recommend us?",
-                    "field_type": "rating",
-                },
-            ]
-        elif "contact" in theme:
-            suggestions = [
-                {
-                    "label": "Preferred method of contact",
-                    "field_type": "radio",
-                    "options": ["Email", "Phone", "SMS"],
-                },
-                {"label": "Best time to call", "field_type": "input"},
-            ]
-        else:
-            suggestions = [
-                {"label": "Additional Comments", "field_type": "textarea"},
-                {
-                    "label": "Tags",
-                    "field_type": "select",
-                    "is_repeatable_question": True,
-                },
-            ]
-
-        app_logger.info(f"AI field suggestions generated for theme: {theme}")
-        return jsonify({"suggestions": suggestions}), 200
+        result = AIService.get_suggestions(current_form)
+        app_logger.info("AI field suggestions fetched from AIService")
+        return jsonify(result), 200
     except Exception as e:
         error_logger.error(f"Error fetching AI field suggestions: {str(e)}")
         return jsonify({"error": str(e)}), 400
@@ -862,7 +842,6 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
 
         results = FormResponse.objects(**filters)
 
-        # In-memory filtering for demo/simulation (since data is dict/dynamic)
         final_results = []
         for resp in results:
             match = True
@@ -895,23 +874,7 @@ def ai_powered_search(form_id: str) -> Tuple[Any, int]:
             # Check Age (if found in query and exists in data)
             # Naive: looks for any number in the data that could be age
             if age_gt_match or age_lt_match:
-                # Try to find a number in resp.data that looks like an age
-                # For this simulation, we'll just check if any value in the dict is a number
-                def find_numbers(d: Any) -> List[float]:
-                    nums = []
-                    if isinstance(d, dict):
-                        for v in d.values():
-                            nums.extend(find_numbers(v))
-                    elif isinstance(d, list):
-                        for v in d:
-                            nums.extend(find_numbers(v))
-                    elif isinstance(d, (int, float)):
-                        nums.append(d)
-                    elif isinstance(d, str) and d.isdigit():
-                        nums.append(int(d))
-                    return nums
-
-                resp_nums = find_numbers(resp.data)
+                resp_nums = _collect_numeric_values(resp.data)
 
                 if age_gt_match:
                     threshold = int(age_gt_match.group(1))
@@ -1944,18 +1907,45 @@ def summarize_form_responses(form_id: str) -> Tuple[Any, int]:
             )
 
         dominant_sentiment = max(sentiment_counts, key=sentiment_counts.get)
+        summary_payload = {
+            "bullet_points": [p["point"] for p in summary_points],
+            "sentiment_distribution": sentiment_counts,
+            "dominant_sentiment": dominant_sentiment,
+            "key_insights": summary_points,
+        }
+        period_start = min(
+            (
+                getattr(resp, "submitted_at", None)
+                for resp in responses
+                if getattr(resp, "submitted_at", None) is not None
+            ),
+            default=datetime.now(timezone.utc),
+        )
+        period_end = max(
+            (
+                getattr(resp, "submitted_at", None)
+                for resp in responses
+                if getattr(resp, "submitted_at", None) is not None
+            ),
+            default=datetime.now(timezone.utc),
+        )
+        SummarizationService().save_summary_snapshot(
+            form_id=str(form.id),
+            period_start=period_start,
+            period_end=period_end,
+            summary_data=summary_payload,
+            created_by=str(current_user.id),
+            period_label=f"Responses {len(response_texts)}",
+            response_count=len(response_texts),
+            strategy_used="extractive_keyword_grouping",
+        )
 
         return (
             jsonify(
                 {
                     "form_id": form_id,
                     "responses_analyzed": len(response_texts),
-                    "summary": {
-                        "bullet_points": [p["point"] for p in summary_points],
-                        "sentiment_distribution": sentiment_counts,
-                        "dominant_sentiment": dominant_sentiment,
-                        "key_insights": summary_points,
-                    },
+                    "summary": summary_payload,
                     "generated_at": datetime.now(timezone.utc).isoformat(),
                 }
             ),

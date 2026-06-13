@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 from config.settings import settings
 from services.ai_provider import LocalHeuristicProvider, OllamaProvider
 from logger.unified_logger import app_logger, error_logger
+from models import AnomalyThreshold, Form
 
 
 class AnomalyDetectionService:
@@ -99,8 +100,91 @@ class AnomalyDetectionService:
             raise
 
     def get_threshold_history(self, *args, **kwargs):
-        app_logger.info("AnomalyDetectionService: Getting threshold history")
-        return []
+        form_id = kwargs.get("form_id")
+        limit = int(kwargs.get("limit", 50))
+        app_logger.info(
+            f"AnomalyDetectionService: Getting threshold history for form {form_id}"
+        )
+        if not form_id:
+            return []
+        return [
+            {
+                "threshold_id": str(item.id),
+                "form_id": item.form_id,
+                "organization_id": item.organization_id,
+                "thresholds": item.thresholds,
+                "baseline_stats": item.baseline_stats,
+                "sensitivity": item.sensitivity,
+                "response_count": item.response_count,
+                "created_by": item.created_by,
+                "reason": item.reason,
+                "is_manual": item.is_manual,
+                "created_at": item.created_at.isoformat()
+                if item.created_at
+                else None,
+            }
+            for item in AnomalyThreshold.objects(form_id=form_id).order_by("-created_at").limit(limit)
+        ]
+
+    def get_latest_threshold(self, *args, **kwargs):
+        form_id = kwargs.get("form_id")
+        sensitivity = kwargs.get("sensitivity")
+        app_logger.info(
+            f"AnomalyDetectionService: Getting latest threshold for form {form_id}"
+        )
+        if not form_id:
+            return None
+        query = AnomalyThreshold.objects(form_id=form_id)
+        if sensitivity:
+            query = query(sensitivity=sensitivity)
+        item = query.order_by("-created_at").first()
+        if not item:
+            return None
+        return {
+            "threshold_id": str(item.id),
+            "form_id": item.form_id,
+            "organization_id": item.organization_id,
+            "thresholds": item.thresholds,
+            "baseline_stats": item.baseline_stats,
+            "sensitivity": item.sensitivity,
+            "response_count": item.response_count,
+            "created_by": item.created_by,
+            "reason": item.reason,
+            "is_manual": item.is_manual,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        }
+
+    def set_manual_threshold(self, *args, **kwargs):
+        form_id = kwargs.get("form_id")
+        thresholds = kwargs.get("thresholds") or {}
+        created_by = kwargs.get("created_by") or "system"
+        reason = kwargs.get("reason")
+        app_logger.info(
+            f"AnomalyDetectionService: Setting manual threshold for form {form_id}"
+        )
+        if not form_id or not thresholds:
+            raise ValueError("form_id and thresholds are required")
+
+        form = Form.objects(id=form_id).first()
+        organization_id = getattr(form, "organization_id", None) or ""
+        record = AnomalyThreshold(
+            form_id=str(form_id),
+            organization_id=organization_id,
+            thresholds=thresholds,
+            baseline_stats=kwargs.get("baseline_stats") or {},
+            sensitivity=kwargs.get("sensitivity") or "manual",
+            response_count=int(kwargs.get("response_count", 0)),
+            created_by=str(created_by),
+            reason=reason,
+            is_manual=True,
+        )
+        record.save()
+        return {
+            "threshold_id": str(record.id),
+            "thresholds": record.thresholds,
+            "baseline_stats": record.baseline_stats,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
+        }
 
     def scan_batch(self, *args, **kwargs):
         app_logger.info("AnomalyDetectionService: Initiating batch scan")
