@@ -1,13 +1,14 @@
 import os
 
 import requests
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from flasgger import swag_from
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import User
 from services.external_sms_service import get_sms_service
 from services.notification_service import NotificationService
 from logger.unified_logger import app_logger
+from middleware.api_key_auth import require_api_key_or_jwt
 from utils.response_helper import error_response, success_response
 
 external_api_bp = Blueprint("external_api", __name__)
@@ -23,10 +24,10 @@ external_api_bp = Blueprint("external_api", __name__)
         ],
     }
 )
-@jwt_required()
+@require_api_key_or_jwt
 def get_uhid_details(uhid):
     """Fetch details of a UHID from an upstream service if configured."""
-    user_id = get_jwt_identity()
+    user_id = getattr(g, "request_identity", None) or get_jwt_identity()
     app_logger.info(f"User {user_id} requested UHID details for: {uhid}")
     base_url = (
         os.getenv("AIIMS_UHID_API_URL")
@@ -62,10 +63,10 @@ def get_uhid_details(uhid):
         ],
     }
 )
-@jwt_required()
+@require_api_key_or_jwt
 def get_employee_details(employee_id):
     """Fetch employee details from the local user table or an upstream service."""
-    user_id = get_jwt_identity()
+    user_id = getattr(g, "request_identity", None) or get_jwt_identity()
     app_logger.info(f"User {user_id} requested employee details for: {employee_id}")
     user = User.objects(employee_id=employee_id, is_deleted=False).first()
     if user:
@@ -105,10 +106,10 @@ def get_employee_details(employee_id):
 
 @external_api_bp.route("/mail", methods=["POST"])
 @swag_from({"tags": ["External_Api"], "responses": {"200": {"description": "Success"}}})
-@jwt_required()
+@require_api_key_or_jwt
 def send_mail():
     """Send mail through the configured email integration."""
-    user_id = get_jwt_identity()
+    user_id = getattr(g, "request_identity", None) or get_jwt_identity()
     app_logger.info(f"User {user_id} requested to send mail")
     payload = request.get_json(silent=True) or {}
     config = payload.get("config") or payload
@@ -132,10 +133,10 @@ def send_mail():
 
 @external_api_bp.route("/sms", methods=["POST"])
 @swag_from({"tags": ["External_Api"], "responses": {"200": {"description": "Success"}}})
-@jwt_required()
+@require_api_key_or_jwt
 def send_sms():
     """Send SMS through the configured SMS integration."""
-    user_id = get_jwt_identity()
+    user_id = getattr(g, "request_identity", None) or get_jwt_identity()
     app_logger.info(f"User {user_id} requested to send SMS")
     data = request.get_json(silent=True) or {}
     mobile = (

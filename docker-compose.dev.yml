@@ -12,6 +12,7 @@ services:
       - PYTHONUNBUFFERED=1
       - FIELD_ENCRYPTION_KEY=8x1r9dNq9kYxX6vS7fR7I2g8xQm2Ue4nZsJ5pT3wCkM=
       - ELASTICSEARCH_URL=http://forms_elasticsearch:9200
+      - DEV_ALICE_PASSWORD=SecureP@ss2026
     # Bind-mount the entire source code directory for live reloading
     volumes:
       - .:/app

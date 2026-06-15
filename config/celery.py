@@ -123,6 +123,12 @@ celery_app.conf.update(
             "task": "tasks.notification_tasks.process_notification_retry_queue_task",
             "schedule": timedelta(minutes=1),
             "options": {"queue": "celery"},
+        },
+        "archive-old-audit-logs": {
+            "task": "tasks.compliance_tasks.archive_old_audit_logs_task",
+            "schedule": timedelta(days=1),
+            "kwargs": {"days": 90, "format": "json"},
+            "options": {"queue": "celery"},
         }
     },
 )

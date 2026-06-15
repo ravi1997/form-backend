@@ -8,6 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from logger.unified_logger import app_logger, audit_logger
 from services.tenant_service import TenantService
 from services.compliance_service import ComplianceService
+from tasks.compliance_tasks import get_audit_export_dir
 from models.EvidenceLog import EvidenceLog
 from utils.response_helper import success_response, error_response
 from utils.security import require_roles
@@ -144,6 +145,51 @@ def prune_expired_responses():
     return success_response(data=result, message="Retention policy executed successfully")
 
 
+@tenant_compliance_bp.route("/audit/archive", methods=["POST"])
+@jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
+def trigger_audit_archive():
+    """Trigger archival of older audit logs to cold storage."""
+    claims = get_jwt()
+    org_id = claims.get("organization_id")
+    if not org_id:
+        return error_response(message="Organization ID not found in token context", status_code=400)
+
+    data = request.get_json(silent=True) or {}
+    days = data.get("days", 90)
+    export_format = data.get("format", "json")
+    if export_format not in ("csv", "json"):
+        return error_response(message="Format must be csv or json", status_code=400)
+
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        return error_response(message="days must be an integer", status_code=400)
+    if days < 1:
+        return error_response(message="days must be at least 1", status_code=400)
+
+    from tasks.compliance_tasks import archive_old_audit_logs_task
+
+    task = archive_old_audit_logs_task.delay(days=days, format=export_format)
+    audit_logger.info(
+        "Audit archive task triggered for org=%s days=%s format=%s task_id=%s",
+        org_id,
+        days,
+        export_format,
+        task.id,
+    )
+    return success_response(
+        data={
+            "task_id": task.id,
+            "status": "PENDING",
+            "days": days,
+            "format": export_format,
+        },
+        message="Audit archive task triggered",
+        status_code=202,
+    )
+
+
 @tenant_compliance_bp.route("/evidence", methods=["GET"])
 @jwt_required()
 @require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
@@ -233,7 +279,7 @@ def download_audit_export(export_uuid, format_ext):
     filename = f"audit_export_{org_id}_{export_uuid}.{format_ext}"
     
     from flask import send_from_directory
-    export_dir = "/app/logs/exports"
+    export_dir = get_audit_export_dir()
     
     if not os.path.exists(os.path.join(export_dir, filename)):
         return error_response(message="Export file not found or unauthorized access", status_code=404)

@@ -1,9 +1,15 @@
 from datetime import datetime
+import json
 from typing import List, Dict, Any, Optional
 import networkx as nx
 from celery import Celery
-from ..models.Analysis import Analysis, Node, Edge, Graph
-from .base import BaseService
+try:
+    from models.Analysis import Analysis, Node, Edge, Graph
+    from services.base import BaseService
+except ImportError:  # pragma: no cover - fallback for package-style imports
+    from ..models.Analysis import Analysis, Node, Edge, Graph
+    from .base import BaseService
+from services.llm_service import LLMService
 
 # Configure Celery
 celery_app = Celery('analysis_engine', broker='redis://localhost:6379/0')
@@ -39,6 +45,13 @@ class AnalysisEngineService(BaseService):
                 "input_ports": [],
                 "output_ports": [{"id": "output", "data_type": "dataframe"}],
                 "handler": self._handle_manual_data_entry
+            },
+            "llm_prompt": {
+                "name": "LLM Prompt",
+                "description": "Generate structured output from a prompt and table context",
+                "input_ports": [{"id": "input", "data_type": "dataframe"}],
+                "output_ports": [{"id": "output", "data_type": "json"}],
+                "handler": self._handle_llm_prompt
             },
             
             # Transforms
@@ -275,6 +288,38 @@ class AnalysisEngineService(BaseService):
         """Handle manual data entry data source node"""
         data = node_data.get("properties", {}).get("data", [])
         return data
+
+    def _handle_llm_prompt(self, node_data: Dict, context: Dict) -> Dict[str, Any]:
+        """Handle LLM prompt transform node."""
+        input_key = node_data.get("input_ports", [{}])[0].get("input")
+        input_data = context.get(input_key) if input_key else None
+        properties = node_data.get("properties", {})
+        prompt_template = properties.get("prompt_template")
+        if not prompt_template:
+            raise ValueError("prompt_template is required for llm_prompt nodes")
+
+        context_rows = input_data or properties.get("data", []) or []
+        context_text = json.dumps(context_rows, default=str, indent=2)[:12000]
+        prompt = prompt_template.format(
+            data=context_text,
+            title=node_data.get("title", "LLM Prompt"),
+            config=json.dumps(properties.get("config", {}), default=str),
+        )
+        raw_result = LLMService.generate_text(prompt, context_text)
+
+        parsed = raw_result
+        if isinstance(raw_result, str):
+            try:
+                parsed = json.loads(raw_result)
+            except Exception:
+                parsed = {"text": raw_result}
+
+        return {
+            "type": "llm",
+            "prompt": prompt,
+            "input_rows": len(context_rows) if isinstance(context_rows, list) else 0,
+            "result": parsed,
+        }
     
     def _handle_filter(self, node_data: Dict, context: Dict) -> List[Dict]:
         """Handle filter transform node"""

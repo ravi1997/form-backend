@@ -25,6 +25,8 @@ from routes.v1.admin.task_route import admin_task_bp
 from routes.v1.admin.org_management_route import org_management_bp
 from routes.v1.admin.feature_flag_route import feature_flag_bp
 from routes.v1.admin.ai_ops_route import ai_ops_bp
+from routes.v1.admin.api_key_route import api_key_bp
+from routes.v1.admin.webhook_route import webhook_admin_bp
 from routes.v1.task_route import task_bp
 
 from routes.v1.theme_route import theme_bp
@@ -123,6 +125,10 @@ def register_blueprints(app):
     )
     app.register_blueprint(
         ai_ops_bp, url_prefix=f"{internal_prefix}/admin/ai-ops"
+    )
+    app.register_blueprint(api_key_bp, url_prefix=f"{internal_prefix}/admin/api-keys")
+    app.register_blueprint(
+        webhook_admin_bp, url_prefix=f"{internal_prefix}/admin/webhooks"
     )
     app.register_blueprint(task_bp, url_prefix=f"{public_prefix}/tasks")
 

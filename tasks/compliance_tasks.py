@@ -1,11 +1,17 @@
 from config.celery import celery_app
 from services.compliance_service import ComplianceService
 from logger.unified_logger import app_logger, error_logger, audit_logger
+from config.settings import settings
 import csv
 import json
 import os
 from uuid import uuid4
 from models.AuditLog import AuditLog
+from services.audit_archive_service import AuditArchiveService
+
+
+def get_audit_export_dir():
+    return os.getenv("AUDIT_EXPORT_DIR") or getattr(settings, "AUDIT_EXPORT_DIR", None) or "/app/logs/exports"
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=3600)
@@ -37,7 +43,7 @@ def export_tenant_audit_logs_task(self, organization_id: str, format: str = "csv
     try:
         logs = AuditLog.objects(organization_id=organization_id, is_deleted=False).order_by("-timestamp")
         
-        export_dir = "/app/logs/exports"
+        export_dir = get_audit_export_dir()
         os.makedirs(export_dir, exist_ok=True)
         
         export_uuid = str(uuid4())
@@ -93,3 +99,19 @@ def export_tenant_audit_logs_task(self, organization_id: str, format: str = "csv
         error_logger.error(f"Audit log export failed for tenant {organization_id}: {e}", exc_info=True)
         raise self.retry(exc=e)
 
+
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
+def archive_old_audit_logs_task(self, days: int = 90, format: str = "json"):
+    """Archive older audit logs to cold storage and remove them from hot storage."""
+    app_logger.info("Starting audit log archive job for records older than %s days", days)
+    try:
+        result = AuditArchiveService.archive_older_than(days=days, format=format)
+        app_logger.info(
+            "Audit log archive complete: count=%s filename=%s",
+            result["count"],
+            result["filename"],
+        )
+        return result
+    except Exception as e:
+        error_logger.error(f"Audit log archive failed: {e}", exc_info=True)
+        raise self.retry(exc=e)

@@ -6,6 +6,7 @@ from mongoengine.errors import DoesNotExist
 from models import Form, FormResponse
 from routes.v1.form.helper import get_current_user, has_form_permission
 from services.ai_service import AIService
+from services.llm_service import LLMService
 from services.ollama_service import OllamaService
 from datetime import datetime, timezone
 import hashlib
@@ -412,7 +413,7 @@ def generate_form_ai() -> Tuple[Any, int]:
         if not prompt:
             return jsonify({"error": "Prompt is required"}), 400
 
-        form_structure = AIService.generate_form(prompt, current_form)
+        form_structure = LLMService.generate_form(prompt, current_form)
         audit_logger.info(f"AI Form generated for prompt: {prompt[:50]}...")
 
         return (

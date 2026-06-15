@@ -9,12 +9,13 @@ from models.AuditLog import AuditLog
 from tasks.compliance_tasks import export_tenant_audit_logs_task
 from routes.v1.admin.tenant_compliance_route import tenant_compliance_bp
 
-def test_audit_log_export_task(db_connection):
+def test_audit_log_export_task(db_connection, monkeypatch, tmp_path):
     # Setup test audit logs
     org_1 = "org-export-1"
     org_2 = "org-export-2"
-    
+
     AuditLog.objects.delete()
+    monkeypatch.setenv("AUDIT_EXPORT_DIR", str(tmp_path))
     
     # Logs for org_1
     AuditLog(
@@ -41,7 +42,7 @@ def test_audit_log_export_task(db_connection):
     assert res["status"] == "SUCCESS"
     assert res["count"] == 1
     
-    export_dir = "/app/logs/exports"
+    export_dir = str(tmp_path)
     file_path = os.path.join(export_dir, res["filename"])
     assert os.path.exists(file_path)
     
@@ -67,6 +68,9 @@ def test_audit_export_api(app, db_connection):
         pass
 
     client = app.test_client()
+    monkeypatch = pytest.MonkeyPatch()
+    export_dir = "/tmp/form-backend-exports"
+    monkeypatch.setenv("AUDIT_EXPORT_DIR", export_dir)
 
     with app.app_context():
         # Setup Admin User
@@ -116,25 +120,39 @@ def test_audit_export_api(app, db_connection):
         assert resp.status_code == 403
 
         # 2. Trigger export with admin token -> should succeed (202)
+        class _FakeTask:
+            id = "export-task-123"
+
+        def _fake_delay(*args, **kwargs):
+            return _FakeTask()
+
+        from tasks import compliance_tasks as _compliance_tasks
+
+        monkeypatch.setattr(_compliance_tasks.export_tenant_audit_logs_task, "delay", _fake_delay)
+
         resp = client.post("/mahasangraha/api/v1/compliance/audit/export", headers=headers_admin, json={"format": "csv"})
         assert resp.status_code == 202
         data = resp.get_json()["data"]
-        assert "task_id" in data
+        assert data["task_id"] == "export-task-123"
         assert data["status"] == "PENDING"
+        monkeypatch.undo()
         
         # 3. Test download endpoint boundaries
         export_uuid = str(uuid.uuid4())
-        
+
         # Create dummy file for org-api-exp
-        export_dir = "/app/logs/exports"
         os.makedirs(export_dir, exist_ok=True)
         filename = f"audit_export_org-api-exp_{export_uuid}.csv"
         file_path = os.path.join(export_dir, filename)
         with open(file_path, "w") as f:
             f.write("dummy audit data")
+        monkeypatch.setattr(
+            "routes.v1.admin.tenant_compliance_route.get_audit_export_dir",
+            lambda: export_dir,
+        )
             
-        # Try to download using user of SAME tenant -> should succeed
-        resp = client.get(f"/mahasangraha/api/v1/compliance/audit/export/download/{export_uuid}.csv", headers=headers_user)
+        # Try to download using admin of SAME tenant -> should succeed
+        resp = client.get(f"/mahasangraha/api/v1/compliance/audit/export/download/{export_uuid}.csv", headers=headers_admin)
         assert resp.status_code == 200
         assert resp.get_data(as_text=True) == "dummy audit data"
         
@@ -166,3 +184,60 @@ def test_audit_export_api(app, db_connection):
             os.remove(file_path)
         except Exception:
             pass
+        monkeypatch.undo()
+
+
+def test_audit_archive_api_triggers_task(app, db_connection, monkeypatch):
+    try:
+        app.register_blueprint(tenant_compliance_bp, url_prefix="/mahasangraha/api/v1/compliance")
+    except AssertionError:
+        pass
+
+    class _FakeTask:
+        id = "archive-task-123"
+
+    recorded = {}
+
+    def _fake_delay(*, days, format):
+        recorded["days"] = days
+        recorded["format"] = format
+        return _FakeTask()
+
+    monkeypatch.setattr(
+        "tasks.compliance_tasks.archive_old_audit_logs_task.delay",
+        _fake_delay,
+    )
+
+    client = app.test_client()
+    with app.app_context():
+        admin_user = User(
+            id=uuid.uuid4(),
+            username="admin_archive",
+            email="admin_archive@test.com",
+            user_type="employee",
+            is_active=True,
+            roles=["admin"],
+            organization_id="org-archive-api",
+        ).save()
+        admin_token = create_access_token(
+            identity=str(admin_user.id),
+            additional_claims={"roles": ["admin"], "organization_id": "org-archive-api"},
+        )
+
+    headers_admin = {
+        "Authorization": f"Bearer {admin_token}",
+        "Content-Type": "application/json",
+    }
+
+    resp = client.post(
+        "/mahasangraha/api/v1/compliance/audit/archive",
+        headers=headers_admin,
+        json={"days": 45, "format": "json"},
+    )
+    assert resp.status_code == 202
+    payload = resp.get_json()["data"]
+    assert payload["task_id"] == "archive-task-123"
+    assert payload["status"] == "PENDING"
+    assert payload["days"] == 45
+    assert payload["format"] == "json"
+    assert recorded == {"days": 45, "format": "json"}

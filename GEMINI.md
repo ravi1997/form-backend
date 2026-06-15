@@ -49,7 +49,28 @@ You must NOT execute micro-tasks directly in the main conversation unless specif
 
 ---
 
+## Ollama Local Execution & Token Optimization (Feasibility Protocol)
+To minimize cloud API token usage, you must evaluate if non-code generation sub-tasks can be delegated to the local Ollama instance (available at `http://localhost:11434`).
+
+### 1. Allowed Tasks for Ollama
+- **Log & Error Analysis**: Summarizing long test failure logs, build outputs, or trace files.
+- **Document & Spec Drafting**: Drafting descriptions, updating developer guides, and translating raw plans to docs.
+- **Lint & Static Review**: Searching for structural patterns or verifying lint rules (reading code, not writing it).
+- **Embeddings & Search**: Generating embeddings locally using `nomic-embed-text:latest`.
+
+### 2. Prohibited Tasks (Do NOT run on Ollama)
+- **Application Code Generation**: All actual code edits, widget implementations, and script generation must be performed by the main agent/subagents using the primary model to ensure precision.
+
+### 3. Feasibility Pre-Evaluation
+Before assigning any task to Ollama, run a quick feasibility check:
+1. Is it a code generation task? If yes, REJECT local execution.
+2. Will it consume more than 20k tokens of context? If yes, check local memory limits (prefer smaller tasks on `qwen3.5:latest` and heavy analysis on `qwen3:30b`).
+3. Call the Ollama API locally using `run_command` only for feasible sub-tasks.
+
+---
+
 ## Session Startup (Do This First)
+
 1. `manage_adr(mode="get", repo_path="/home/ravi/workspace/docker/apps/form-backend")` — load persisted decisions
 2. `get_architecture(aspects=["modules","patterns","dependencies"])` — prime structure
 3. `detect_changes(repo_path="/home/ravi/workspace/docker/apps/form-backend")` — scope to what changed
