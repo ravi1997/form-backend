@@ -89,6 +89,7 @@ def get_analytics_trends(org_id):
     }
 )
 @jwt_required()
+@require_roles("admin", "superadmin")
 def get_task_status(task_id):
     """
     Get the status of an async Celery task.

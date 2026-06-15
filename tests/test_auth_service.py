@@ -54,6 +54,7 @@ def test_generate_tokens(app, auth_service, mock_user):
         assert payload["role"] == "user"
         assert payload["system_role"] == "user"
         assert payload["orgs"] == []
+        assert payload["org_id"] is None
 
 
 def test_validate_token_success(auth_service, mock_user):
@@ -61,6 +62,7 @@ def test_validate_token_success(auth_service, mock_user):
     payload = auth_service.validate_token(tokens.access_token)
     assert payload.sub == str(mock_user.id)
     assert "user" in payload.roles
+    assert payload.role == "user"
 
 
 def test_validate_token_expired(auth_service, mock_user):

@@ -153,6 +153,27 @@ def test_check_slug_treats_slug_history_as_reserved(db_connection, app):
     assert response.get_json()["data"]["available"] is False
 
 
+def test_check_slug_allows_the_current_form_slug_when_editing(db_connection, app):
+    form = Form(
+        title="Advanced Lookup",
+        slug="current-slug",
+        slug_history=["retired-slug"],
+        organization_id="org-1",
+        created_by="user-1",
+    ).save()
+
+    with app.test_request_context(
+        f"/mahasangraha/api/v1/forms/slug-available?slug=current-slug&form_id={form.id}",
+        method="GET",
+    ), patch("flask_jwt_extended.view_decorators.verify_jwt_in_request"), patch(
+        "utils.security_helpers.verify_jwt_in_request"
+    ):
+        response, status = check_slug()
+
+    assert status == 200
+    assert response.get_json()["data"]["available"] is True
+
+
 def test_view_form_uses_fallback_translation_when_requested_language_missing(app):
     mock_form = MagicMock()
     mock_form.id = "form-1"

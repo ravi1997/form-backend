@@ -224,7 +224,12 @@ def create_app():
             from models.User import User
 
             alice_email = os.environ.get("DEV_ALICE_EMAIL", "alice@hospital.org")
-            alice_password = os.environ.get("DEV_ALICE_PASSWORD", "SecureP@ss2026")
+            alice_password = os.environ.get("DEV_ALICE_PASSWORD")
+            if not alice_password:
+                raise RuntimeError(
+                    "DEV_ALICE_PASSWORD environment variable must be set explicitly. "
+                    "Do not use a hardcoded default."
+                )
             alice_username = os.environ.get("DEV_ALICE_USERNAME", "alice")
             alice_org = os.environ.get("DEV_ALICE_ORG_ID", "org-1")
 

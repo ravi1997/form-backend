@@ -19,7 +19,10 @@ def main():
     email = f"codex.{uuid.uuid4().hex[:6]}@example.com"
     username = f"codex_{uuid.uuid4().hex[:8]}"
     mobile = str(9000000000 + int(uuid.uuid4().hex[:8], 16) % 1000000000)
-    password = "SecureP@ss2026"
+    password = os.environ.get("DEV_ALICE_PASSWORD")
+    if not password:
+        print("DEV_ALICE_PASSWORD environment variable must be set explicitly.")
+        raise SystemExit(1)
 
     # Health
     r = s.get(f"{BASE}/form/health", allow_redirects=False)

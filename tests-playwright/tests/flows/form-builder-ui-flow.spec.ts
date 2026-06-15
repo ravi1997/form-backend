@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Form Builder UI Flow', () => {
+  const alicePassword = process.env.DEV_ALICE_PASSWORD
+    ?? (() => { throw new Error('DEV_ALICE_PASSWORD env var must be set'); })();
 
   test('login, select project, create form, and go to builder', async ({ page }) => {
     // 1. Navigate to the frontend app
@@ -15,7 +17,7 @@ test.describe('Form Builder UI Flow', () => {
 
     // 3. Fill in the login form using direct CSS selectors
     await page.locator('input[aria-label="name@company.com"]').fill('alice@hospital.org');
-    await page.locator('input[aria-label="Enter your password"]').fill('SecureP@ss2026');
+    await page.locator('input[aria-label="Enter your password"]').fill(alicePassword);
 
     // 4. Click Sign in button (custom flt-semantics button)
     await page.locator('flt-semantics[role="button"]:has-text("Sign in"), flt-semantics:has-text("Sign in")').first().click();

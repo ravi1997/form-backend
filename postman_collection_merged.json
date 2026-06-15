@@ -2,8 +2,8 @@
     "collection": {
         "info": {
             "_postman_id": "54231243-91f7-4ffb-87b9-9dfdec20cdf9",
-            "name": "RIDP Form Platform \u2014 Complete API",
-            "description": "Full API collection organized in the same order as docs/backend-doc/getting-started.md.\n\nBase URL: http://localhost:8051\nSwagger: http://localhost:8051/form/docs\n\nRequired env variables: base_url, access_token, refresh_token, form_id, section_id, question_id, response_id\n\nWorkflow: Health Check \u2192 Register \u2192 Login \u2192 Create Form \u2192 Add Sections \u2192 Publish \u2192 Submit Responses",
+            "name": "RIDP Form Platform — Complete API",
+            "description": "Full API collection organized in the same order as docs/backend-doc/getting-started.md.\n\nBase URL: http://localhost:8051\nSwagger: http://localhost:8051/form/docs\n\nRequired env variables: base_url, access_token, refresh_token, form_id, section_id, question_id, response_id\n\nWorkflow: Health Check → Register → Login → Create Form → Add Sections → Publish → Submit Responses\n\nRequires Postman environment variable DEV_ALICE_PASSWORD to be set.",
             "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
             "createdAt": "2026-04-08T07:06:06.000Z",
             "updatedAt": "2026-04-08T07:06:06.000Z",
@@ -164,7 +164,7 @@
                             ],
                             "body": {
                                 "mode": "raw",
-                                "raw": "{\n    \"email\": \"alice@hospital.org\",\n    \"password\": \"SecureP@ss2026\",\n    \"username\": \"alice\",\n    \"user_type\": \"employee\",\n    \"mobile\": \"9876543210\",\n    \"roles\": [\n        \"admin\"\n    ],\n    \"organization_id\": \"{{org_id}}\"\n}",
+                                "raw": "{\n    \"email\": \"alice@hospital.org\",\n    \"password\": \"{{DEV_ALICE_PASSWORD}}\",\n    \"username\": \"alice\",\n    \"user_type\": \"employee\",\n    \"mobile\": \"9876543210\",\n    \"roles\": [\n        \"admin\"\n    ],\n    \"organization_id\": \"{{org_id}}\"\n}",
                                 "options": {
                                     "raw": {
                                         "language": "json"
@@ -184,7 +184,7 @@
                                     "register"
                                 ]
                             },
-                            "description": "Create a new user account. Rate-limited: 5 per minute.\n\nSave from response: user.id \u2192 {{user_id}}"
+                            "description": "Create a new user account. Rate-limited: 5 per minute.\n\nSave from response: user.id → {{user_id}}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -244,7 +244,7 @@
                             ],
                             "body": {
                                 "mode": "raw",
-                                "raw": "{\n    \"email\": \"alice@hospital.org\",\n    \"password\": \"SecureP@ss2026\"\n}",
+                                "raw": "{\n    \"email\": \"alice@hospital.org\",\n    \"password\": \"{{DEV_ALICE_PASSWORD}}\"\n}",
                                 "options": {
                                     "raw": {
                                         "language": "json"
@@ -264,7 +264,7 @@
                                     "login"
                                 ]
                             },
-                            "description": "Returns access_token and refresh_token in response body. Also sets HttpOnly cookies.\n\nSave: data.access_token \u2192 {{access_token}}, data.refresh_token \u2192 {{refresh_token}}\n\nAlso works with: {username: '...'} or {employee_id: '...'}"
+                            "description": "Returns access_token and refresh_token in response body. Also sets HttpOnly cookies.\n\nSave: data.access_token → {{access_token}}, data.refresh_token → {{refresh_token}}\n\nAlso works with: {username: '...'} or {employee_id: '...'}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -423,7 +423,7 @@
                     }
                 ],
                 "id": "e9c03bd1-0181-4a84-9d83-0ec6723e141b",
-                "description": "Start here. Order: Register \u2192 Login \u2192 save access_token \u2192 use in all requests \u2192 Refresh when 401.",
+                "description": "Start here. Order: Register → Login → save access_token → use in all requests → Refresh when 401.",
                 "createdAt": "2026-04-08T07:06:07.000Z",
                 "updatedAt": "2026-04-08T07:06:07.000Z",
                 "uid": "25872699-e9c03bd1-0181-4a84-9d83-0ec6723e141b"
@@ -501,7 +501,7 @@
                             ],
                             "body": {
                                 "mode": "raw",
-                                "raw": "{\n  \"current_password\": \"SecureP@ss2026\",\n  \"new_password\": \"BetterP@ssWord2026\"\n}",
+                                "raw": "{\n  \"current_password\": \"{{DEV_ALICE_PASSWORD}}\",\n  \"new_password\": \"BetterP@ssWord2026\"\n}",
                                 "options": {
                                     "raw": {
                                         "language": "json"
@@ -740,7 +740,7 @@
                                     }
                                 ]
                             },
-                            "description": "Requires admin or superadmin. Partial update \u2014 only include fields to change."
+                            "description": "Requires admin or superadmin. Partial update — only include fields to change."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -1463,7 +1463,7 @@
                                     }
                                 ]
                             },
-                            "description": "Partial update \u2014 only include fields to change."
+                            "description": "Partial update — only include fields to change."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -1875,7 +1875,7 @@
                     }
                 ],
                 "id": "53b12a80-7200-4fb0-97ef-d71166f5adb0",
-                "description": "Create \u2192 Add Sections \u2192 Add Questions. Must have at least one section before publishing.",
+                "description": "Create → Add Sections → Add Questions. Must have at least one section before publishing.",
                 "auth": {
                     "type": "bearer",
                     "bearer": [
@@ -1947,7 +1947,7 @@
                                     }
                                 ]
                             },
-                            "description": "Returns 202 (async Celery task). Poll GET /forms/:form_id until status='published'.\n\nminor=true \u2192 1.0 to 1.1 (default)\nmajor=true \u2192 1.1 to 2.0 (use when questions change significantly)"
+                            "description": "Returns 202 (async Celery task). Poll GET /forms/:form_id until status='published'.\n\nminor=true → 1.0 to 1.1 (default)\nmajor=true → 1.1 to 2.0 (use when questions change significantly)"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -1999,7 +1999,7 @@
                                     }
                                 ]
                             },
-                            "description": "Stops new submissions. Status \u2192 'archived'."
+                            "description": "Stops new submissions. Status → 'archived'."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -2051,7 +2051,7 @@
                                     }
                                 ]
                             },
-                            "description": "Re-activates archived form. Status \u2192 'published'."
+                            "description": "Re-activates archived form. Status → 'published'."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -2781,7 +2781,7 @@
                                     }
                                 ]
                             },
-                            "description": "Partial update \u2014 only include lists to change.\neditors: can edit + view responses\nviewers: view-only\nsubmitters: explicitly allowed to submit (leave empty for open access to all org members)"
+                            "description": "Partial update — only include lists to change.\neditors: can edit + view responses\nviewers: view-only\nsubmitters: explicitly allowed to submit (leave empty for open access to all org members)"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -2849,7 +2849,7 @@
                                     "upload"
                                 ]
                             },
-                            "description": "Multipart form-data. Include file as 'file' field.\n\nSave returned url \u2192 use as question value in submission."
+                            "description": "Multipart form-data. Include file as 'file' field.\n\nSave returned url → use as question value in submission."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -2902,7 +2902,7 @@
                                     "signatures"
                                 ]
                             },
-                            "description": "Base64-encoded PNG. Returns url \u2192 use as value for signature question in submission."
+                            "description": "Base64-encoded PNG. Returns url → use as value for signature question in submission."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -3047,7 +3047,7 @@
                                     }
                                 ]
                             },
-                            "description": "Requires JWT. Form must be published, not expired. User needs submit permission.\n\nData structure: data[section_id][question_id] = value\n\nFor repeatable sections: data[section_id] = [{question_id: value}, ...]\n\nReturns: data.response_id \u2192 save as {{response_id}}"
+                            "description": "Requires JWT. Form must be published, not expired. User needs submit permission.\n\nData structure: data[section_id][question_id] = value\n\nFor repeatable sections: data[section_id] = [{question_id: value}, ...]\n\nReturns: data.response_id → save as {{response_id}}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -3913,7 +3913,7 @@
                                     }
                                 ]
                             },
-                            "description": "Combined: totalSubmissions, trends (last 7 days), fieldDistributions.\n\nWARNING: completionRate is hardcoded to 0.85 \u2014 do not use for reporting."
+                            "description": "Combined: totalSubmissions, trends (last 7 days), fieldDistributions.\n\nWARNING: completionRate is hardcoded to 0.85 — do not use for reporting."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -4466,7 +4466,7 @@
                                     }
                                 ]
                             },
-                            "description": "STUB \u2014 placeholder only. Not implemented.",
+                            "description": "STUB — placeholder only. Not implemented.",
                             "body": {
                                 "mode": "raw",
                                 "raw": "{\n    \"scan_type\": \"full\",\n    \"response_ids\": [],\n    \"detection_types\": [\n        \"spam\",\n        \"outlier\"\n    ],\n    \"sensitivity\": \"medium\",\n    \"use_dynamic_thresholds\": false,\n    \"save_results\": false\n}",
@@ -5276,7 +5276,7 @@
                                     "jobs"
                                 ]
                             },
-                            "description": "Triggers async Celery translation. Returns 202 with job_id.\n\nSave: data.job_id \u2192 {{job_id}}"
+                            "description": "Triggers async Celery translation. Returns 202 with job_id.\n\nSave: data.job_id → {{job_id}}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -5609,7 +5609,7 @@
                     }
                 ],
                 "id": "4c212b54-0b4c-47f8-8333-fe1d0700e334",
-                "description": "AI-powered form translation. Create job \u2192 poll status \u2192 fetch content.",
+                "description": "AI-powered form translation. Create job → poll status → fetch content.",
                 "auth": {
                     "type": "bearer",
                     "bearer": [
@@ -5672,7 +5672,7 @@
                                     "dashboards"
                                 ]
                             },
-                            "description": "Creates a dashboard. Widget data is resolved live on GET.\n\nSave: data.dashboard_id \u2192 {{dashboard_id}}, data.slug \u2192 {{dashboard_slug}}"
+                            "description": "Creates a dashboard. Widget data is resolved live on GET.\n\nSave: data.dashboard_id → {{dashboard_id}}, data.slug → {{dashboard_slug}}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -6331,7 +6331,7 @@
                                     "workflows"
                                 ]
                             },
-                            "description": "Creates workflow tied to trigger_form_id. All queries are org-scoped.\n\nSave: data.id \u2192 {{workflow_id}}"
+                            "description": "Creates workflow tied to trigger_form_id. All queries are org-scoped.\n\nSave: data.id → {{workflow_id}}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -6474,7 +6474,7 @@
                                     "pending"
                                 ]
                             },
-                            "description": "STUB \u2014 returns empty list always."
+                            "description": "STUB — returns empty list always."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -6657,7 +6657,7 @@
                                     "deliver"
                                 ]
                             },
-                            "description": "Requires manager role. Fires webhook and returns delivery result.\n\nSave: delivery id \u2192 {{webhook_id}}"
+                            "description": "Requires manager role. Fires webhook and returns delivery result.\n\nSave: delivery id → {{webhook_id}}"
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -7470,7 +7470,7 @@
                                     "trends"
                                 ]
                             },
-                            "description": "STUB \u2014 returns empty trends array."
+                            "description": "STUB — returns empty trends array."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -7807,7 +7807,7 @@
                                     }
                                 ]
                             },
-                            "description": "STUB \u2014 returns empty data. Placeholder for UHID lookup."
+                            "description": "STUB — returns empty data. Placeholder for UHID lookup."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -7859,7 +7859,7 @@
                                     }
                                 ]
                             },
-                            "description": "STUB \u2014 returns empty data. Placeholder for employee directory."
+                            "description": "STUB — returns empty data. Placeholder for employee directory."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -7912,7 +7912,7 @@
                                     "mail"
                                 ]
                             },
-                            "description": "STUB \u2014 returns success without sending."
+                            "description": "STUB — returns success without sending."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",
@@ -7965,7 +7965,7 @@
                                     "sms"
                                 ]
                             },
-                            "description": "STUB \u2014 returns success without sending. Different from /sms/ (real AIIMS gateway)."
+                            "description": "STUB — returns success without sending. Different from /sms/ (real AIIMS gateway)."
                         },
                         "response": [],
                         "createdAt": "2026-04-08T07:06:07.000Z",

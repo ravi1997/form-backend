@@ -250,9 +250,10 @@ class PasswordValidator:
         In production, this would call HaveIBeenPwned API.
         For now, returns False (placeholder implementation).
         """
-        # TODO: Implement HaveIBeenPwned API integration
-        # Reference: https://haveibeenpwned.com/API/v3
-        return False
+        raise NotImplementedError(
+            "Breach check is not implemented. Either integrate HaveIBeenPwned "
+            "or remove this call from the validation chain."
+        )
 
     def check_password_history(
         self, password: str, password_history: List[str]

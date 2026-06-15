@@ -92,10 +92,16 @@ def get_builder_metadata():
 @jwt_required()
 def check_slug():
     slug = request.args.get("slug")
+    form_id = request.args.get("form_id")
     app_logger.info(f"Checking slug availability for: {slug}")
     if not slug:
         return error_response(message="slug parameter is required", status_code=400)
-    exists = Form.objects.filter(Q(slug=slug) | Q(slug_history=slug)).first() is not None
+    current_form = None
+    if form_id:
+        current_form = Form.objects(id=form_id).first()
+    exists = Form.objects.filter(Q(slug=slug) | Q(slug_history=slug)).first()
+    if current_form and current_form.slug == slug:
+        exists = None
     app_logger.info(f"Slug availability for {slug}: {not exists}")
     return success_response(data={"available": not exists})
 

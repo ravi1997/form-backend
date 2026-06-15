@@ -121,10 +121,9 @@ def nlp_search(form_id: str):
                     ),
                     400,
                 )
-        except Exception as e:
-            # If form not found or schema unavailable, skip validation
+        except (AttributeError, KeyError, TypeError) as e:
+            # If form not found or schema unavailable, skip validation.
             app_logger.debug(f"Skipping field validation for form {form_id}: {e}")
-            pass
 
     # Check cache first
     cache_key = NLPSearchService.generate_cache_key(form_id, query, "nlp")

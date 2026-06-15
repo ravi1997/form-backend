@@ -21,6 +21,7 @@ compliance_service = ComplianceService()
 
 @tenant_compliance_bp.route("/settings", methods=["GET"])
 @jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def get_tenant_settings():
     """Retrieve tenant quota settings and current usage."""
     claims = get_jwt()
@@ -60,6 +61,7 @@ def update_tenant_settings():
 
 @tenant_compliance_bp.route("/recalculate", methods=["POST"])
 @jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def recalculate_tenant_usage():
     """Manually trigger recalculation of tenant usage metrics."""
     claims = get_jwt()
@@ -144,6 +146,7 @@ def prune_expired_responses():
 
 @tenant_compliance_bp.route("/evidence", methods=["GET"])
 @jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def get_evidence_logs():
     """Retrieves compliance evidence logs."""
     claims = get_jwt()
@@ -215,6 +218,7 @@ def get_audit_export_status(task_id):
 
 @tenant_compliance_bp.route("/audit/export/download/<export_uuid>.<format_ext>", methods=["GET"])
 @jwt_required()
+@require_roles(Role.ADMIN.value, Role.SUPERADMIN.value)
 def download_audit_export(export_uuid, format_ext):
     """Downloads a tenant-isolated audit export file."""
     import os
