@@ -58,6 +58,8 @@ class FormResponse(BaseDocument, SoftDeleteMixin):
     # Payload - The source for dynamic views
     # Keys should match question variable_names
     data = DictField(required=True)
+    answers = DictField(default=dict)
+    repeat_groups = DictField(default=dict)
     encrypted_data = DictField(default=dict)  # Stores encrypted sensitive fields
 
     # Idempotency key — client-supplied UUID to prevent duplicate submissions on retry

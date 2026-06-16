@@ -33,14 +33,21 @@ class UserService(BaseService):
             password = data.pop("password")
 
             # Validate password strength (NIST/OWASP compliant)
+            from utils.exceptions import ValidationError as UserValidationError
+            username_lower = data.get("username", "").lower()
+            email_lower = data.get("email", "").lower()
+            password_lower = password.lower()
+            if username_lower and username_lower in password_lower:
+                raise UserValidationError("Password must not contain the username.")
+            if email_lower and email_lower in password_lower:
+                raise UserValidationError("Password must not contain the email address.")
+
             validation_result = password_validator.validate(password)
             if not validation_result.is_valid:
                 # Redact password from error logs
                 app_logger.warning(
                     f"Password validation failed for user registration: {', '.join(validation_result.errors)}"
                 )
-                from utils.exceptions import ValidationError as UserValidationError
-
                 raise UserValidationError(
                     f"Password does not meet requirements: {', '.join(validation_result.errors)}"
                 )
@@ -78,6 +85,27 @@ class UserService(BaseService):
 
             # Validate password if being changed
             if password:
+                from utils.exceptions import ValidationError as UserValidationError
+                username_lower = (user_doc.username or "").lower()
+                email_lower = (user_doc.email or "").lower()
+                password_lower = password.lower()
+                if username_lower and username_lower in password_lower:
+                    raise UserValidationError("Password must not contain the username.")
+                if email_lower and email_lower in password_lower:
+                    raise UserValidationError("Password must not contain the email address.")
+
+                import bcrypt
+                history = getattr(user_doc, "password_history", []) or []
+                for old_hash in history[-5:]:
+                    matches = False
+                    try:
+                        if old_hash and bcrypt.checkpw(password.encode(), old_hash.encode()):
+                            matches = True
+                    except Exception:
+                        pass
+                    if matches:
+                        raise UserValidationError("Password matches one of your last 5 passwords.")
+
                 from utils.password_validator import password_validator
 
                 validation_result = password_validator.validate(password)
@@ -85,8 +113,6 @@ class UserService(BaseService):
                     app_logger.warning(
                         f"Password validation failed for user {doc_id}: {', '.join(validation_result.errors)}"
                     )
-                    from utils.exceptions import ValidationError as UserValidationError
-
                     raise UserValidationError(
                         f"Password does not meet requirements: {', '.join(validation_result.errors)}"
                     )

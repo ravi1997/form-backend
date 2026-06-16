@@ -65,6 +65,7 @@ class User(BaseDocument, SoftDeleteMixin):
     user_type = StringField(required=True, choices=USER_TYPE_CHOICES, default="general")
     password_hash = StringField(max_length=255)
     password_expiration = DateTimeField()
+    password_history = ListField(StringField(), default=list)
 
     is_active = BooleanField(default=True)
     is_admin = BooleanField(default=False)
@@ -128,6 +129,9 @@ class User(BaseDocument, SoftDeleteMixin):
         self.password_expiration = datetime.now(timezone.utc) + timedelta(
             days=expiry_days
         )
+        self.password_history = getattr(self, "password_history", []) or []
+        self.password_history.append(self.password_hash)
+        self.password_history = self.password_history[-5:]
 
     def check_password(self, raw_password: str) -> bool:
         try:

@@ -94,6 +94,7 @@ class AuthService(BaseService):
                     "org_id": str(organization_id) if organization_id else None,
                     "system_role": system_role,
                     "orgs": org_claims,
+                    "email": getattr(user, "email", None),
                 },
                 expires_delta=access_expires,
             )

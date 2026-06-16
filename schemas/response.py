@@ -13,6 +13,8 @@ class FormResponseSchema(SoftDeleteBaseSchema):
     organization_id: str
 
     data: Dict[str, Any]
+    answers: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    repeat_groups: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
     submitted_by: str
     submitted_at: Optional[datetime] = None

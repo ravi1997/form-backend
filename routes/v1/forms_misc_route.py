@@ -287,3 +287,69 @@ def download_bulk_export(job_id):
         return error_response(message="Job not found", status_code=404)
     except Exception as e:
         return error_response(message=str(e), status_code=500)
+
+
+@forms_misc_bp.route("/<form_id>/responses", methods=["POST"])
+def submit_public_response(form_id):
+    """
+    Public form response submission secured by API Key.
+    """
+    from middleware.api_key_auth import require_api_key
+    from services.api_key_service import ApiKeyService
+    from services.response_service import FormResponseService, FormResponseCreateSchema
+    from uuid import UUID
+
+    raw_key = request.headers.get("X-API-Key")
+    if not raw_key:
+        return error_response(message="X-API-Key header is required", status_code=401)
+
+    api_key_record = ApiKeyService.get_active_key(raw_key)
+    if not api_key_record:
+        return error_response(message="Invalid API Key", status_code=403)
+
+    if not ApiKeyService.rate_limit_key(raw_key):
+        return error_response(message="API key rate limit exceeded", status_code=429)
+
+    org_id = api_key_record.organization_id
+    data = request.get_json(silent=True) or {}
+
+    try:
+        form_uuid = UUID(form_id)
+    except ValueError:
+        return error_response(message="Invalid form ID format", status_code=400)
+
+    try:
+        form = Form.objects.get(id=form_uuid, organization_id=org_id, is_deleted=False)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+
+    # Check if form lifecycle allows submissions
+    now = datetime.now(timezone.utc)
+    if form.expires_at and form.expires_at.replace(tzinfo=timezone.utc) < now:
+        return error_response(message="This form has expired", status_code=400)
+    if form.publish_at and form.publish_at.replace(tzinfo=timezone.utc) > now:
+        return error_response(message="This form is not yet available", status_code=400)
+
+    submission_data = {
+        "form": str(form.id),
+        "organization_id": org_id,
+        "data": data.get("data", {}),
+        "answers": data.get("answers", {}),
+        "repeat_groups": data.get("repeat_groups", {}),
+        "submitted_by": f"api-key:{api_key_record.key_prefix}",
+        "ip_address": request.remote_addr,
+        "user_agent": request.user_agent.string,
+    }
+
+    try:
+        response_service = FormResponseService()
+        create_schema = FormResponseCreateSchema(**submission_data)
+        response = response_service.create_submission(create_schema)
+        return success_response(
+            data={"response_id": str(response.id)},
+            message="Response submitted successfully via API Key",
+            status_code=201,
+        )
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+

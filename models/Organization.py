@@ -3,7 +3,7 @@ models/Organization.py
 Model representing an Enterprise Organization in the RIDP Platform.
 """
 
-from mongoengine import StringField, DictField
+from mongoengine import StringField, DictField, IntField, ListField
 from .base import BaseDocument, SoftDeleteMixin
 
 class Organization(BaseDocument, SoftDeleteMixin):
@@ -17,6 +17,7 @@ class Organization(BaseDocument, SoftDeleteMixin):
         "indexes": [
             {"fields": ["organization_id"], "unique": True},
             {"fields": ["status"]},
+            {"fields": ["parent_org_id"]},
         ],
         "index_background": True,
     }
@@ -28,6 +29,11 @@ class Organization(BaseDocument, SoftDeleteMixin):
     admin_user_id = StringField(required=False)  # Maps to User.id (as UUID string or user_id)
     contact_email = StringField(required=False)
     description = StringField(required=False)
+    parent_org_id = StringField(required=False, default=None)
+    org_type = StringField(choices=["organisation", "department", "team", "unit"], default="organisation")
+    storage_quota_bytes = IntField(default=107374182400)  # 100 GB default
+    storage_used_bytes = IntField(default=0)
+    compliance_ids = ListField(StringField(), default=list)
     metadata = DictField(default=dict)
 
     @classmethod
@@ -53,6 +59,11 @@ class Organization(BaseDocument, SoftDeleteMixin):
                     "admin_user_id": None,
                     "contact_email": None,
                     "description": None,
+                    "parent_org_id": None,
+                    "org_type": "organisation",
+                    "storage_quota_bytes": 107374182400,
+                    "storage_used_bytes": 0,
+                    "compliance_ids": [],
                     "metadata": {},
                     "is_deleted": False,
                 }},
