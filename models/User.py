@@ -45,7 +45,7 @@ class User(BaseDocument, SoftDeleteMixin):
         "collection": "users",
         "indexes": [
             {"fields": ["username"], "unique": True, "sparse": True},
-            {"fields": ["email"], "unique": True, "sparse": True},
+            {"fields": ["email"], "unique": True},
             {"fields": ["employee_id"], "unique": True, "sparse": True},
             {"fields": ["mobile"], "unique": True, "sparse": True},
             "organization_id",
