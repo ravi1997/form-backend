@@ -1,8 +1,8 @@
 from config.celery import celery_app
 from services.summarization_service import summarization_service
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger
-from models.Response import FormResponse
-from models.Response import SummarySnapshot
+from models.response import FormResponse
+from models.response import SummarySnapshot
 from datetime import datetime, timezone
 
 logger = get_logger(__name__)
@@ -66,7 +66,7 @@ def async_index_response_vector(self, response_id, organization_id):
     This enables semantic search across form submissions.
     """
     from services.vector_provider import vector_provider
-    from models.Response import FormResponse
+    from models.response import FormResponse
     import json
 
     app_logger.info(
@@ -140,8 +140,8 @@ def async_classify_response_tags(self, response_id: str, organization_id: str):
     Background Celery task to classify a form submission against the form's taxonomy
     and auto-apply categories/tags to the FormResponse document.
     """
-    from models.Response import FormResponse
-    from models.Form import Form, FormVersion
+    from models.response import FormResponse
+    from models.form import Form, FormVersion
     from services.ai_service import ai_service
 
     app_logger.info(f"Entering async_classify_response_tags for response {response_id}")

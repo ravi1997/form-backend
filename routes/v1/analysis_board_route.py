@@ -3,7 +3,7 @@ import os
 from flask import Blueprint, request, send_file
 from flasgger import swag_from
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from models.Form import Project
+from models.form import Project
 from services.analysis_board_service import AnalysisBoardService
 from services.analysis_run_service import analysis_run_service
 from services.export_job_service import export_job_service

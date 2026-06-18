@@ -251,7 +251,7 @@ def check_next_action(form_id):
     """
     app_logger.info(f"--- Entering check_next_action for form_id: {form_id} ---")
     try:
-        from models.Workflow import ApprovalWorkflow
+        from models.workflow import Workflow
 
         current_user = get_current_user()
         if not current_user:

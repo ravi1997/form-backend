@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, Iterable, Iterator, List, Optional
 
-from models.AnalysisRun import AnalysisRun, AnalysisResult
+from models.analysis import AnalysisRun, AnalysisResult
 
 
 def _result_to_dict(result: AnalysisResult) -> Dict[str, Any]:

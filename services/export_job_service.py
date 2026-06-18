@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from models.AnalysisRun import AnalysisExport
-from models.ExportJob import ExportJob
+from models.analysis import AnalysisExport
+from models.utility import ExportJob
 from utils.exceptions import ValidationError
 
 

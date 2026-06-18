@@ -13,7 +13,7 @@ from mongoengine import Document, StringField
 from config.settings import settings
 from middleware import tenant_db
 from models.OidcUserMapping import OidcUserMapping
-from models.User import User
+from models.user import User
 from models.base import TenantIsolatedSoftDeleteQuerySet
 from services.oidc_service import OidcService
 from utils.exceptions import ValidationError

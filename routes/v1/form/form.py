@@ -41,9 +41,9 @@ from routes.v1.form.helper import (
     apply_translations,
     resolve_translation_language,
 )
-from models.AuditLog import AuditLog
-from models.Form import Form, Project, FormVersion, Version
-from models.enumerations import (
+from models.system import AuditLog
+from models.form import Form, Project, FormVersion, Version
+from models.base import (
     ACCESS_LEVEL_CHOICES,
     COMPARISON_TYPE_CHOICES,
     CONDITION_OPERATOR_CHOICES,
@@ -684,7 +684,7 @@ def create_form_section(form_id):
             current_user.organization_id,
             parent_section_id=parent_section_id,
         )
-        from models.Form import FormVersion, Version
+        from models.form import FormVersion, Version
 
         form_version = (
             FormVersion.objects(form=form_id, status="draft")

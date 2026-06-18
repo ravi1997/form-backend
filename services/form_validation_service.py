@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple, Set
-from models.Form import Form, FormVersion, Section, Question
+from models.form import Form, FormVersion, Section, Question
 from utils.condition_evaluator import ConditionEvaluator
 from logger.unified_logger import app_logger, error_logger
 import re
@@ -15,7 +15,7 @@ class FormValidationService:
         section_ref: Any, organization_id: Optional[str]
     ) -> Optional[Dict[str, Any]]:
         """Resolve Section references (Document/DBRef/UUID) into nested dict snapshots."""
-        from models.Form import Section
+        from models.form import Section
 
         section_doc = None
         if hasattr(section_ref, "to_mongo"):
@@ -62,7 +62,7 @@ class FormValidationService:
         # 1. Resolve Form and Version (Scoped by organization_id)
         # Use __raw__ or explicit filter if needed, but BaseDocument handles it if current_user is set.
         # Here we use explicit filter for background tasks safety.
-        from models.Form import Form, FormVersion
+        from models.form import Form, FormVersion
 
         form = Form.objects(
             id=form_id, organization_id=organization_id, is_deleted=False
@@ -79,7 +79,7 @@ class FormValidationService:
         #    fallback: current form sections (draft/unpublished forms)
         sections_data: List[Dict[str, Any]] = []
         if version_id:
-            from models.Form import Version
+            from models.form import Version
 
             resolved_version = Version.objects(id=version_id).first()
             version_doc = None

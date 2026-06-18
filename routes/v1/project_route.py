@@ -11,7 +11,7 @@ from services.form_service import (
     ProjectUpdateSchema,
 )
 from services.access_control_service import AccessControlService
-from models.Form import Project
+from models.form import Project
 
 project_bp = Blueprint("project_bp", __name__)
 project_service = ProjectService()

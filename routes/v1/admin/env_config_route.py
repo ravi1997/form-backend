@@ -13,7 +13,7 @@ from flasgger import swag_from
 from flask_jwt_extended import get_jwt_identity
 from utils.security import require_roles
 from utils.response_helper import success_response, error_response
-from models.User import Role
+from models.base import Role
 from dotenv import set_key, dotenv_values
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from config.settings import settings

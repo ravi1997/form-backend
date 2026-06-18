@@ -1,9 +1,9 @@
 import pytest
 import uuid
 from flask_jwt_extended import create_access_token
-from models.Form import Form, Project
+from models.form import Form, Project
 from models.FormCommit import FormCommit
-from models.User import User
+from models.user import User
 
 
 def test_git_api_routes(app, db_connection):

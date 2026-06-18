@@ -47,7 +47,7 @@ class AnalyticsCache:
             if has_request_context() and current_user:
                 org_id = getattr(current_user, "organization_id", None)
             if not org_id:
-                from models.Form import Form
+                from models.form import Form
                 try:
                     form = Form.objects(id=form_id).first()
                     if form:

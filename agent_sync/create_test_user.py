@@ -3,7 +3,7 @@ import os
 
 sys.path.append(os.getcwd())
 
-from models.User import User
+from models.user import User
 from mongoengine import connect
 from config.settings import settings
 

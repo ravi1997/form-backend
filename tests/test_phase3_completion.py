@@ -4,12 +4,12 @@ import json
 from datetime import datetime, timezone
 from flask_jwt_extended import create_access_token
 from bson.binary import Binary, UuidRepresentation
-from models.User import User
-from models.Form import Form, Project
-from models.Response import FormResponse
-from models.Dashboard import Dashboard, DashboardWidget
+from models.user import User
+from models.form import Form, Project
+from models.response import FormResponse
+from models.dashboard import Dashboard, DashboardWidget
 from models.Workflow import ApprovalWorkflow, WorkflowStep
-from models.WorkflowInstance import WorkflowInstance
+from models.workflow import WorkflowInstance
 from services.analytics_cache import analytics_cache
 from workers.event_listener import handle_form_submitted
 from routes.v1.form.responses import form_bp

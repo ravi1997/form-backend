@@ -2532,7 +2532,7 @@ def trigger_response_classification(form_id: str, response_id: str) -> Tuple[Any
             return jsonify({"error": "Unauthorized"}), 403
 
         # Verify response existence
-        from models.Response import FormResponse
+        from models.response import FormResponse
 
         response = FormResponse.objects(
             id=response_id,

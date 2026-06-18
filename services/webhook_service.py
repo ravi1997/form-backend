@@ -8,8 +8,9 @@ from uuid import uuid4
 import requests
 
 from config.settings import settings
-from models.WebhookDeliveryLog import WebhookDeliveryLog
-from models import Form, Trigger
+from models.integration import WebhookDelivery as WebhookDeliveryLog
+from models.form import Form
+from models.components import Trigger
 from services.redis_service import redis_service
 from logger.unified_logger import app_logger, error_logger, audit_logger
 

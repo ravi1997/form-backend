@@ -6,8 +6,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from routes.v1.form import form_bp
 from services.response_service import FormResponseService, FormResponseCreateSchema
 from routes.v1.form.helper import get_current_user, has_form_permission
-from models.Form import Form, FormVersion, Project
-from models.Response import FormResponse
+from models.form import Form, FormVersion, Project
+from models.response import FormResponse
 from mongoengine import DoesNotExist
 from bson.dbref import DBRef
 from logger.unified_logger import app_logger, error_logger, audit_logger

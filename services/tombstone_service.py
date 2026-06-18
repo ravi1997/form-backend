@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from logger.unified_logger import app_logger, audit_logger
-from models.Tombstone import Tombstone
+from models.utility import Tombstone
 
 
 class TombstoneService:

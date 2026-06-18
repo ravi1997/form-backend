@@ -1,8 +1,8 @@
 import copy
 import logging
 from typing import Dict, Any, List, Tuple
-from models.FormCommit import FormCommit
-from models.Form import Form
+from models.form import FormVersion as FormCommit
+from models.form import Form
 from mongoengine import connect
 
 logger = logging.getLogger("application")

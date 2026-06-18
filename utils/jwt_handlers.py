@@ -27,7 +27,7 @@ def register_jwt_handlers(app):
     @jwt.user_lookup_loader
     def user_lookup_callback(_jwt_header, jwt_data):
         identity = jwt_data["sub"]
-        from models.User import User
+        from models.user import User
 
         user = User.objects(id=identity).first()
         if not user:

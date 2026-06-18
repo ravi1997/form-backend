@@ -50,7 +50,7 @@ def setup_rbac_matrix(app):
 
         # Check Org Suspension Status (skip if superadmin or if no org_id)
         if "superadmin" not in user_roles and org_id and org_id != "unknown":
-            from models.Organization import Organization
+            from models.identity import Organization
             from mongoengine.connection import ConnectionFailure
             try:
                 org = Organization.objects(organization_id=org_id).first()

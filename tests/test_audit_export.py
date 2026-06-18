@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime, timezone
 from flask_jwt_extended import create_access_token
-from models.User import User
+from models.user import User
 from models.AuditLog import AuditLog
 from tasks.compliance_tasks import export_tenant_audit_logs_task
 from routes.v1.admin.tenant_compliance_route import tenant_compliance_bp

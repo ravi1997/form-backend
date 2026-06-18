@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from models.AnalysisRun import AnalysisRun, AnalysisResult
+from models.analysis import AnalysisRun, AnalysisResult
 from services.export_job_service import export_job_service
 from services.export_serializers import (
     build_analysis_export_payload,

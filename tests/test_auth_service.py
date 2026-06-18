@@ -3,7 +3,7 @@ from datetime import timedelta
 from flask_jwt_extended import decode_token
 from services.auth_service import AuthService
 from utils.exceptions import UnauthorizedError
-from models.User import User
+from models.user import User
 from schemas.auth import TokenResponse
 from schemas.user import UserCreateSchema
 

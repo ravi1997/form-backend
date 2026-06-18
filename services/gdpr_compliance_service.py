@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Optional
 from mongoengine import QuerySet
-from models.Form import Form, Project
-from models.Response import FormResponse, BulkExport, SummarySnapshot
+from models.form import Form, Project
+from models.response import FormResponse
 from datetime import datetime, timedelta, timezone
 from logger.unified_logger import app_logger
 from config.redis import RedisConfig
@@ -47,13 +47,13 @@ class GDPRComplianceService:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
             if collection == "forms":
-                from models.Form import Form
+                from models.form import Form
 
                 count = Form.objects(
                     is_deleted=True, deleted_at__lt=cutoff_date
                 ).count()
             elif collection == "responses":
-                from models.Response import FormResponse
+                from models.response import FormResponse
 
                 count = FormResponse.objects(
                     is_deleted=True, deleted_at__lt=cutoff_date
@@ -104,9 +104,9 @@ class GDPRComplianceService:
         Returns:
             Dict with deletion results and audit information
         """
-        from models.Form import Form
-        from models.Response import FormResponse
-        from models.Response import BulkExport, SummarySnapshot
+        from models.form import Form
+        from models.response import FormResponse
+        from models.response import BulkExport, SummarySnapshot
         from logger.unified_logger import audit_logger
         from services.form_service import FormService
         from services.response_service import FormResponseService

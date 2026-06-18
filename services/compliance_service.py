@@ -7,11 +7,11 @@ from datetime import datetime, timedelta, timezone
 from mongoengine import Q
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from services.base import BaseService
-from models.LegalHold import LegalHold
-from models.EvidenceLog import EvidenceLog
-from models.Response import FormResponse
-from models.Form import Form
-from models.TenantSettings import TenantSettings
+from models.system import LegalHold
+from models.system import ComplianceRecord as EvidenceLog EvidenceLog
+from models.response import FormResponse
+from models.form import Form
+from models.identity import TenantSettings
 from utils.exceptions import ValidationError
 
 class ComplianceService(BaseService):

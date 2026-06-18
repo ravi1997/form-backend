@@ -5,9 +5,9 @@ Handles tenant quota settings, usage tracking, and quota validation logic.
 
 from logger.unified_logger import app_logger, audit_logger
 from services.base import BaseService
-from models.TenantSettings import TenantSettings
-from models.Form import Form
-from models.Response import FormResponse
+from models.identity import TenantSettings
+from models.form import Form
+from models.response import FormResponse
 from utils.exceptions import ValidationError
 
 class TenantService(BaseService):

@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Any
 from logger.unified_logger import app_logger, audit_logger
 from services.base import BaseService
 from services.redis_service import redis_service
-from models.FeatureFlag import FeatureFlag
+from models.system import FeatureFlag
 from schemas.feature_flag import FeatureFlagCreateSchema, FeatureFlagSchema
 from utils.exceptions import ValidationError, NotFoundError
 

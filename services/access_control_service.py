@@ -1,9 +1,9 @@
 from typing import Optional, List, Literal
-from models.User import User
-from models.Response import FormResponse
-from models.Dashboard import Dashboard
-from models.Form import Form, Project
-from models.AccessControl import ResourceAccessControl
+from models.identity import User
+from models.response import FormResponse
+from models.dashboard import Dashboard
+from models.form import Form, Project
+# Note: AccessControl model needs to be created or imported from appropriate location
 from logger.unified_logger import app_logger
 from utils.sensitive_data_redaction import safe_log_info
 from utils.access_policy_utils import policy_list, policy_value
@@ -356,7 +356,7 @@ class AccessControlService:
 
         # 5. Check form-level permissions
         if hasattr(response, "form") and response.form:
-            from models.Form import Form
+            from models.form import Form
 
             try:
                 form = Form.objects(id=response.form).first()

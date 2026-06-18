@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from mongoengine.errors import DoesNotExist
 from models import Form
-from models.TranslationJob import TranslationJob
+from models.utility import TranslationJob
 from routes.v1.form.helper import get_current_user, has_form_permission
 from services.ai_service import AIService
 from datetime import datetime, timezone

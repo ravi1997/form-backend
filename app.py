@@ -221,7 +221,7 @@ def create_app():
 
     if settings.DEBUG:
         try:
-            from models.User import User
+            from models.user import User
 
             alice_email = os.environ.get("DEV_ALICE_EMAIL", "alice@hospital.org")
             alice_password = os.environ.get("DEV_ALICE_PASSWORD")

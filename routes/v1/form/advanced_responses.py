@@ -878,7 +878,7 @@ def filter_responses(form_id):
         )
 
         # ── Execute query ─────────────────────────────────────────────────
-        from models.Response import FormResponse
+        from models.response import FormResponse
 
         qs = FormResponse.objects(__raw__=mongo_query)
         total = qs.count()

@@ -1,40 +1,24 @@
-from .enumerations import *  # noqa: F401,F403
+"""
+models/__init__.py
+Consolidated model imports for the reorganized model structure.
+"""
+
+# Import base classes and choices first
 from .base import *  # noqa: F401,F403
+
+# Import core models
+from .identity import *  # noqa: F401,F403
+from .auth import *  # noqa: F401,F403
 from .components import *  # noqa: F401,F403
-from .Form import *  # noqa: F401,F403
-from .User import *  # noqa: F401,F403
-from .Response import *  # noqa: F401,F403
-from .AccessControl import *  # noqa: F401,F403
-from .WorkflowInstance import *  # noqa: F401,F403
-from .Template import *  # noqa: F401,F403
-from .SystemSettings import *  # noqa: F401,F403
-from .TokenBlocklist import *  # noqa: F401,F403
-from .Dashboard import *  # noqa: F401,F403
-from .TranslationJob import *  # noqa: F401,F403
-from .AuditLog import *  # noqa: F401,F403
-from .Workflow import *  # noqa: F401,F403
-from .Theme import *  # noqa: F401,F403
-from .Idempotency import *  # noqa: F401,F403
-from .AnalysisBoard import *  # noqa: F401,F403
-from .Taxonomy import *  # noqa: F401,F403
-from .OutboxEvent import *  # noqa: F401,F403
-from .DeadLetterTask import *  # noqa: F401,F403
-from .OidcUserMapping import *  # noqa: F401,F403
-from .LegalHold import *  # noqa: F401,F403
-from .EvidenceLog import *  # noqa: F401,F403
-from .TenantSettings import *  # noqa: F401,F403
-from .Organization import *  # noqa: F401,F403
-from .FeatureFlag import *  # noqa: F401,F403
-from .NotificationTemplate import *  # noqa: F401,F403
-from .NotificationRule import *  # noqa: F401,F403
-from .NotificationLog import *  # noqa: F401,F403
-from .OrgMembership import *  # noqa: F401,F403
-from .Invitation import *  # noqa: F401,F403
-from .Group import *  # noqa: F401,F403
-from .GroupMember import *  # noqa: F401,F403
-from .Session import *  # noqa: F401,F403
-from .ApiKey import *  # noqa: F401,F403
-from .OauthClient import *  # noqa: F401,F403
-from .WebhookDeliveryLog import *  # noqa: F401,F403
-from .Tombstone import *  # noqa: F401,F403
-from .AnalysisRun import *  # noqa: F401,F403
+from .form import *  # noqa: F401,F403
+from .response import *  # noqa: F401,F403
+from .analysis import *  # noqa: F401,F403
+from .dashboard import *  # noqa: F401,F403
+from .workflow import *  # noqa: F401,F403
+from .notification import *  # noqa: F401,F403
+from .integration import *  # noqa: F401,F403
+from .system import *  # noqa: F401,F403
+from .utility import *  # noqa: F401,F403
+
+# Legacy imports for backward compatibility (will be deprecated)
+# Taxonomy models removed - they were consolidated into other models

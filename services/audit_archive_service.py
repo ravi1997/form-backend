@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from logger.unified_logger import app_logger, error_logger
-from models.AuditLog import AuditLog
+from models.system import AuditLog
 
 
 class AuditArchiveService:

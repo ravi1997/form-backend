@@ -2,7 +2,7 @@ import pytest
 from flask_jwt_extended import create_access_token
 from models.Organization import Organization
 from models.TenantSettings import TenantSettings
-from models.User import User
+from models.user import User
 from services.org_service import OrgService
 from schemas.org import OrgCreateSchema
 from utils.exceptions import ValidationError, NotFoundError

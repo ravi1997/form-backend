@@ -1,4 +1,4 @@
-from models.AuditLog import AuditLog
+from models.system import AuditLog
 from datetime import datetime, timezone
 from flask import has_request_context, request, g
 from logger.unified_logger import app_logger, error_logger, audit_logger

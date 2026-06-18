@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from config.settings import settings
 from models import FormResponse
-from models.Response import SummarySnapshot
+from models.response import SummarySnapshot
 from services.ai_provider import LocalHeuristicProvider, OllamaProvider
 from logger.unified_logger import app_logger, error_logger
 

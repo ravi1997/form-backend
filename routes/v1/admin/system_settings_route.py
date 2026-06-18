@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from services.settings_service import SystemSettingsService, SystemSettingsUpdateSchema
 from utils.security import require_roles
 from utils.response_helper import success_response, error_response
-from models.User import Role
+from models.base import Role
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
 settings_service = SystemSettingsService()

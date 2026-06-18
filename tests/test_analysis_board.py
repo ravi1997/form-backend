@@ -4,8 +4,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from models.Form import Project
-from models.User import User
+from models.form import Project
+from models.user import User
 from models.AnalysisBoard import AnalysisBoard, AnalysisNode
 from models.AnalysisRun import AnalysisRun, AnalysisResult
 from services.analysis_board_service import AnalysisBoardService

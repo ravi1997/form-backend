@@ -9,8 +9,7 @@ from mongoengine.errors import DoesNotExist
 from logger.unified_logger import app_logger, audit_logger, error_logger
 from services.base import BaseService
 from utils.exceptions import NotFoundError, StateTransitionError, ForbiddenError
-from models import WorkflowInstance, User, FormResponse, UserGroup
-from models.WorkflowInstance import ApprovalLog  # FIX: was missing, caused NameError
+from models import WorkflowInstance, User, FormResponse, Group, ApprovalLog
 from schemas.workflow_instance import WorkflowInstanceSchema
 from schemas.base import InboundPayloadSchema
 from services.event_bus import event_bus
@@ -129,7 +128,7 @@ class WorkflowInstanceService(BaseService):
         is_authorized = any(str(u_id) == user_id for u_id in current_step.approvers)
         if not is_authorized and current_step.approver_groups:
             group_ids = [str(getattr(group, "id", group)) for group in current_step.approver_groups]
-            for group in UserGroup.objects(
+            for group in Group.objects(
                 id__in=group_ids,
                 organization_id=instance.organization_id,
                 is_deleted=False,
@@ -305,7 +304,7 @@ class WorkflowInstanceService(BaseService):
             is_group = False
             if not is_direct and current_step.approver_groups:
                 group_ids = [str(g) for g in (current_step.approver_groups or [])]
-                for group in UserGroup.objects(
+                for group in Group.objects(
                     id__in=group_ids,
                     organization_id=organization_id,
                     is_deleted=False,

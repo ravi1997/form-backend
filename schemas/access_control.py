@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any, Literal
 from .base import BaseSchema, BaseEmbeddedSchema
 
 
-class UserGroupSchema(BaseSchema):
+class GroupSchema(BaseSchema):
     name: str = Field(..., max_length=255)
     description: Optional[str] = None
     members: List[str] = Field(default_factory=list)

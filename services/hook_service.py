@@ -2,8 +2,8 @@ from typing import List, Dict, Any, Union
 import requests
 import json
 from logger.unified_logger import app_logger, error_logger, audit_logger
-from models.Form import Form, Project
-from models.AccessControl import ExternalHook
+from models.form import Form, Project
+from models.integration import ExternalHook
 from schemas.access_control import ExternalHookSchema
 from utils.exceptions import NotFoundError, ForbiddenError, ValidationError
 from services.base import BaseService

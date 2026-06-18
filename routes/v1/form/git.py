@@ -9,8 +9,8 @@ from logger.unified_logger import app_logger, audit_logger, error_logger
 from utils.response_helper import success_response, error_response
 from utils.security_helpers import get_current_user, require_permission
 from utils.feature_gate import require_feature
-from models.Form import Form
-from models.FormCommit import FormCommit
+from models.form import Form
+from models.form import FormVersion as FormCommit
 from services.git_form_service import GitFormService
 
 git_form_service = GitFormService()

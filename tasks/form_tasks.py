@@ -1,8 +1,8 @@
 from config.celery import celery_app
 from services.form_service import FormService
 from logger.unified_logger import app_logger, error_logger, audit_logger
-from models.Form import Form
-from models.User import User
+from models.form import Form
+from models.identity import User
 import uuid
 
 form_service = FormService()
@@ -10,7 +10,7 @@ form_service = FormService()
 
 def _deep_clone_section(original_section):
     """Recursively clones sections and their embedded questions."""
-    from models.Form import Section
+    from models.form import Section
 
     # Create a new section document with a new ID
     new_section = Section(
@@ -175,8 +175,8 @@ def async_bulk_export(self, job_id, organization_id):
     """
     Background task to generate a bulk export ZIP file.
     """
-    from models.Response import BulkExport, FormResponse
-    from models.Form import Form
+    from models.response import BulkExport, FormResponse
+    from models.form import Form
     from routes.v1.form.export import (
         generate_form_csv,
     )  # We should move this to a service eventually
@@ -274,7 +274,7 @@ def async_recalculate_materialized_view(self, view_id, organization_id):
     and store the results in a SummarySnapshot for fast retrieval.
     """
     from services.response_service import DynamicViewService
-    from models.Response import SummarySnapshot
+    from models.response import SummarySnapshot
     from datetime import datetime, timezone
 
     app_logger.info(
@@ -328,7 +328,7 @@ def async_process_translation_job(self, job_id):
     """
     Background task to process a translation job via AI.
     """
-    from models.Form import Form
+    from models.form import Form
     from models.TranslationJob import TranslationJob
     from services.ai_service import AIService
     from datetime import datetime, timezone
@@ -480,8 +480,8 @@ def cleanup_deleted_records(self, retention_days: int = 30, dry_run: bool = Fals
     Returns:
         dict: Summary of deleted records
     """
-    from models.Form import Form
-    from models.Response import FormResponse
+    from models.form import Form
+    from models.response import FormResponse
     from services.form_service import FormService
     from services.response_service import FormResponseService
     from datetime import datetime, timezone, timedelta

@@ -2,8 +2,8 @@ import uuid
 
 from flask_jwt_extended import create_access_token
 
-from models.Dashboard import Dashboard, DashboardWidget
-from models.User import User
+from models.dashboard import Dashboard, DashboardWidget
+from models.user import User
 from routes.v1.dashboard_route import dashboard_bp
 
 

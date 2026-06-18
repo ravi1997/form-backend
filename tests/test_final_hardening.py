@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from services.form_validation_service import FormValidationService
-from models.Form import Form, FormVersion, SnapshotStore
+from models.form import Form, FormVersion, SnapshotStore
 from flask import Flask
 from routes.v1.form.export import stream_form_csv
 
@@ -134,7 +134,7 @@ def test_streaming_export_generator():
 
 
 def test_global_tenant_isolation_queryset():
-    from models.Form import Form
+    from models.form import Form
     from flask import Flask
     from mongoengine import connect, disconnect
     from mongoengine.queryset.visitor import Q

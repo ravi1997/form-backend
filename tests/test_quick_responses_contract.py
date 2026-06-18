@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from models.Form import Form, FormVersion
+from models.form import Form, FormVersion
 from schemas.form import FormSchema
 from services.form_service import FormCreateSchema, FormService
 

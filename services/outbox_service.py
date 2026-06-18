@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from models.OutboxEvent import OutboxEvent
+from models.integration import OutboxEvent
 from services.event_bus import event_bus
 from logger.unified_logger import app_logger, error_logger
 

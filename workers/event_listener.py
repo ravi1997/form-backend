@@ -53,7 +53,7 @@ def handle_form_submitted(payload: dict):
 
         if project_ref:
             try:
-                from models.Form import Project
+                from models.form import Project
                 from tasks.report_tasks import async_generate_report
 
                 proj = Project.objects(
@@ -85,8 +85,8 @@ def handle_form_submitted(payload: dict):
         # Check and trigger ApprovalWorkflows
         if form_id and organization_id and response_id:
             try:
-                from models.Workflow import ApprovalWorkflow
-                from models.WorkflowInstance import WorkflowInstance
+                from models.workflow import Workflow as ApprovalWorkflow ApprovalWorkflow
+                from models.workflow import WorkflowInstance
                 
                 active_wf = ApprovalWorkflow.objects(
                     trigger_form_id=str(form_id),
@@ -115,7 +115,7 @@ def handle_form_submitted(payload: dict):
                         )
                         wf_instance.save()
                         
-                        from models.Response import FormResponse
+                        from models.response import FormResponse
                         response = FormResponse.objects(id=response_id).first()
                         if response:
                             response.review_status = "pending"

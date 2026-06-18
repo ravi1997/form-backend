@@ -5,7 +5,7 @@ from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from mongoengine import DoesNotExist
 from models import Form, FormResponse
-from models.User import Role
+from models.base import Role
 from utils.security import require_roles
 from routes.v1.form.helper import get_current_user
 from logger.unified_logger import app_logger, error_logger, audit_logger

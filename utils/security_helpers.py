@@ -1,8 +1,8 @@
 from functools import wraps
 from flask import request, current_app
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt
-from models.User import User
-from models.Form import Form
+from models.identity import User
+from models.form import Form
 from utils.exceptions import UnauthorizedError, ForbiddenError, NotFoundError
 from utils.response_helper import error_response
 from services.access_control_service import AccessControlService
@@ -74,7 +74,7 @@ def require_permission(resource_type, action):
                 if not response_id:
                     raise ForbiddenError("Missing response_id for permission check")
 
-                from models.Response import FormResponse
+                from models.response import FormResponse
 
                 response = FormResponse.objects(
                     id=response_id, is_deleted=False
@@ -95,13 +95,13 @@ def require_permission(resource_type, action):
                     slug = kwargs.get("slug")
                     if not slug:
                         raise ForbiddenError("Missing dashboard identifier")
-                    from models.Dashboard import Dashboard
+                    from models.dashboard import Dashboard
 
                     dashboard = Dashboard.objects(
                         slug=slug, organization_id=user.organization_id
                     ).first()
                 else:
-                    from models.Dashboard import Dashboard
+                    from models.dashboard import Dashboard
 
                     dashboard = Dashboard.objects(
                         id=dashboard_id, organization_id=user.organization_id
@@ -119,7 +119,7 @@ def require_permission(resource_type, action):
                 if not project_id:
                     raise ForbiddenError("Missing project_id for permission check")
 
-                from models.Form import Project
+                from models.form import Project
 
                 project = Project.objects(id=project_id, is_deleted=False).first()
                 if not project:

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from pydantic import ValidationError
 
-from models.Form import Form
+from models.form import Form
 from routes.v1.form.form import import_form
 from routes.v1.forms_misc_route import check_slug
 from routes.v1.view_route import view_form

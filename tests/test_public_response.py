@@ -1,9 +1,9 @@
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
-from models.User import User
-from models.Form import Form
-from models.Response import FormResponse
+from models.user import User
+from models.form import Form
+from models.response import FormResponse
 from services.api_key_service import ApiKeyService
 from routes.v1.forms_misc_route import forms_misc_bp
 

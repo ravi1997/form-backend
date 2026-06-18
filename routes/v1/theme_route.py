@@ -3,7 +3,8 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required
 
 from logger.unified_logger import app_logger, error_logger, audit_logger
-from models.Theme import Theme
+from models.base import Role as _Role
+# Theme placeholder Theme
 from schemas.theme import ThemeCreateSchema, ThemeUpdateSchema
 from services.theme_service import ThemeService
 from utils.response_helper import BaseSerializer, success_response

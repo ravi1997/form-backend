@@ -7,7 +7,7 @@ from logger.unified_logger import app_logger, error_logger
 from utils.file_validator import validate_upload, generate_secure_filename
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from config.settings import settings
-from models.TenantSettings import TenantSettings
+from models.identity import TenantSettings
 from utils.exceptions import ValidationError
 
 class FileStorageService:

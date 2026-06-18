@@ -6,7 +6,7 @@ import csv
 import json
 import os
 from uuid import uuid4
-from models.AuditLog import AuditLog
+from models.system import AuditLog
 from services.audit_archive_service import AuditArchiveService
 
 

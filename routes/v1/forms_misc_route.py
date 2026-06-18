@@ -6,7 +6,7 @@ from mongoengine.queryset.visitor import Q
 from datetime import datetime, timezone
 
 from models import Form
-from models.enumerations import (
+from models.base import (
     ACCESS_LEVEL_CHOICES,
     COMPARISON_TYPE_CHOICES,
     CONDITION_OPERATOR_CHOICES,
@@ -211,7 +211,7 @@ def export_bulk_responses():
             return error_response(message="Missing form_ids", status_code=400)
 
         current_user = get_current_user()
-        from models.Response import BulkExport
+        from models.response import BulkExport
         from tasks.form_tasks import async_bulk_export
 
         job = BulkExport(
@@ -241,7 +241,7 @@ def export_bulk_responses():
 def get_bulk_export_status(job_id):
     try:
         current_user = get_current_user()
-        from models.Response import BulkExport
+        from models.response import BulkExport
 
         job = BulkExport.objects.get(
             id=job_id, organization_id=current_user.organization_id
@@ -263,7 +263,7 @@ def get_bulk_export_status(job_id):
 def download_bulk_export(job_id):
     try:
         current_user = get_current_user()
-        from models.Response import BulkExport
+        from models.response import BulkExport
         from flask import send_file
         import os
 

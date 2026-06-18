@@ -237,7 +237,7 @@ def delete_user_by_id(user_id):
 @require_roles("admin", "superadmin")
 def update_user_roles(user_id):
     """Update user roles. Admin only."""
-    from models.User import User
+    from models.user import User
 
     admin_id = get_jwt_identity()
     app_logger.info(f"Admin {admin_id} updating roles for user {user_id}")
@@ -288,7 +288,7 @@ def update_user_roles(user_id):
 @require_roles("admin", "superadmin")
 def lock_user_account(user_id):
     """Manually lock a user account. Admin only."""
-    from models.User import User
+    from models.user import User
 
     admin_id = get_jwt_identity()
     app_logger.info(f"Admin {admin_id} locking user account {user_id}")
@@ -320,7 +320,7 @@ def lock_user_account(user_id):
 @require_roles("admin", "superadmin")
 def unlock_user_account(user_id):
     """Manually unlock a user account. Admin only."""
-    from models.User import User
+    from models.user import User
 
     admin_id = get_jwt_identity()
     app_logger.info(f"Admin {admin_id} unlocking user account {user_id}")
@@ -362,7 +362,7 @@ def unlock_user_account(user_id):
 @require_roles("admin", "superadmin")
 def get_lock_status(user_id):
     """Get account lock status for a specific user. Admin only."""
-    from models.User import User
+    from models.user import User
 
     admin_id = get_jwt_identity()
     app_logger.info(f"Admin {admin_id} fetching lock status for user {user_id}")

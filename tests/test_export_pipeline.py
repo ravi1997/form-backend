@@ -10,8 +10,8 @@ import pytest
 
 from models.AnalysisBoard import AnalysisBoard
 from models.AnalysisRun import AnalysisRun, AnalysisResult
-from models.Form import Project
-from models.User import User
+from models.form import Project
+from models.user import User
 from services.analysis_run_service import analysis_run_service
 from services.export_retention_service import export_retention_service
 from utils.exceptions import ValidationError

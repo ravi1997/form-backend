@@ -50,7 +50,7 @@ def test_process_action_allows_group_members():
     )
 
     with patch("services.workflow_service.User", new=SimpleNamespace(objects=SimpleNamespace(get=lambda **kwargs: user))):
-        with patch("services.workflow_service.UserGroup", new=SimpleNamespace(objects=lambda **kwargs: [group])):
+        with patch("services.workflow_service.Group", new=SimpleNamespace(objects=lambda **kwargs: [group])):
             with patch("services.workflow_service.ApprovalLog", side_effect=lambda **kwargs: SimpleNamespace(**kwargs)):
                 with patch.object(WorkflowInstanceService, "_update_resource_status") as mock_update:
                     with patch("services.workflow_service.event_bus.publish") as mock_publish:
@@ -76,7 +76,7 @@ def test_list_pending_approvals_includes_group_members():
         is_active=True,
     )
 
-    with patch("services.workflow_service.UserGroup", new=SimpleNamespace(objects=lambda **kwargs: [group])):
+    with patch("services.workflow_service.Group", new=SimpleNamespace(objects=lambda **kwargs: [group])):
         pending = service.list_pending_approvals("user-1", "org-1")
 
     assert len(pending) == 1

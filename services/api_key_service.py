@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from logger.unified_logger import app_logger
-from models.ApiKey import ApiKey
+from models.auth import ApiKey
 from services.redis_service import redis_service
 
 

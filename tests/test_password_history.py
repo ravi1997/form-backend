@@ -1,6 +1,6 @@
 import pytest
 import bcrypt
-from models.User import User
+from models.user import User
 from services.user_service import UserService
 from schemas.user import UserCreateSchema, UserUpdateSchema
 from utils.exceptions import ValidationError

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from services.dashboard_service import DashboardService
-from models.Dashboard import Dashboard
+from models.dashboard import Dashboard
 from utils.exceptions import ForbiddenError, NotFoundError
 
 

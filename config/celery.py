@@ -164,7 +164,7 @@ class ReliabilityTask(celery_app.Task):
                 exc_info=True
             )
             try:
-                from models.DeadLetterTask import DeadLetterTask
+                from models.utility import DeadLetterTask
                 import json
                 try:
                     s_args = json.loads(json.dumps(args, default=str))

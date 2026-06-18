@@ -16,9 +16,9 @@ from flask_jwt_extended import (
 from config.settings import settings
 from logger.unified_logger import app_logger, error_logger, audit_logger, get_logger
 from services.base import BaseService
-from models.User import User
-from models.TokenBlocklist import TokenBlocklist
-from models.SystemSettings import SystemSettings
+from models.user import User
+from models.auth import TokenBlocklist
+from models.system import SystemSettings
 from schemas.auth import TokenResponse
 from schemas.user import UserOut
 from services.redis_service import redis_service

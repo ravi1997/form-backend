@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 from models.AuditLog import AuditLog
-from models.User import User
+from models.user import User
 from services.audit_archive_service import AuditArchiveService
 
 

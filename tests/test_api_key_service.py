@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 from models.ApiKey import ApiKey
-from models.User import User
+from models.user import User
 from services import api_key_service as api_key_service_module
 from services.api_key_service import ApiKeyService
 

@@ -1,4 +1,4 @@
-from models.Dashboard import Dashboard, UserDashboardSettings
+from models.dashboard import Dashboard, UserDashboardSettings
 from services.base import BaseService
 from schemas.base import InboundPayloadSchema
 from pydantic import BaseModel, Field

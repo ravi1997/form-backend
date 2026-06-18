@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
 from logger.unified_logger import app_logger, error_logger
-from models.ExportJob import ExportJob
+from models.utility import ExportJob
 from config.settings import settings
 from services.storage_backend import export_storage_backend
 

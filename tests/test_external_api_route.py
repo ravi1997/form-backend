@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from flask_jwt_extended import create_access_token
 
-from models.User import User
+from models.user import User
 from services.api_key_service import ApiKeyService
 from routes.v1.external_api_route import external_api_bp
 

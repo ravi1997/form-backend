@@ -497,7 +497,7 @@ def get_dashboard_canvas(dashboard_id):
             "on",
         )
         if include_data:
-            from models.Dashboard import Dashboard
+            from models.dashboard import Dashboard
 
             dashboard = Dashboard.objects.get(
                 id=dashboard_id, organization_id=org_id, is_deleted=False
@@ -662,7 +662,7 @@ def share_dashboard(dashboard_id):
     if not org_id:
         return error_response(message="Organization context missing", status_code=400)
     try:
-        from models.Dashboard import Dashboard
+        from models.dashboard import Dashboard
         dashboard = Dashboard.objects.get(
             id=dashboard_id, organization_id=org_id, is_deleted=False
         )
@@ -691,7 +691,7 @@ def unshare_dashboard(dashboard_id):
     if not org_id:
         return error_response(message="Organization context missing", status_code=400)
     try:
-        from models.Dashboard import Dashboard
+        from models.dashboard import Dashboard
         dashboard = Dashboard.objects.get(
             id=dashboard_id, organization_id=org_id, is_deleted=False
         )
@@ -713,7 +713,7 @@ def unshare_dashboard(dashboard_id):
 def get_shared_dashboard(share_token):
     """Get shared dashboard details and widget data publicly."""
     try:
-        from models.Dashboard import Dashboard
+        from models.dashboard import Dashboard
         dashboard = Dashboard.objects.get(
             share_token=share_token, is_shared=True, is_deleted=False
         )
@@ -780,7 +780,7 @@ def export_dashboard(dashboard_id):
     if not org_id:
         return error_response(message="Organization context missing", status_code=400)
     try:
-        from models.Dashboard import Dashboard
+        from models.dashboard import Dashboard
         dashboard = Dashboard.objects.get(
             id=dashboard_id, organization_id=org_id, is_deleted=False
         )

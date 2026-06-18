@@ -1,22 +1,20 @@
+"""
+models/components.py
+Reusable component models: Condition, Trigger, LogicComponent, UIComponent.
+"""
+
 from mongoengine import (
-    EmbeddedDocumentField,
-    StringField,
-    ListField,
-    DictField,
-    BooleanField,
-    ValidationError,
-)
-from models.enumerations import (
-    FIELD_API_CALL_CHOICES,
-    CONDITION_TYPE_CHOICES,
-    LOGICAL_OPERATOR_CHOICES,
-    CONDITION_SOURCE_TYPE_CHOICES,
-    CONDITION_OPERATOR_CHOICES,
-    COMPARISON_TYPE_CHOICES,
-    TRIGGER_EVENT_CHOICES,
-    TRIGGER_ACTION_CHOICES,
+    EmbeddedDocumentField, StringField, ListField, DictField, BooleanField,
+    ValidationError
 )
 from models.base import BaseEmbeddedDocument
+
+# Import choice constants
+from models.base import (
+    CONDITION_TYPE_CHOICES, LOGICAL_OPERATOR_CHOICES, CONDITION_SOURCE_TYPE_CHOICES,
+    CONDITION_OPERATOR_CHOICES, COMPARISON_TYPE_CHOICES, TRIGGER_EVENT_CHOICES,
+    TRIGGER_ACTION_CHOICES, FIELD_API_CALL_CHOICES
+)
 
 
 class Condition(BaseEmbeddedDocument):

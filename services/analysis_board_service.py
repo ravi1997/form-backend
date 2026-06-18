@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel
 from mongoengine import QuerySet
-from models.AnalysisBoard import AnalysisBoard, AnalysisNode
-from models.Response import FormResponse
+from models.analysis import AnalysisBoard, AnalysisNode
+from models.response import FormResponse
 from services.base import BaseService
 from schemas.analysis_board import AnalysisBoardSchema, AnalysisNodeSchema
 from logger.unified_logger import app_logger, error_logger, audit_logger
@@ -447,7 +447,7 @@ class AnalysisBoardService(BaseService):
             f"Evicting Analysis Board caches for form {form_id} in org {organization_id}"
         )
         try:
-            from models.AnalysisBoard import AnalysisBoard
+            from models.analysis import AnalysisBoard, AnalysisNode
 
             # Find all boards in the organization
             boards = AnalysisBoard.objects(

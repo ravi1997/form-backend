@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from models.Form import Section, Form
+from models.form import Section, Form
 from services.base import BaseService
 from schemas.form import SectionSchema
 from utils.exceptions import NotFoundError, ValidationError

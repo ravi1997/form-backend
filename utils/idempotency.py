@@ -7,7 +7,7 @@ from flask import request
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from mongoengine import NotUniqueError
 
-from models.Idempotency import IdempotencyRecord
+from models.utility import IdempotencyRecord
 from utils.response_helper import error_response
 from utils.security_helpers import get_current_user
 

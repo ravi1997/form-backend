@@ -3,7 +3,8 @@ from uuid import UUID
 from flask import Blueprint, request
 from flasgger import swag_from
 from flask_jwt_extended import jwt_required
-from models import Form, ApprovalWorkflow, WorkflowStep
+from models.form import Form
+from models.workflow import Workflow as ApprovalWorkflow, WorkflowStep
 from utils.response_helper import success_response, error_response
 from utils.security_helpers import get_current_user
 from logger.unified_logger import app_logger, audit_logger

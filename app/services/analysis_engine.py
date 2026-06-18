@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 import networkx as nx
 from celery import Celery
 try:
-    from models.Analysis import Analysis, Node, Edge, Graph
+    from models.analysis import Analysis, Node, Edge, Graph
     from services.base import BaseService
 except ImportError:  # pragma: no cover - fallback for package-style imports
     from ..models.Analysis import Analysis, Node, Edge, Graph

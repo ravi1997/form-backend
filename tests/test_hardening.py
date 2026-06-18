@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from services.form_validation_service import FormValidationService
-from models.Form import Form, FormVersion
+from models.form import Form, FormVersion
 
 pytestmark = pytest.mark.usefixtures("db_connection")
 

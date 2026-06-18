@@ -368,7 +368,7 @@ class FormResponseService(BaseService):
                     raw_active_version, "id", raw_active_version
                 )
                 if active_version_id:
-                    from models.Form import Version, FormVersion
+                    from models.form import Version, FormVersion
 
                     version_doc = Version.objects(id=active_version_id).first()
                     if version_doc:

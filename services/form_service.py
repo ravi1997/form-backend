@@ -601,7 +601,7 @@ class FormService(BaseService):
         snapshot_data = self._build_draft_snapshot(form_doc)
         import json
         import zlib
-        from models.Form import SnapshotStore
+        from models.form import SnapshotStore
 
         snapshot_json = json.dumps(snapshot_data, default=str)
         compressed_data = zlib.compress(snapshot_json.encode("utf-8"))
@@ -941,7 +941,7 @@ class FormService(BaseService):
                 ]
 
             # --- Snapshot Hardening (Phase 4) ---
-            from models.Form import SnapshotStore
+            from models.form import SnapshotStore
             import zlib
             import json
 

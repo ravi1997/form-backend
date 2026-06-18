@@ -27,7 +27,7 @@ from .form import (
 from .user import UserSchema
 from .response import FormResponseSchema, DynamicViewDefinitionSchema
 from .access_control import (
-    UserGroupSchema,
+    GroupSchema,
     AccessEntrySchema,
     ApprovalStepSchema,
     ApprovalWorkflowSchema,
@@ -73,7 +73,7 @@ __all__ = [
     "UserSchema",
     "FormResponseSchema",
     "DynamicViewDefinitionSchema",
-    "UserGroupSchema",
+    "GroupSchema",
     "AccessEntrySchema",
     "ApprovalStepSchema",
     "ApprovalWorkflowSchema",

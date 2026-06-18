@@ -1,7 +1,8 @@
 from flask import Blueprint, request
 from flask_jwt_extended import get_jwt, get_jwt_identity
 
-from models.User import Role, User
+from models.base import Role
+from models.identity import User
 from services.api_key_service import ApiKeyService
 from utils.response_helper import error_response, success_response
 from utils.security import require_roles

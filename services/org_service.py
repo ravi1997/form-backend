@@ -6,12 +6,13 @@ Service layer for Organization management.
 from typing import List, Dict, Any
 from logger.unified_logger import app_logger, audit_logger
 from services.base import BaseService
-from models.Organization import Organization
-from models.TenantSettings import TenantSettings
-from models.User import User
-from models.Form import Form
-from models.Response import FormResponse
-from models.WorkflowInstance import WorkflowInstance
+from models.identity import Organization as _Organization
+Organization = _Organization
+from models.identity import TenantSettings
+from models.user import User
+from models.form import Form
+from models.response import FormResponse
+from models.workflow import WorkflowInstance
 from schemas.org import OrgCreateSchema, OrgSchema
 from utils.exceptions import ValidationError, NotFoundError
 
