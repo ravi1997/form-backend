@@ -256,21 +256,32 @@ class AnomalyThreshold(BaseDocument, SoftDeleteMixin):
     created_at = DateTimeField()
     meta_data = DictField()
 
-class BulkExport(BaseDocument, SoftDeleteMixin):
-    """Bulk export job tracking."""
 
+class FileUpload(BaseDocument, SoftDeleteMixin):
+    """File upload model for storing form attachments."""
+    
     meta = {
-        "collection": "bulk_exports",
-        "indexes": ["organization_id", "status", "created_at"],
+        "collection": "file_uploads",
+        "indexes": [
+            {"fields": ["org_id"]},
+            {"fields": ["form_id"]},
+            {"fields": ["response_id"]},
+        ],
         "index_background": True,
     }
-
-    organization_id = StringField(required=True)
-    form_ids = ListField(StringField())
-    created_by = ReferenceField("User", reverse_delete_rule=3)
-    status = StringField(choices=("pending", "processing", "completed", "failed"), default="pending")
-    file_path = StringField()
-    error_message = StringField()
-    created_at = DateTimeField()
-    completed_at = DateTimeField()
-    meta_data = DictField()
+    
+    org_id = StringField(required=True)
+    form_id = ReferenceField("Form", reverse_delete_rule=3)
+    response_id = ReferenceField("FormResponse", reverse_delete_rule=3, required=False)
+    question_id = StringField(required=True)
+    original_filename = StringField(required=True)
+    stored_filename = StringField(required=True)
+    file_path = StringField(required=True)
+    mime_type = StringField(required=True)
+    file_size_bytes = IntField(required=True)
+    file_type = StringField(choices=["pdf", "video", "image", "other"], default="other")
+    upload_status = StringField(choices=["pending", "uploading", "complete", "failed"], default="pending")
+    upload_offset = IntField(default=0)
+    checksum_sha256 = StringField()
+    virus_scan_status = StringField(choices=["pending", "clean", "infected"], default="pending")
+    uploaded_by = ReferenceField("User", reverse_delete_rule=3)

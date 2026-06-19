@@ -1,98 +1,11 @@
-from .base import BaseSchema, BaseEmbeddedSchema, SoftDeleteBaseSchema
-from .components import (
-    ConditionSchema,
-    LogicComponentSchema,
-    UIComponentSchema,
-    TriggerSchema,
-)
-from .form import (
-    AdvancedSettingsSchema,
-    OptionSchema,
-    ValidationSchema,
-    ConditionalValidationSchema,
-    QuestionLogicSchema,
-    QuestionUISchema,
-    ResponseTemplateSchema,
-    SubmissionSettingsSchema,
-    QuestionSchema,
-    SectionLogicSchema,
-    SectionUISchema,
-    SectionSchema,
-    VersionSchema,
-    FormVersionSchema,
-    ProjectVersionSchema,
-    FormSchema,
-    ProjectSchema,
-)
-from .user import UserSchema
-from .response import FormResponseSchema, DynamicViewDefinitionSchema
-from .access_control import (
-    GroupSchema,
-    AccessEntrySchema,
-    ApprovalStepSchema,
-    ApprovalWorkflowSchema,
-    ResourceAccessControlSchema,
-)
-from .workflow_instance import ApprovalLogSchema, WorkflowInstanceSchema
-from .template import FormBlueprintSchema, ProjectBlueprintSchema
-from .system_settings import SystemSettingsSchema
-from .analysis_board import (
-    AnalysisNodeSchema,
-    AnalysisBoardSchema,
-    AnalysisBoardCreateSchema,
-    AnalysisBoardUpdateSchema,
-)
-from .org import OrgCreateSchema, OrgUpdateStatusSchema, OrgAssignAdminSchema, OrgSchema
-from .feature_flag import FeatureFlagCreateSchema, FeatureFlagUpdateSchema, FeatureFlagOrgOverrideSchema, FeatureFlagSchema
+"""
+schemas/__init__.py
+Consolidated schema imports for request/response validation.
+"""
 
-__all__ = [
-    "BaseSchema",
-    "SoftDeleteBaseSchema",
-    "BaseEmbeddedSchema",
-    "ConditionSchema",
-    "LogicComponentSchema",
-    "UIComponentSchema",
-    "TriggerSchema",
-    "AdvancedSettingsSchema",
-    "OptionSchema",
-    "ValidationSchema",
-    "ConditionalValidationSchema",
-    "QuestionLogicSchema",
-    "QuestionUISchema",
-    "ResponseTemplateSchema",
-    "SubmissionSettingsSchema",
-    "QuestionSchema",
-    "SectionLogicSchema",
-    "SectionUISchema",
-    "SectionSchema",
-    "VersionSchema",
-    "FormVersionSchema",
-    "ProjectVersionSchema",
-    "FormSchema",
-    "ProjectSchema",
-    "UserSchema",
-    "FormResponseSchema",
-    "DynamicViewDefinitionSchema",
-    "GroupSchema",
-    "AccessEntrySchema",
-    "ApprovalStepSchema",
-    "ApprovalWorkflowSchema",
-    "ResourceAccessControlSchema",
-    "ApprovalLogSchema",
-    "WorkflowInstanceSchema",
-    "FormBlueprintSchema",
-    "ProjectBlueprintSchema",
-    "SystemSettingsSchema",
-    "AnalysisNodeSchema",
-    "AnalysisBoardSchema",
-    "AnalysisBoardCreateSchema",
-    "AnalysisBoardUpdateSchema",
-    "OrgCreateSchema",
-    "OrgUpdateStatusSchema",
-    "OrgAssignAdminSchema",
-    "OrgSchema",
-    "FeatureFlagCreateSchema",
-    "FeatureFlagUpdateSchema",
-    "FeatureFlagOrgOverrideSchema",
-    "FeatureFlagSchema",
-]
+# Import all schema modules
+from .auth_schemas import *  # noqa: F401,F403
+from .form_schemas import *  # noqa: F401,F403
+from .analysis_schemas import *  # noqa: F401,F403
+from .dashboard_schemas import *  # noqa: F401,F403
+from .common_schemas import *  # noqa: F401,F403

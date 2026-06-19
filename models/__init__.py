@@ -11,6 +11,7 @@ from .identity import *  # noqa: F401,F403
 from .auth import *  # noqa: F401,F403
 from .components import *  # noqa: F401,F403
 from .form import *  # noqa: F401,F403
+from .form_commit import *  # noqa: F401,F403
 from .response import *  # noqa: F401,F403
 from .analysis import *  # noqa: F401,F403
 from .dashboard import *  # noqa: F401,F403
@@ -19,6 +20,13 @@ from .notification import *  # noqa: F401,F403
 from .integration import *  # noqa: F401,F403
 from .system import *  # noqa: F401,F403
 from .utility import *  # noqa: F401,F403
+from .theme import *  # noqa: F401,F403
+
+# Import new models
+from .plugin import *  # noqa: F401,F403
+from .ai import *  # noqa: F401,F403
+from .task import *  # noqa: F401,F403
+from .event import *  # noqa: F401,F403
 
 # Legacy imports for backward compatibility (will be deprecated)
 # Taxonomy models removed - they were consolidated into other models

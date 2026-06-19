@@ -35,21 +35,21 @@ class FeatureFlag(BaseDocument, SoftDeleteMixin):
     meta = {
         "collection": "feature_flags",
         "indexes": [
-            {"fields": ["organization_id", "name"], "unique": True},
-            {"fields": ["organization_id", "key"]},
-            "organization_id",
-            "is_active",
+            {"fields": ["organization_id", "key"], "unique": True},
+            {"fields": ["key"]},
+            {"fields": ["organization_id"]},
+            {"fields": ["is_enabled"]},
         ],
         "index_background": True,
     }
 
     organization_id = StringField(required=True, trim=True)
-    name = StringField(required=True, trim=True)
-    key = StringField(required=True)
+    key = StringField(required=True, unique=True)
     description = StringField()
-    is_active = BooleanField(default=False)
+    is_enabled = BooleanField(default=False)
     is_global = BooleanField(default=False)
-    conditions = ListField(DictField())  # Conditions for when flag is active
+    per_org_overrides = DictField()  # org_id -> enabled boolean
+    scope = StringField(choices=["global", "org"], default="org")
     created_by = ReferenceField("User", reverse_delete_rule=3)
     meta_data = DictField()
 

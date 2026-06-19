@@ -9,7 +9,7 @@ from enum import Enum
 from datetime import datetime, timedelta, timezone
 from mongoengine import (
     StringField, EmailField, DateTimeField, BooleanField, ListField, IntField,
-    Q, ReferenceField, DictField, ValidationError
+    Q, ReferenceField, DictField, ValidationError, ObjectIdField, FloatField
 )
 from models.base import BaseDocument, SoftDeleteMixin, BaseEmbeddedDocument
 
@@ -31,11 +31,11 @@ class User(BaseDocument, SoftDeleteMixin):
     meta = {
         "collection": "users",
         "indexes": [
-            {"fields": ["username"], "unique": True, "sparse": True},
-            {"fields": ["email"], "unique": True},
-            {"fields": ["employee_id"], "unique": True, "sparse": True},
-            {"fields": ["mobile"], "unique": True, "sparse": True},
-            "organization_id",
+            {"fields": ["username"], "unique": True, "sparse": True, "name": "username_unique_sparse"},
+            {"fields": ["email"], "unique": True, "sparse": True, "name": "email_unique_sparse"},
+            {"fields": ["employee_id"], "unique": True, "sparse": True, "name": "employee_id_unique_sparse"},
+            {"fields": ["mobile"], "unique": True, "sparse": True, "name": "mobile_unique_sparse"},
+            {"fields": ["organization_id"], "name": "organization_id_idx"},
         ],
         "index_background": True,
     }
@@ -409,3 +409,26 @@ class TenantSettings(BaseDocument, SoftDeleteMixin):
             pass
 
         return cls.objects(organization_id=organization_id).first()
+
+
+class StorageQuota(BaseDocument, SoftDeleteMixin):
+    """Storage quota tracking for organizations."""
+    
+    org_id = ObjectIdField(required=True)
+    quota_bytes = IntField(required=True)
+    used_bytes = DictField(default={
+        "files": 0,
+        "database": 0,
+        "audit_logs": 0,
+        "total": 0
+    })
+    warning_threshold = FloatField(default=0.8)
+    last_calculated_at = DateTimeField(default=datetime.utcnow)
+    set_by = StringField()
+    
+    meta = {
+        "collection": "storage_quotas",
+        "indexes": [
+            {"fields": ["org_id"], "unique": True},
+        ]
+    }

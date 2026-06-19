@@ -11,7 +11,7 @@ from models.base import BaseDocument, SoftDeleteMixin, BaseEmbeddedDocument
 
 
 class ExportJob(BaseDocument, SoftDeleteMixin):
-    """Background job for exporting data."""
+    """Unified background job for exporting data (consolidated from BulkExport, AnalysisExport, and ExportJob)."""
 
     meta = {
         "collection": "export_jobs",
@@ -28,13 +28,26 @@ class ExportJob(BaseDocument, SoftDeleteMixin):
     }
 
     organization_id = StringField(required=True, trim=True)
-    job_type = StringField(required=True)  # form_responses, analysis_results, etc.
+    job_type = StringField(required=True)  # form_responses, analysis_results, bulk_exports, etc.
     name = StringField(required=True, trim=True)
     description = StringField()
     status = StringField(choices=["pending", "processing", "completed", "failed", "cancelled"], default="pending")
     format = StringField(choices=["csv", "excel", "pdf", "json"])
+    
+    # Form-specific fields (from BulkExport)
+    form_ids = ListField(StringField())  # For bulk form exports
+    
+    # Analysis-specific fields (from AnalysisExport)
+    analysis_id = ReferenceField("AnalysisBoard", reverse_delete_rule=2)  # For analysis exports
+    node_ids = ListField(StringField())  # Which analysis nodes to export
+    
+    # Common export fields
     filters = DictField()
     columns = ListField(StringField())
+    column_selection = ListField(StringField())  # From AnalysisExport
+    sort_criteria = DictField()  # From AnalysisExport
+    
+    # File and progress tracking
     file_path = StringField()
     file_size = IntField()
     download_url = StringField()
@@ -42,6 +55,7 @@ class ExportJob(BaseDocument, SoftDeleteMixin):
     progress = FloatField(default=0.0)
     error_message = StringField()
     created_by = ReferenceField("User", reverse_delete_rule=3)
+    created_at = DateTimeField()
     completed_at = DateTimeField()
     meta_data = DictField()
 
