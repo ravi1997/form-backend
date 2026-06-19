@@ -169,6 +169,19 @@ def create_app():
 
     setup_rbac_matrix(app)
 
+    from middleware.error_handler import error_handler
+
+    error_handler.init_app(app)
+
+    from middleware.rate_limiter import rate_limiter
+
+    rate_limiter.init_app(app)
+    
+    from middleware.api_versioning import version_manager, add_version_headers
+    
+    # Add API versioning middleware
+    app.after_request(add_version_headers)
+
     # ── MongoDB ─────────────────────────────────────────────────────────────
     import sys
 
@@ -192,12 +205,13 @@ def create_app():
         from services.redis_service import redis_service
         from config.redis import RedisConfig
 
-        redis_service.configure_client("cache", RedisConfig(db=settings.REDIS_DB))
-        redis_service.configure_client("session", RedisConfig(db=settings.REDIS_DB + 1))
-        redis_service.configure_client(
+        redis_service_instance = redis_service()
+        redis_service_instance.configure_client("cache", RedisConfig(db=settings.REDIS_DB))
+        redis_service_instance.configure_client("session", RedisConfig(db=settings.REDIS_DB + 1))
+        redis_service_instance.configure_client(
             "queue", RedisConfig(db=settings.CELERY_BROKER_DB)
         )
-        if not redis_service.cache.ping():
+        if not redis_service_instance.cache.ping():
             raise ConnectionError("Redis ping failed.")
         logger.info("Redis clients configured successfully.")
     except Exception as e:
@@ -221,7 +235,7 @@ def create_app():
 
     if settings.DEBUG:
         try:
-            from models.user import User
+            from models import User
 
             alice_email = os.environ.get("DEV_ALICE_EMAIL", "alice@hospital.org")
             alice_password = os.environ.get("DEV_ALICE_PASSWORD")

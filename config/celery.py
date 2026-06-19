@@ -24,6 +24,7 @@ celery_app = Celery(
         "tasks.ai_tasks",
         "tasks.gdpr_tasks",
         "tasks.compliance_tasks",
+        "tasks.maintenance_tasks",
     ],
 )
 
@@ -128,6 +129,57 @@ celery_app.conf.update(
             "task": "tasks.compliance_tasks.archive_old_audit_logs_task",
             "schedule": timedelta(days=1),
             "kwargs": {"days": 90, "format": "json"},
+            "options": {"queue": "celery"},
+        },
+        "daily-storage-calculation": {
+            "task": "maintenance.calculate_storage_usage",
+            "schedule": timedelta(days=1),
+            "options": {"queue": "celery"},
+        },
+        "daily-health-check": {
+            "task": "maintenance.check_system_health",
+            "schedule": timedelta(days=1),
+            "options": {"queue": "celery"},
+        },
+        "daily-temp-cleanup": {
+            "task": "maintenance.cleanup_temp_files",
+            "schedule": timedelta(days=1),
+            "options": {"queue": "celery"},
+        },
+        "daily-session-cleanup": {
+            "task": "maintenance.cleanup_old_sessions",
+            "schedule": timedelta(days=1),
+            "options": {"queue": "celery"},
+        },
+        "daily-update-check": {
+            "task": "maintenance.check_for_updates",
+            "schedule": timedelta(days=1),
+            "options": {"queue": "celery"},
+        },
+        "weekly-expired-cleanup": {
+            "task": "maintenance.cleanup_expired_data",
+            "schedule": timedelta(weeks=1),
+            "options": {"queue": "celery"},
+        },
+        "weekly-log-rotation": {
+            "task": "maintenance.rotate_logs",
+            "schedule": timedelta(weeks=1),
+            "options": {"queue": "celery"},
+        },
+        "weekly-database-backup": {
+            "task": "maintenance.backup_database",
+            "schedule": timedelta(weeks=1),
+            "options": {"queue": "celery"},
+        },
+        "weekly-audit-cleanup": {
+            "task": "maintenance.cleanup_old_audit_logs",
+            "schedule": timedelta(weeks=1),
+            "options": {"queue": "celery"},
+        },
+        "monthly-usage-report": {
+            "task": "maintenance.generate_usage_report",
+            "schedule": timedelta(days=30),
+            "kwargs": {"period": "monthly"},
             "options": {"queue": "celery"},
         }
     },
