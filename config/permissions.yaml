@@ -1,0 +1,128 @@
+roles:
+  superadmin:
+    permissions:
+      - "*:*"
+  admin:
+    inherits:
+      - user
+      - manager
+    permissions:
+      - "GET /mahasangraha/api/v1/admin/system/*"
+      - "GET /mahasangraha/api/v1/admin/settings/*"
+      - "GET /mahasangraha/api/v1/admin/compliance/*"
+      - "POST /mahasangraha/api/v1/admin/compliance/*"
+      - "PUT /mahasangraha/api/v1/admin/compliance/*"
+      - "DELETE /mahasangraha/api/v1/admin/compliance/*"
+      - "GET /mahasangraha/api/v1/admin/organizations/*"
+      - "POST /mahasangraha/api/v1/admin/organizations/*"
+      - "PUT /mahasangraha/api/v1/admin/organizations/*"
+      - "DELETE /mahasangraha/api/v1/admin/organizations/*"
+      - "GET /mahasangraha/api/v1/admin/webhooks/*"
+      - "POST /mahasangraha/api/v1/admin/webhooks/*"
+      - "PUT /mahasangraha/api/v1/admin/webhooks/*"
+      - "DELETE /mahasangraha/api/v1/admin/webhooks/*"
+      - "GET /mahasangraha/api/v1/admin/tasks/*"
+      - "POST /mahasangraha/api/v1/admin/tasks/*"
+      - "GET /api/v1/users/*"
+      - "GET /api/v1/user/*"
+      - "GET /api/v1/analytics/*"
+      - "GET /api/v1/dashboards/*"
+      - "POST /api/v1/dashboards/*"
+  manager:
+    inherits:
+      - user
+    permissions:
+      - "GET /api/v1/projects/*"
+      - "POST /api/v1/projects/*"
+      - "PUT /api/v1/projects/*"
+      - "GET /api/v1/forms/*"
+      - "POST /api/v1/forms/*"
+      - "PUT /api/v1/forms/*"
+      - "GET /api/v1/dashboards/*"
+  creator:
+    inherits:
+      - user
+    permissions:
+      - "GET /api/v1/projects/*/forms/*"
+      - "POST /api/v1/projects/*/forms/*"
+      - "PUT /api/v1/projects/*/forms/*"
+      - "DELETE /api/v1/projects/*/forms/*"
+      - "GET /api/v1/projects/*/forms/*/permissions"
+      - "PUT /api/v1/projects/*/forms/*/permissions"
+  editor:
+    inherits:
+      - user
+    permissions:
+      - "GET /api/v1/projects/*/forms/*"
+      - "PUT /api/v1/projects/*/forms/*"
+      - "GET /api/v1/projects/*/forms/*/permissions"
+  approver:
+    inherits:
+      - user
+    permissions:
+      - "GET /api/v1/projects/*/forms/*/responses/*"
+      - "PUT /api/v1/projects/*/forms/*/responses/*"
+      - "POST /api/v1/projects/*/forms/*/responses/*/approve"
+  publisher:
+    inherits:
+      - user
+    permissions:
+      - "POST /api/v1/projects/*/forms/*/publish"
+      - "POST /api/v1/projects/*/forms/*/unpublish"
+  deo:
+    inherits:
+      - user
+    permissions:
+      - "POST /api/v1/projects/*/forms/*/responses"
+      - "GET /api/v1/projects/*/forms/*/responses"
+  user:
+    permissions:
+      - "GET /api/v1/health"
+
+protected_routes:
+  "GET /mahasangraha/api/v1/admin/system/*":
+    permission: "GET /mahasangraha/api/v1/admin/system/*"
+  "GET /mahasangraha/api/v1/admin/settings/*":
+    permission: "GET /mahasangraha/api/v1/admin/settings/*"
+  "GET /mahasangraha/api/v1/admin/compliance/*":
+    permission: "GET /mahasangraha/api/v1/admin/compliance/*"
+  "POST /mahasangraha/api/v1/admin/compliance/*":
+    permission: "POST /mahasangraha/api/v1/admin/compliance/*"
+  "PUT /mahasangraha/api/v1/admin/compliance/*":
+    permission: "PUT /mahasangraha/api/v1/admin/compliance/*"
+  "DELETE /mahasangraha/api/v1/admin/compliance/*":
+    permission: "DELETE /mahasangraha/api/v1/admin/compliance/*"
+  "GET /mahasangraha/api/v1/admin/organizations/*":
+    permission: "GET /mahasangraha/api/v1/admin/organizations/*"
+  "POST /mahasangraha/api/v1/admin/organizations/*":
+    permission: "POST /mahasangraha/api/v1/admin/organizations/*"
+  "PUT /mahasangraha/api/v1/admin/organizations/*":
+    permission: "PUT /mahasangraha/api/v1/admin/organizations/*"
+  "DELETE /mahasangraha/api/v1/admin/organizations/*":
+    permission: "DELETE /mahasangraha/api/v1/admin/organizations/*"
+  "GET /mahasangraha/api/v1/admin/webhooks/*":
+    permission: "GET /mahasangraha/api/v1/admin/webhooks/*"
+  "POST /mahasangraha/api/v1/admin/webhooks/*":
+    permission: "POST /mahasangraha/api/v1/admin/webhooks/*"
+  "PUT /mahasangraha/api/v1/admin/webhooks/*":
+    permission: "PUT /mahasangraha/api/v1/admin/webhooks/*"
+  "DELETE /mahasangraha/api/v1/admin/webhooks/*":
+    permission: "DELETE /mahasangraha/api/v1/admin/webhooks/*"
+  "GET /mahasangraha/api/v1/admin/tasks/*":
+    permission: "GET /mahasangraha/api/v1/admin/tasks/*"
+  "POST /mahasangraha/api/v1/admin/tasks/*":
+    permission: "POST /mahasangraha/api/v1/admin/tasks/*"
+  "GET /api/v1/projects/*/forms/*/permissions":
+    permission: "GET /api/v1/projects/*/forms/*/permissions"
+  "PUT /api/v1/projects/*/forms/*/permissions":
+    permission: "PUT /api/v1/projects/*/forms/*/permissions"
+  "POST /api/v1/projects/*/forms/*/publish":
+    permission: "POST /api/v1/projects/*/forms/*/publish"
+  "POST /api/v1/projects/*/forms/*/unpublish":
+    permission: "POST /api/v1/projects/*/forms/*/unpublish"
+  "GET /api/v1/users/*":
+    permission: "GET /api/v1/users/*"
+  "GET /api/v1/user/*":
+    permission: "GET /api/v1/user/*"
+  "GET /api/v1/analytics/*":
+    permission: "GET /api/v1/analytics/*"
