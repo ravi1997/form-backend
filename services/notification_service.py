@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import List, Dict, Any, Union
 import requests
 from logger.unified_logger import app_logger, error_logger, audit_logger
@@ -51,6 +52,7 @@ class NotificationService:
         url = config.get("url")
         method = config.get("method", "POST").upper()
         headers = config.get("headers", {})
+        secret = config.get("secret")
 
         if not url:
             app_logger.warning("No URL specified for webhook trigger")
@@ -58,6 +60,11 @@ class NotificationService:
 
         app_logger.info(f"Delivering webhook: {method} {url}")
         try:
+            # Add HMAC signature if secret is provided
+            if secret:
+                signature = NotificationService._generate_hmac_signature(secret, data)
+                headers['X-Webhook-Signature'] = f'sha256={signature}'
+            
             response = requests.request(
                 method, url, json=data, headers=headers, timeout=30
             )
@@ -145,6 +152,159 @@ class NotificationService:
             extra={"event": "notification_custom_logic", "result": result.get("result")},
         )
         return result
+
+    @staticmethod
+    def _generate_hmac_signature(secret: str, payload: Dict) -> str:
+        """
+        Generate HMAC SHA-256 signature for webhook payload.
+        """
+        import hmac
+        import hashlib
+        import json
+        
+        if isinstance(payload, dict):
+            payload = json.dumps(payload, sort_keys=True)
+        
+        secret = secret.encode('utf-8')
+        payload = payload.encode('utf-8')
+        
+        signature = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+        return signature
+
+    @staticmethod
+    def send_quota_warning_notification(org_id: str, threshold: float, usage_ratio: float, 
+                                      used_bytes: int, quota_bytes: int):
+        """
+        Send quota warning notification to organization administrators.
+        """
+        try:
+            from models.identity import Organization, User
+            from models.oauth import NotificationRule
+            
+            # Get organization details
+            org = Organization.objects(id=org_id).first()
+            if not org:
+                return
+            
+            # Get organization administrators
+            admin_users = User.objects(
+                org_memberships__org_id=org_id,
+                org_memberships__role='org_admin',
+                status='active'
+            )
+            
+            # Create notification context
+            context_data = {
+                'org_id': org_id,
+                'org_name': org.name,
+                'threshold': threshold,
+                'usage_ratio': usage_ratio,
+                'used_bytes': used_bytes,
+                'quota_bytes': quota_bytes,
+                'used_mb': used_bytes / (1024 * 1024),
+                'quota_mb': quota_bytes / (1024 * 1024),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            # Send email notification to admins
+            for admin in admin_users:
+                email_data = {
+                    'to': admin.email,
+                    'subject': f'Storage Quota Warning - {org.name}',
+                    'body': f'''
+                    Dear {admin.full_name or admin.email},
+                    
+                    Your organization {org.name} has reached {threshold:.0%} of its storage quota.
+                    
+                    Current Usage: {used_bytes / (1024 * 1024):.1f} MB
+                    Quota Limit: {quota_bytes / (1024 * 1024):.1f} MB
+                    Usage Percentage: {usage_ratio:.1%}
+                    
+                    Please consider upgrading your storage plan or cleaning up unused files.
+                    
+                    Thank you,
+                    Form Builder Team
+                    '''
+                }
+                
+                # Queue email notification
+                from tasks.notification_tasks import process_single_trigger
+                trigger_dict = {
+                    'id': f'quota_warning_{org_id}',
+                    'action_type': 'email',
+                    'config': email_data
+                }
+                
+                process_single_trigger.delay(trigger_dict, context_data)
+            
+            audit_logger.info(f"Quota warning notification sent for org {org_id} at {usage_ratio:.1%}")
+            
+        except Exception as e:
+            error_logger.error(f"Error sending quota warning notification: {e}")
+
+    @staticmethod
+    def send_quota_updated_notification(org_id: str, old_quota: int, new_quota: int):
+        """
+        Send notification when quota is updated.
+        """
+        try:
+            from models.identity import Organization, User
+            
+            # Get organization details
+            org = Organization.objects(id=org_id).first()
+            if not org:
+                return
+            
+            # Get organization administrators
+            admin_users = User.objects(
+                org_memberships__org_id=org_id,
+                org_memberships__role='org_admin',
+                status='active'
+            )
+            
+            # Create notification context
+            context_data = {
+                'org_id': org_id,
+                'org_name': org.name,
+                'old_quota': old_quota,
+                'new_quota': new_quota,
+                'old_quota_mb': old_quota / (1024 * 1024),
+                'new_quota_mb': new_quota / (1024 * 1024),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            # Send email notification to admins
+            for admin in admin_users:
+                email_data = {
+                    'to': admin.email,
+                    'subject': f'Storage Quota Updated - {org.name}',
+                    'body': f'''
+                    Dear {admin.full_name or admin.email},
+                    
+                    Your organization {org.name} storage quota has been updated.
+                    
+                    Previous Quota: {old_quota / (1024 * 1024):.1f} MB
+                    New Quota: {new_quota / (1024 * 1024):.1f} MB
+                    
+                    Thank you,
+                    Form Builder Team
+                    '''
+                }
+                
+                # Queue email notification
+                from tasks.notification_tasks import process_single_trigger
+                trigger_dict = {
+                    'id': f'quota_updated_{org_id}',
+                    'action_type': 'email',
+                    'config': email_data
+                }
+                
+                process_single_trigger.delay(trigger_dict, context_data)
+            
+            audit_logger.info(f"Quota update notification sent for org {org_id}: {old_quota} -> {new_quota}")
+            
+        except Exception as e:
+            error_logger.error(f"Error sending quota update notification: {e}")
 
 
 class NotificationObservability:

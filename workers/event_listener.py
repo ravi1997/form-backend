@@ -85,7 +85,7 @@ def handle_form_submitted(payload: dict):
         # Check and trigger ApprovalWorkflows
         if form_id and organization_id and response_id:
             try:
-                from models.workflow import Workflow as ApprovalWorkflow ApprovalWorkflow
+                from models.workflow import Workflow as ApprovalWorkflow
                 from models.workflow import WorkflowInstance
                 
                 active_wf = ApprovalWorkflow.objects(

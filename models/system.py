@@ -34,9 +34,10 @@ class FeatureFlag(BaseDocument, SoftDeleteMixin):
 
     meta = {
         "collection": "feature_flags",
+        "auto_create_index": False,
         "indexes": [
-            {"fields": ["organization_id", "key"], "unique": True},
-            {"fields": ["key"]},
+            {"fields": ["organization_id", "flag_key"], "unique": True},
+            {"fields": ["flag_key"]},
             {"fields": ["organization_id"]},
             {"fields": ["is_enabled"]},
         ],
@@ -44,7 +45,7 @@ class FeatureFlag(BaseDocument, SoftDeleteMixin):
     }
 
     organization_id = StringField(required=True, trim=True)
-    key = StringField(required=True, unique=True)
+    flag_key = StringField(required=True)
     description = StringField()
     is_enabled = BooleanField(default=False)
     is_global = BooleanField(default=False)

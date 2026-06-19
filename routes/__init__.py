@@ -23,6 +23,7 @@ from routes.v1.task_route import task_bp
 from routes.v1.admin import register_admin_blueprints
 from routes.v1.notification_route import notification_bp
 from routes.v1.oauth_route import oauth_bp
+from routes.v1.sync_route import sync_bp
 
 from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
@@ -115,6 +116,9 @@ def register_blueprints(app):
     app.register_blueprint(oauth_bp, url_prefix="/mahasangraha/api/v1/oauth", name="oauth_bp_mahasangraha")
 
     app.register_blueprint(theme_bp, url_prefix=f"{public_prefix}/themes")
+    
+    # Offline sync endpoints
+    app.register_blueprint(sync_bp, url_prefix=f"{internal_prefix}/sync")
     
     # Register all admin blueprints
     register_admin_blueprints(app)

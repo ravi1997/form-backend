@@ -30,6 +30,7 @@ class User(BaseDocument, SoftDeleteMixin):
 
     meta = {
         "collection": "users",
+        "auto_create_index": False,
         "indexes": [
             {"fields": ["username"], "unique": True, "sparse": True, "name": "username_unique_sparse"},
             {"fields": ["email"], "unique": True, "sparse": True, "name": "email_unique_sparse"},
