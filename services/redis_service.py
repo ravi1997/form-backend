@@ -211,4 +211,11 @@ class RedisService:
 
 
 # Expose a singleton instance representing the service
-redis_service = RedisService()
+_redis_service_instance = None
+
+def redis_service():
+    """Get or create the RedisService instance."""
+    global _redis_service_instance
+    if _redis_service_instance is None:
+        _redis_service_instance = RedisService()
+    return _redis_service_instance

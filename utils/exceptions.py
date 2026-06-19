@@ -29,3 +29,23 @@ class ConflictError(ServiceError):
 
 class StateTransitionError(ServiceError):
     """Raised when an invalid state transition is attempted."""
+
+
+class AuthenticationError(ServiceError):
+    """Raised when authentication fails or is missing."""
+
+
+class AuthorizationError(ServiceError):
+    """Raised when a user lacks permission to perform an action."""
+
+
+class PluginError(ServiceError):
+    """Raised when plugin-related operations fail."""
+
+
+class NotificationError(ServiceError):
+    """Raised when notification-related operations fail."""
+
+
+class QuotaExceededError(ServiceError):
+    """Raised when a quota limit is exceeded."""

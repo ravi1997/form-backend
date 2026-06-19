@@ -199,3 +199,6 @@ class NotificationObservability:
             return metrics
         except Exception:
             return {}
+
+
+notification_service = NotificationService()

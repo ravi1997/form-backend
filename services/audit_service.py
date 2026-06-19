@@ -27,7 +27,7 @@ class AuditService:
             # Automatic correlation context
             ip_addr = None
             u_agent = None
-            req_id = getattr(metadata, "request_id", None) if metadata else None
+            req_id = metadata.get("request_id") if isinstance(metadata, dict) else None
 
             if has_request_context():
                 if not req_id:

@@ -35,11 +35,12 @@ class FeatureFlagService(BaseService):
     def seed_default_flags(self) -> None:
         """Seeds the 9 enterprise feature flags into the database if they don't already exist."""
         for flag_key, description, default_val in self.default_flags:
-            flag = FeatureFlag.objects(flag_key=flag_key).first()
+            flag = FeatureFlag.objects(key=flag_key).first()
             if not flag:
                 app_logger.info(f"Seeding feature flag: {flag_key}")
                 flag = FeatureFlag(
-                    flag_key=flag_key,
+                    organization_id="system",  # System-level flags
+                    key=flag_key,
                     description=description,
                     is_enabled=default_val,
                     per_org_overrides={},

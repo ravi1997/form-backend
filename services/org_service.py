@@ -9,7 +9,7 @@ from services.base import BaseService
 from models.identity import Organization as _Organization
 Organization = _Organization
 from models.identity import TenantSettings
-from models.user import User
+from models import User
 from models.form import Form
 from models.response import FormResponse
 from models.workflow import WorkflowInstance

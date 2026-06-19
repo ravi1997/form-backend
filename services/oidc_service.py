@@ -14,7 +14,7 @@ from urllib.parse import quote_plus
 from config.settings import settings
 from logger.unified_logger import app_logger, audit_logger
 from models.auth import OidcUserMapping
-from models.user import User
+from models import User
 from services.base import BaseService
 from utils.exceptions import ValidationError
 

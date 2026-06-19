@@ -1,7 +1,7 @@
 import copy
 import logging
 from typing import Dict, Any, List, Tuple
-from models.form import FormVersion as FormCommit
+from models.form_commit import FormCommit
 from models.form import Form
 from mongoengine import connect
 
@@ -159,34 +159,24 @@ class GitFormService:
         """
         Retrieves the complete commit log tree for a specific form within tenant boundary.
         """
-        return FormCommit.objects(
+        return list(FormCommit.objects(
             form_id=form_id, organization_id=organization_id
-        ).order_by("-created_at")
+        ).order_by("-timestamp"))
 
     @staticmethod
     def reconstruct_form_at_commit(
         form_id: str, commit_id: str, organization_id: str
     ) -> Dict[str, Any]:
         """
-        Reconstructs the full form configuration at a specific commit hash by playing
-        patches forward from the root commit.
+        Reconstructs the full form configuration at a specific commit hash.
         """
-        # Traverse commits backwards to root to assemble the patch pipeline
-        commit_pipeline = []
-        curr_id = commit_id
-
-        while curr_id:
-            commit = FormCommit.objects(
-                id=curr_id, organization_id=organization_id
-            ).first()
-            if not commit:
-                break
-            commit_pipeline.append(commit)
-            curr_id = commit.parent_commit_id
-
-        # Play commits forward starting from empty dictionary base
-        result = {}
-        for commit in reversed(commit_pipeline):
-            result = GitFormService.patch(result, commit.patch)
-
-        return result
+        commit = FormCommit.objects(
+            form_id=form_id, 
+            commit_id=commit_id, 
+            organization_id=organization_id
+        ).first()
+        
+        if not commit:
+            raise NotFoundError(f"Commit {commit_id} not found")
+            
+        return commit.schema

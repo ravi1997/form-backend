@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from logger.unified_logger import app_logger, audit_logger, error_logger
-from models.ai_model_registry import AIModelRegistry
+from models.ai import AIModelRegistry
 from services.exceptions import ConflictError, NotFoundError, StateTransitionError, ValidationError
 
 

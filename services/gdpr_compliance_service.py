@@ -109,7 +109,7 @@ class GDPRComplianceService:
         from models.response import BulkExport, SummarySnapshot
         from logger.unified_logger import audit_logger
         from services.form_service import FormService
-        from services.response_service import FormResponseService
+        from services.response_service import ResponseService
 
         app_logger.info(
             f"Starting GDPR prune: retention_days={retention_days}, dry_run={dry_run}, collections={collections}"
@@ -120,7 +120,7 @@ class GDPRComplianceService:
 
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
         form_service = FormService()
-        response_service = FormResponseService()
+        response_service = ResponseService()
 
         results = {
             "retention_days": retention_days,

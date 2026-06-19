@@ -1,4 +1,4 @@
-from models.Theme import Theme
+from models.theme import Theme
 from schemas.theme import ThemeCreateSchema, ThemeSchema, ThemeUpdateSchema
 from services.base import BaseService
 

@@ -13,7 +13,8 @@ from services.base import BaseService
 from services.access_control_service import AccessControlService
 from utils.exceptions import ConflictError, NotFoundError, StateTransitionError
 from utils.response_helper import FormSerializer
-from models import Form, Project, Version, FormVersion, Section, QuickResponse
+from models import Form, Project, Version, Section, QuickResponse, FormVersion
+from models.form_commit import FormCommit
 from schemas.form import (
     AdvancedSettingsSchema,
     DataExportSettingsSchema,
@@ -24,6 +25,7 @@ from schemas.form import (
 )
 from schemas.base import InboundPayloadSchema
 from services.section_service import SectionService
+from engines.form_engine import FormEngine
 
 logger = get_logger(__name__)
 
@@ -42,6 +44,7 @@ from services.event_bus import event_bus
 class FormService(BaseService):
     def __init__(self):
         super().__init__(model=Form, schema=FormSchema)
+        self.form_engine = FormEngine()
 
     @staticmethod
     def _normalize_slug(value: Optional[str]) -> Optional[str]:
@@ -224,6 +227,232 @@ class FormService(BaseService):
         if organization_id:
             from services.tenant_service import TenantService
             TenantService().recalculate_usage(organization_id)
+
+    def create_form_commit(
+        self,
+        form_id: str,
+        organization_id: str,
+        content: Dict[str, Any],
+        message: str,
+        branch: str = "main",
+        author_id: str = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new commit for the form using the form engine.
+        
+        Args:
+            form_id: The form ID
+            organization_id: The organization ID
+            content: The form schema content
+            message: Commit message
+            branch: Branch name (default: "main")
+            author_id: User ID of the author
+            
+        Returns:
+            Commit information
+        """
+        try:
+            commit = self.form_engine.create_commit(
+                form_id=form_id,
+                organization_id=organization_id,
+                content=content,
+                message=message,
+                branch=branch,
+                author_id=author_id
+            )
+            
+            return {
+                "commit_id": commit.commit_id,
+                "message": commit.message,
+                "branch": commit.branch,
+                "author_id": str(commit.author_id),
+                "timestamp": commit.timestamp.isoformat(),
+                "parent_ids": commit.parent_ids
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to create form commit: {str(e)}", exc_info=True)
+            raise StateTransitionError(f"Failed to create form commit: {str(e)}")
+
+    def create_form_branch(
+        self,
+        form_id: str,
+        organization_id: str,
+        branch_name: str,
+        from_commit_id: str = None,
+        author_id: str = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new branch for the form.
+        
+        Args:
+            form_id: The form ID
+            organization_id: The organization ID
+            branch_name: Name of the new branch
+            from_commit_id: Source commit ID (defaults to current HEAD)
+            author_id: User ID creating the branch
+            
+        Returns:
+            Branch information
+        """
+        try:
+            return self.form_engine.create_branch(
+                form_id=form_id,
+                organization_id=organization_id,
+                branch_name=branch_name,
+                from_commit_id=from_commit_id,
+                author_id=author_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to create form branch: {str(e)}", exc_info=True)
+            raise StateTransitionError(f"Failed to create form branch: {str(e)}")
+
+    def merge_form_branch(
+        self,
+        form_id: str,
+        organization_id: str,
+        source_branch: str,
+        target_branch: str = "main",
+        author_id: str = None,
+        message: str = None
+    ) -> Dict[str, Any]:
+        """
+        Merge source branch into target branch.
+        
+        Args:
+            form_id: The form ID
+            organization_id: The organization ID
+            source_branch: Source branch name
+            target_branch: Target branch name (default: "main")
+            author_id: User ID performing the merge
+            message: Merge commit message
+            
+        Returns:
+            Merge result
+        """
+        try:
+            return self.form_engine.merge_branch(
+                form_id=form_id,
+                organization_id=organization_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+                author_id=author_id,
+                message=message
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to merge form branch: {str(e)}", exc_info=True)
+            raise StateTransitionError(f"Failed to merge form branch: {str(e)}")
+
+    def get_form_at_commit(
+        self,
+        form_id: str,
+        commit_id: str,
+        organization_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get form schema at a specific commit.
+        
+        Args:
+            form_id: The form ID
+            commit_id: The commit ID
+            organization_id: The organization ID
+            
+        Returns:
+            Form schema at the commit
+        """
+        try:
+            return self.form_engine.get_form_at_commit(
+                form_id=form_id,
+                commit_id=commit_id,
+                organization_id=organization_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to get form at commit: {str(e)}", exc_info=True)
+            raise NotFoundError(f"Failed to get form at commit: {str(e)}")
+
+    def get_form_branches(
+        self,
+        form_id: str,
+        organization_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all branches for a form.
+        
+        Args:
+            form_id: The form ID
+            organization_id: The organization ID
+            
+        Returns:
+            List of branches with their latest commit IDs
+        """
+        try:
+            return self.form_engine.get_branches(
+                form_id=form_id,
+                organization_id=organization_id
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to get form branches: {str(e)}", exc_info=True)
+            raise NotFoundError(f"Failed to get form branches: {str(e)}")
+
+    def set_production_branch(
+        self,
+        form_id: str,
+        organization_id: str,
+        branch_name: str
+    ) -> Dict[str, Any]:
+        """
+        Set a branch as the production branch.
+        
+        Args:
+            form_id: The form ID
+            organization_id: The organization ID
+            branch_name: Name of the branch to set as production
+            
+        Returns:
+            Result of the operation
+        """
+        try:
+            return self.form_engine.set_production_branch(
+                form_id=form_id,
+                organization_id=organization_id,
+                branch_name=branch_name
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to set production branch: {str(e)}", exc_info=True)
+            raise StateTransitionError(f"Failed to set production branch: {str(e)}")
+
+    def get_commit_history(
+        self,
+        form_id: str,
+        organization_id: str,
+        branch: str = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get commit history for a form.
+        
+        Args:
+            form_id: The form ID
+            organization_id: The organization ID
+            branch: Branch name (optional, defaults to all branches)
+            
+        Returns:
+            List of commits in chronological order
+        """
+        try:
+            return self.form_engine.get_commit_history(
+                form_id=form_id,
+                organization_id=organization_id,
+                branch=branch
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to get commit history: {str(e)}", exc_info=True)
+            raise NotFoundError(f"Failed to get commit history: {str(e)}")
 
 
     def sync_form_canvas(

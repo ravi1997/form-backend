@@ -8,7 +8,7 @@ from mongoengine import Q
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from services.base import BaseService
 from models.system import LegalHold
-from models.system import ComplianceRecord as EvidenceLog EvidenceLog
+from models.system import ComplianceRecord as EvidenceLog
 from models.response import FormResponse
 from models.form import Form
 from models.identity import TenantSettings
