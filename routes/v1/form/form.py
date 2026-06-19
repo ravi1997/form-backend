@@ -58,9 +58,11 @@ from models.base import (
     UI_TYPE_CHOICES,
 )
 from services.access_control_service import AccessControlService
+from engines.form_engine import FormEngine
 
 form_service = FormService()
 project_service = ProjectService()
+form_engine = FormEngine()
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -1375,4 +1377,275 @@ def update_form_translations(form_id):
         return error_response(message="Form not found", status_code=404)
     except Exception as e:
         error_logger.error(f"Update form translations error for {form_id}: {e}")
+        return error_response(message=str(e), status_code=400)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Form Versioning (Git-like)
+# ───────────────────────────────────────────────────────────────────────────────
+
+
+@form_bp.route("/<form_id>/commits", methods=["GET"])
+@jwt_required()
+@require_permission("form", "view")
+def get_form_commits(form_id):
+    """Get commit history for a form."""
+    app_logger.info(f"Entering get_form_commits for form {form_id}")
+    try:
+        current_user = get_current_user()
+        branch = request.args.get("branch")
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "view"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        commits = form_engine.get_commit_history(
+            form_id=form_id,
+            organization_id=current_user.organization_id,
+            branch=branch
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form commits viewed for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=commits)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Get form commits error for {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/commits", methods=["POST"])
+@jwt_required()
+@require_permission("form", "edit")
+def create_form_commit(form_id):
+    """Create a new commit for the form."""
+    app_logger.info(f"Entering create_form_commit for form {form_id}")
+    try:
+        current_user = get_current_user()
+        data = request.get_json(silent=True) or {}
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "edit"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        content = data.get("content", {})
+        message = data.get("message", "Updated form")
+        branch = data.get("branch", "main")
+        
+        commit = form_service.create_form_commit(
+            form_id=form_id,
+            organization_id=current_user.organization_id,
+            content=content,
+            message=message,
+            branch=branch,
+            author_id=str(current_user.id)
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form commit created for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=commit, message="Commit created", status_code=201)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Create form commit error for {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/branches", methods=["POST"])
+@jwt_required()
+@require_permission("form", "edit")
+def create_form_branch(form_id):
+    """Create a new branch for the form."""
+    app_logger.info(f"Entering create_form_branch for form {form_id}")
+    try:
+        current_user = get_current_user()
+        data = request.get_json(silent=True) or {}
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "edit"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        branch_name = data.get("branch_name")
+        from_commit_id = data.get("from_commit_id")
+        
+        if not branch_name:
+            return error_response(message="Branch name is required", status_code=400)
+        
+        branch = form_service.create_form_branch(
+            form_id=form_id,
+            organization_id=current_user.organization_id,
+            branch_name=branch_name,
+            from_commit_id=from_commit_id,
+            author_id=str(current_user.id)
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form branch '{branch_name}' created for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=branch, message="Branch created", status_code=201)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Create form branch error for {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/branches", methods=["GET"])
+@jwt_required()
+@require_permission("form", "view")
+def get_form_branches(form_id):
+    """Get all branches for a form."""
+    app_logger.info(f"Entering get_form_branches for form {form_id}")
+    try:
+        current_user = get_current_user()
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "view"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        branches = form_service.get_form_branches(
+            form_id=form_id,
+            organization_id=current_user.organization_id
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form branches viewed for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=branches)
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Get form branches error for {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/merge", methods=["POST"])
+@jwt_required()
+@require_permission("form", "edit")
+def merge_form_branch(form_id):
+    """Merge source branch into target branch."""
+    app_logger.info(f"Entering merge_form_branch for form {form_id}")
+    try:
+        current_user = get_current_user()
+        data = request.get_json(silent=True) or {}
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "edit"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        source_branch = data.get("source_branch")
+        target_branch = data.get("target_branch", "main")
+        message = data.get("message")
+        
+        if not source_branch:
+            return error_response(message="Source branch is required", status_code=400)
+        
+        result = form_service.merge_form_branch(
+            form_id=form_id,
+            organization_id=current_user.organization_id,
+            source_branch=source_branch,
+            target_branch=target_branch,
+            author_id=str(current_user.id),
+            message=message
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form branch merged for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=result, message="Merge completed")
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Merge form branch error for {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/branches/<branch_name>/set-production", methods=["POST"])
+@jwt_required()
+@require_permission("form", "edit")
+def set_form_production_branch(form_id, branch_name):
+    """Set a branch as the production branch."""
+    app_logger.info(f"Entering set_form_production_branch for form {form_id}")
+    try:
+        current_user = get_current_user()
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "edit"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        result = form_service.set_production_branch(
+            form_id=form_id,
+            organization_id=current_user.organization_id,
+            branch_name=branch_name
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form production branch set to '{branch_name}' for form {form_id} by user {current_user.id}"
+        )
+        return success_response(data=result, message="Production branch updated")
+    except DoesNotExist:
+        return error_response(message="Form not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Set form production branch error for {form_id}: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@form_bp.route("/<form_id>/commits/<commit_id>", methods=["GET"])
+@jwt_required()
+@require_permission("form", "view")
+def get_form_commit(form_id, commit_id):
+    """Get form schema at a specific commit."""
+    app_logger.info(f"Entering get_form_commit for form {form_id}, commit {commit_id}")
+    try:
+        current_user = get_current_user()
+        
+        # Verify form exists and user has permission
+        form = Form.objects.get(
+            id=form_id, organization_id=current_user.organization_id, is_deleted=False
+        )
+        
+        if not has_form_permission(current_user, form, "view"):
+            return error_response(message="Unauthorized", status_code=403)
+        
+        form_schema = form_service.get_form_at_commit(
+            form_id=form_id,
+            commit_id=commit_id,
+            organization_id=current_user.organization_id
+        )
+        
+        audit_logger.info(
+            f"AUDIT: Form commit viewed for form {form_id}, commit {commit_id} by user {current_user.id}"
+        )
+        return success_response(data=form_schema)
+    except DoesNotExist:
+        return error_response(message="Form or commit not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Get form commit error for {form_id}: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)

@@ -20,6 +20,16 @@ analysis_board_bp = Blueprint("analysis_board", __name__)
 analysis_board_service = AnalysisBoardService()
 
 
+def _analysis_board_error_response(error: Exception):
+    if isinstance(error, NotFoundError):
+        return error_response(message=str(error), status_code=404)
+    if isinstance(error, ForbiddenError):
+        return error_response(message=str(error), status_code=403)
+    if isinstance(error, ValidationError):
+        return error_response(message=str(error), status_code=400)
+    return error_response(message=str(error), status_code=500)
+
+
 @analysis_board_bp.route("/", methods=["POST"])
 @swag_from(
     {
@@ -81,7 +91,7 @@ def create_board(project_id):
         )
     except Exception as e:
         error_logger.error(f"Create Analysis Board error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/", methods=["GET"])
@@ -126,7 +136,7 @@ def list_boards(project_id):
         return success_response(data=result.to_dict())
     except Exception as e:
         error_logger.error(f"List Analysis Boards error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>", methods=["GET"])
@@ -159,7 +169,7 @@ def get_board(project_id, board_id):
         return success_response(data=result.model_dump())
     except Exception as e:
         error_logger.error(f"Get Analysis Board error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=404)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>", methods=["PUT"])
@@ -208,7 +218,7 @@ def update_board(project_id, board_id):
         )
     except Exception as e:
         error_logger.error(f"Update Analysis Board error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>", methods=["DELETE"])
@@ -246,7 +256,7 @@ def delete_board(project_id, board_id):
         return success_response(message="Analysis Board deleted")
     except Exception as e:
         error_logger.error(f"Delete Analysis Board error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>/execute", methods=["GET"])
@@ -288,7 +298,7 @@ def execute_board(project_id, board_id):
         )
     except Exception as e:
         error_logger.error(f"Execute Analysis Board error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>/runs", methods=["GET"])
@@ -308,7 +318,7 @@ def list_board_runs(project_id, board_id):
         )
     except Exception as e:
         error_logger.error(f"List Analysis runs error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>/runs/<run_id>", methods=["GET"])
@@ -334,7 +344,7 @@ def get_board_run(project_id, board_id, run_id):
         )
     except Exception as e:
         error_logger.error(f"Get Analysis run error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>/export", methods=["POST"])
@@ -370,7 +380,7 @@ def create_board_export(project_id, board_id):
         return error_response(message=str(e), status_code=400)
     except Exception as e:
         error_logger.error(f"Create Analysis export error: {str(e)}", exc_info=True)
-        return error_response(message=str(e), status_code=400)
+        return _analysis_board_error_response(e)
 
 
 @analysis_board_bp.route("/<board_id>/export/<export_id>", methods=["GET"])

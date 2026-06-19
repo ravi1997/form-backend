@@ -9,7 +9,7 @@ from logger.unified_logger import app_logger, audit_logger
 from services.tenant_service import TenantService
 from services.compliance_service import ComplianceService
 from tasks.compliance_tasks import get_audit_export_dir
-from models.system import ComplianceRecord as EvidenceLog EvidenceLog
+from models.system import ComplianceRecord as EvidenceLog
 from utils.response_helper import success_response, error_response
 from utils.security import require_roles
 from models.base import Role

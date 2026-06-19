@@ -157,7 +157,7 @@ def login():
             )
 
         # Issue tokens via AuthService
-        from models.user import User
+        from models import User
 
         user_doc = User.objects(id=user_schema.id).first()
         token_data = auth_service.generate_tokens(user_doc)
@@ -391,7 +391,7 @@ def refresh():
     """Issue a new access token using a valid refresh token."""
     app_logger.info("Entering refresh")
     try:
-        from models.user import User
+        from models import User
 
         payload = request.get_json(silent=True) or {}
         current_user_id = None

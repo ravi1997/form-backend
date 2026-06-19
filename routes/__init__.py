@@ -16,18 +16,13 @@ from routes.v1.sms_route import sms_bp
 from routes.v1.analytics_route import analytics_bp
 from routes.v1.external_api_route import external_api_bp
 from routes.v1.form.advanced_responses import advanced_responses_bp
-from routes.v1.admin.system_settings_route import system_settings_bp
 from routes.v1.admin.env_config_route import env_config_bp
 from routes.v1.form.nlp_search import nlp_search_bp
 from routes.v1.form.anomaly import anomaly_bp
-from routes.v1.admin.system_route import system_bp
-from routes.v1.admin.task_route import admin_task_bp
-from routes.v1.admin.org_management_route import org_management_bp
-from routes.v1.admin.feature_flag_route import feature_flag_bp
-from routes.v1.admin.ai_ops_route import ai_ops_bp
-from routes.v1.admin.api_key_route import api_key_bp
-from routes.v1.admin.webhook_route import webhook_admin_bp
 from routes.v1.task_route import task_bp
+from routes.v1.admin import register_admin_blueprints
+from routes.v1.notification_route import notification_bp
+from routes.v1.oauth_route import oauth_bp
 
 from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
@@ -108,31 +103,21 @@ def register_blueprints(app):
         user_bp, url_prefix=f"{public_prefix}/users", name="user_bp_plural"
     )
     app.register_blueprint(
-        system_settings_bp, url_prefix=f"{internal_prefix}/admin/system-settings"
-    )
-    app.register_blueprint(
         env_config_bp, url_prefix=f"{internal_prefix}/admin/env-config"
-    )
-    app.register_blueprint(system_bp, url_prefix=f"{internal_prefix}/system")
-    app.register_blueprint(
-        admin_task_bp, url_prefix=f"{internal_prefix}/admin/tasks"
-    )
-    app.register_blueprint(
-        org_management_bp, url_prefix=f"{internal_prefix}/admin/orgs"
-    )
-    app.register_blueprint(
-        feature_flag_bp, url_prefix=f"{internal_prefix}/admin/feature-flags"
-    )
-    app.register_blueprint(
-        ai_ops_bp, url_prefix=f"{internal_prefix}/admin/ai-ops"
-    )
-    app.register_blueprint(api_key_bp, url_prefix=f"{internal_prefix}/admin/api-keys")
-    app.register_blueprint(
-        webhook_admin_bp, url_prefix=f"{internal_prefix}/admin/webhooks"
     )
     app.register_blueprint(task_bp, url_prefix=f"{public_prefix}/tasks")
 
+    # Notifications
+    app.register_blueprint(notification_bp, url_prefix=f"{public_prefix}/notifications")
+    
+    # OAuth and API Keys
+    app.register_blueprint(oauth_bp, url_prefix=f"{public_prefix}/oauth")
+    app.register_blueprint(oauth_bp, url_prefix="/mahasangraha/api/v1/oauth", name="oauth_bp_mahasangraha")
+
     app.register_blueprint(theme_bp, url_prefix=f"{public_prefix}/themes")
+    
+    # Register all admin blueprints
+    register_admin_blueprints(app)
 
     app.logger.info(
         "All blueprints registered successfully with normalized /api/v1/ and /api/internal/v1/ prefixes."

@@ -34,8 +34,9 @@ def health_check():
     # 2. Check Redis
     try:
         # Check all registered clients
+        redis_service_instance = redis_service()
         for client_name in ["cache", "session", "queue"]:
-            client = redis_service.get_client(client_name)
+            client = redis_service_instance.get_client(client_name)
             if not client.client.ping():
                 raise ConnectionError(f"Redis client '{client_name}' ping failed")
         health_status["dependencies"]["redis"] = "connected"

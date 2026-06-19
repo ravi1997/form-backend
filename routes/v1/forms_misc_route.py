@@ -211,10 +211,10 @@ def export_bulk_responses():
             return error_response(message="Missing form_ids", status_code=400)
 
         current_user = get_current_user()
-        from models.response import BulkExport
+        from models.utility import ExportJob
         from tasks.form_tasks import async_bulk_export
 
-        job = BulkExport(
+        job = ExportJob(
             organization_id=current_user.organization_id,
             form_ids=form_ids,
             created_by=str(current_user.id),
@@ -241,9 +241,9 @@ def export_bulk_responses():
 def get_bulk_export_status(job_id):
     try:
         current_user = get_current_user()
-        from models.response import BulkExport
+        from models.utility import ExportJob
 
-        job = BulkExport.objects.get(
+        job = ExportJob.objects.get(
             id=job_id, organization_id=current_user.organization_id
         )
         result = {
@@ -263,7 +263,7 @@ def get_bulk_export_status(job_id):
 def download_bulk_export(job_id):
     try:
         current_user = get_current_user()
-        from models.response import BulkExport
+        from models.utility import ExportJob
         from flask import send_file
         import os
 

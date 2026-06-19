@@ -1,220 +1,355 @@
-from config.celery import celery_app
-from services.notification_service import NotificationService
+"""
+tasks/notification_tasks.py
+Background tasks for notification processing.
+"""
+
+from datetime import datetime, timedelta
+from celery import shared_task
+from mongoengine import Q
+
 from logger.unified_logger import app_logger, error_logger, audit_logger
-from models.NotificationLog import NotificationLog
-from datetime import datetime, timezone
+from services.notification_engine_service import notification_engine_service
+from services.redis_service import redis_service
 
 
-DEFAULT_NOTIFICATION_RETRY_BATCH_SIZE = 50
-DEFAULT_NOTIFICATION_MAX_RETRIES = 3
-
-
-@celery_app.task
-def process_notification_triggers(triggers_data, context_data):
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def deliver_notification(self, notification_id: str):
     """
-    Orchestrator task that fan-outs multiple notification actions.
+    Deliver a notification to the specified channel.
+    
+    Args:
+        notification_id: ID of the notification to deliver
     """
-    app_logger.info(
-        f"Entering process_notification_triggers: fanning out {len(triggers_data)} triggers"
-    )
-    for trigger in triggers_data:
-        process_single_trigger.delay(trigger, context_data)
-    app_logger.info(
-        f"Exiting process_notification_triggers: dispatched {len(triggers_data)} triggers"
-    )
-    return {"status": "dispatched", "count": len(triggers_data)}
-
-
-@celery_app.task(
-    bind=True,
-    max_retries=3,
-    default_retry_delay=60,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=3600,
-    retry_jitter=True,
-)
-def process_single_trigger(self, trigger_data, context_data):
-    """
-    Background task to process a SINGLE notification trigger.
-    Includes robust retry with exponential backoff.
-    """
-    from services.notification_service import NotificationObservability
-
-    trigger_name = trigger_data.get("name", "unnamed")
-    action_type = trigger_data.get("action_type", "unknown")
-
-    app_logger.info(
-        f"Entering process_single_trigger: name={trigger_name}, type={action_type}"
-    )
-
-    retries = self.request.retries or 0
-    if retries > 0:
-        NotificationObservability.increment_retry(action_type)
-    else:
-        NotificationObservability.increment_attempt(action_type)
-
     try:
-        from services.notification_service import NotificationService
-
-        if action_type == "webhook":
-            NotificationService._call_webhook(
-                trigger_data.get("action_config", {}), context_data
-            )
-        elif action_type == "email_notification":
-            NotificationService._call_external_api(
-                trigger_data.get("action_config", {}), context_data
-            )
-        elif action_type == "api_call":
-            NotificationService._call_external_api(
-                trigger_data.get("action_config", {}), context_data
-            )
-        elif action_type == "execute_script":
-            # Still blocked for security, but logged
-            app_logger.warning(
-                f"Custom script execution requested for {trigger_name} but blocked."
-            )
+        app_logger.info(f"Delivering notification: {notification_id}")
+        
+        success = notification_engine_service.deliver_notification(notification_id)
+        
+        if success:
+            app_logger.info(f"Notification delivered successfully: {notification_id}")
+            return {"status": "delivered", "notification_id": notification_id}
         else:
-            app_logger.warning(f"Unknown action type: {action_type}")
-
-        NotificationObservability.increment_success(action_type)
-        audit_logger.info(
-            f"Notification trigger {trigger_name} (type: {action_type}) processed successfully"
-        )
-        app_logger.info(f"Exiting process_single_trigger: {trigger_name} processed")
+            error_logger.error(f"Failed to deliver notification: {notification_id}")
+            # Retry if not max retries exceeded
+            if self.request.retries < self.max_retries:
+                raise self.retry(countdown=60 * (self.request.retries + 1))
+            return {"status": "failed", "notification_id": notification_id}
+            
     except Exception as e:
-        NotificationObservability.increment_failure(action_type)
-        error_logger.error(f"Trigger {trigger_name} failed: {str(e)}")
-        # Re-raise to trigger Celery retry
-        raise e
+        error_logger.error(f"Error delivering notification {notification_id}: {e}", exc_info=True)
+        # Retry on any exception
+        if self.request.retries < self.max_retries:
+            raise self.retry(countdown=60 * (self.request.retries + 1))
+        return {"status": "error", "notification_id": notification_id, "error": str(e)}
 
 
-
-@celery_app.task
-def long_running_computation(data):
+@shared_task(bind=True, max_retries=3, default_retry_delay=300)
+def process_notification_event(self, org_id: str, event_type: str, context: dict):
     """
-    Example of a long-running computation task.
+    Process a notification event and create notifications for matching rules.
+    
+    Args:
+        org_id: Organization ID
+        event_type: Type of event (e.g., 'response.submitted', 'form.published')
+        context: Event context data
     """
-    import time
-
-    app_logger.info(f"Entering long_running_computation for {data}")
-    # Simulating work
-    result = sum(i * i for i in range(1000000))
-    time.sleep(2)
-    app_logger.info("Exiting long_running_computation")
-    return {"status": "completed", "result": result}
-
-
-@celery_app.task(bind=True)
-def process_outbox_events_task(self, max_retries=3):
-    """
-    Background task/worker loop to publish failed/pending outbox events.
-    """
-    from services.outbox_service import outbox_service
-    app_logger.info("Entering process_outbox_events_task")
-    result = outbox_service.process_pending_outbox_events(max_retries=max_retries)
-    app_logger.info(f"Exiting process_outbox_events_task with result: {result}")
-    return result
-
-
-def _deliver_notification_log(notification_log):
-    """
-    Replays a persisted notification delivery attempt using the stored log payload.
-    """
-    channel = str(notification_log.channel or "").strip().lower()
-    payload = notification_log.payload or {}
-    context_data = payload.get("context_data", payload)
-    response = None
-    action_config = payload.get("action_config") or payload.get("config") or {}
-
-    if channel == "webhook":
-        response = NotificationService._call_webhook(
-            action_config, context_data
+    try:
+        app_logger.info(f"Processing notification event: {event_type} for org {org_id}")
+        
+        notifications = notification_engine_service.process_notification_event(
+            org_id=org_id,
+            event_type=event_type,
+            context=context
         )
-    elif channel in {"email", "email_notification"}:
-        response = NotificationService._call_external_api(
-            action_config, context_data
-        )
-    elif channel == "api_call":
-        response = NotificationService._call_external_api(
-            action_config, context_data
-        )
-    elif channel == "execute_script":
-        NotificationService._run_custom_logic(payload.get("script", ""), context_data)
-    else:
-        raise ValueError(f"Unsupported notification channel: {channel}")
+        
+        if notifications:
+            app_logger.info(f"Created {len(notifications)} notifications for event {event_type}")
+            
+            # Queue each notification for delivery
+            for notification in notifications:
+                deliver_notification.delay(str(notification.id))
+            
+            return {
+                "status": "processed",
+                "event_type": event_type,
+                "notification_count": len(notifications),
+                "notification_ids": [str(n.id) for n in notifications]
+            }
+        else:
+            app_logger.info(f"No notifications created for event {event_type}")
+            return {
+                "status": "no_notifications",
+                "event_type": event_type,
+                "notification_count": 0
+            }
+            
+    except Exception as e:
+        error_logger.error(f"Error processing notification event {event_type}: {e}", exc_info=True)
+        if self.request.retries < self.max_retries:
+            raise self.retry(countdown=300 * (self.request.retries + 1))
+        return {"status": "error", "event_type": event_type, "error": str(e)}
 
-    return response
 
-
-@celery_app.task(bind=True)
-def process_notification_retry_queue_task(
-    self,
-    batch_size=DEFAULT_NOTIFICATION_RETRY_BATCH_SIZE,
-    max_retries=DEFAULT_NOTIFICATION_MAX_RETRIES,
-):
+@shared_task
+def retry_failed_notifications():
     """
-    Polls NotificationLog for retryable notification deliveries and replays them.
+    Retry failed notifications that haven't exceeded max attempts.
+    Runs every 5 minutes.
     """
-    app_logger.info(
-        "Entering process_notification_retry_queue_task "
-        f"batch_size={batch_size}, max_retries={max_retries}"
-    )
+    try:
+        from models.notification import Notification
+        
+        # Find notifications that need retrying
+        retry_cutoff = datetime.utcnow() - timedelta(minutes=5)
+        notifications = Notification.objects(
+            status='retrying',
+            next_retry_at__lte=retry_cutoff,
+            attempt_count__lt=3
+        )
+        
+        retry_count = 0
+        for notification in notifications:
+            deliver_notification.delay(str(notification.id))
+            retry_count += 1
+        
+        if retry_count > 0:
+            app_logger.info(f"Queued {retry_count} notifications for retry")
+        
+        return {"status": "completed", "retry_count": retry_count}
+        
+    except Exception as e:
+        error_logger.error(f"Error in retry_failed_notifications: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}
 
-    retryable_logs = (
-        NotificationLog.objects(status__in=["pending", "failed"], attempt_count__lt=max_retries)
-        .order_by("created_at")
-        .limit(batch_size)
-    )
 
-    processed = 0
-    succeeded = 0
-    failed = 0
-    skipped = 0
+@shared_task
+def cleanup_old_notifications():
+    """
+    Clean up old notifications (older than 90 days).
+    Runs daily.
+    """
+    try:
+        from models.notification import Notification
+        
+        cutoff_date = datetime.utcnow() - timedelta(days=90)
+        old_notifications = Notification.objects(
+            created_at__lt=cutoff_date,
+            status__in=['sent', 'failed']
+        )
+        
+        deleted_count = old_notifications.count()
+        old_notifications.delete()
+        
+        if deleted_count > 0:
+            app_logger.info(f"Cleaned up {deleted_count} old notifications")
+        
+        return {"status": "completed", "deleted_count": deleted_count}
+        
+    except Exception as e:
+        error_logger.error(f"Error in cleanup_old_notifications: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}
 
-    for notification_log in retryable_logs:
-        processed += 1
-        try:
-            notification_log.attempt_count = (notification_log.attempt_count or 0) + 1
-            response = _deliver_notification_log(notification_log)
-            notification_log.status = "sent"
-            notification_log.response = response or {}
-            notification_log.error_message = ""
-            notification_log.sent_at = datetime.now(timezone.utc)
-            notification_log.save()
-            audit_logger.info(
-                "AUDIT: NotificationLog %s delivered successfully",
-                str(notification_log.id),
+
+@shared_task
+def send_quota_warnings():
+    """
+    Send quota warning notifications to organizations approaching their limits.
+    Runs daily.
+    """
+    try:
+        from models.system import StorageQuotas
+        from models.identity import Organisation
+        
+        # Get organizations approaching quota limits
+        orgs_with_quotas = StorageQuotas.objects()
+        
+        warning_count = 0
+        for quota in orgs_with_quotas:
+            org = Organisation.objects(id=quota.org_id).first()
+            if not org:
+                continue
+            
+            # Calculate usage percentage
+            if quota.quota_bytes > 0:
+                usage_percentage = (quota.used_bytes.get('total', 0) / quota.quota_bytes) * 100
+                
+                # Check if warning threshold is reached
+                warning_threshold = quota.warning_threshold or 0.8  # 80% default
+                if usage_percentage >= (warning_threshold * 100):
+                    # Send warning notification
+                    context = {
+                        'organization_name': org.name,
+                        'usage_percentage': round(usage_percentage, 2),
+                        'quota_bytes': quota.quota_bytes,
+                        'used_bytes': quota.used_bytes.get('total', 0),
+                        'warning_threshold': round(warning_threshold * 100, 2)
+                    }
+                    
+                    process_notification_event.delay(
+                        org_id=str(quota.org_id),
+                        event_type='quota.warning_80',
+                        context=context
+                    )
+                    warning_count += 1
+                    
+                    # Check for critical threshold (90%)
+                    if usage_percentage >= 90:
+                        process_notification_event.delay(
+                            org_id=str(quota.org_id),
+                            event_type='quota.warning_90',
+                            context=context
+                        )
+        
+        if warning_count > 0:
+            app_logger.info(f"Sent {warning_count} quota warning notifications")
+        
+        return {"status": "completed", "warning_count": warning_count}
+        
+    except Exception as e:
+        error_logger.error(f"Error in send_quota_warnings: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}
+
+
+@shared_task
+def process_scheduled_notifications():
+    """
+    Process scheduled notifications (e.g., audit reminders, compliance deadlines).
+    Runs hourly.
+    """
+    try:
+        from models.compliance import ComplianceAudit
+        
+        # Find audits that are due soon (within 24 hours)
+        soon_cutoff = datetime.utcnow() + timedelta(hours=24)
+        due_audits = ComplianceAudit.objects(
+            status='scheduled',
+            scheduled_date__lte=soon_cutoff,
+            scheduled_date__gt=datetime.utcnow()
+        )
+        
+        reminder_count = 0
+        for audit in due_audits:
+            # Send reminder notification
+            context = {
+                'audit_title': audit.title,
+                'audit_type': audit.audit_type,
+                'scheduled_date': audit.scheduled_date.isoformat(),
+                'compliance_standard': audit.compliance_id.name if audit.compliance_id else ''
+            }
+            
+            process_notification_event.delay(
+                org_id=audit.org_id,
+                event_type='audit.reminder',
+                context=context
             )
-            succeeded += 1
-        except ValueError as exc:
-            notification_log.status = "skipped"
-            notification_log.error_message = str(exc)
-            notification_log.save()
-            skipped += 1
-            error_logger.error(
-                f"NotificationLog {notification_log.id} skipped: {exc}",
-                exc_info=True,
+            reminder_count += 1
+        
+        # Find overdue audits
+        overdue_audits = ComplianceAudit.objects(
+            status='scheduled',
+            scheduled_date__lt=datetime.utcnow()
+        )
+        
+        overdue_count = 0
+        for audit in overdue_audits:
+            # Send overdue notification
+            context = {
+                'audit_title': audit.title,
+                'audit_type': audit.audit_type,
+                'scheduled_date': audit.scheduled_date.isoformat(),
+                'overdue_days': (datetime.utcnow() - audit.scheduled_date).days,
+                'compliance_standard': audit.compliance_id.name if audit.compliance_id else ''
+            }
+            
+            process_notification_event.delay(
+                org_id=audit.org_id,
+                event_type='audit.overdue',
+                context=context
             )
-        except Exception as exc:
-            notification_log.status = "failed"
-            notification_log.error_message = str(exc)
-            notification_log.save()
-            failed += 1
-            error_logger.error(
-                f"NotificationLog {notification_log.id} failed during retry: {exc}",
-                exc_info=True,
-            )
+            overdue_count += 1
+        
+        if reminder_count > 0 or overdue_count > 0:
+            app_logger.info(f"Processed {reminder_count} audit reminders and {overdue_count} overdue notifications")
+        
+        return {
+            "status": "completed",
+            "reminder_count": reminder_count,
+            "overdue_count": overdue_count
+        }
+        
+    except Exception as e:
+        error_logger.error(f"Error in process_scheduled_notifications: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}
 
-    result = {
-        "status": "completed",
-        "processed": processed,
-        "succeeded": succeeded,
-        "failed": failed,
-        "skipped": skipped,
-    }
-    app_logger.info(
-        "Exiting process_notification_retry_queue_task with result: %s",
-        result,
-    )
-    return result
+
+@shared_task
+def update_notification_metrics():
+    """
+    Update notification delivery metrics in Redis.
+    Runs every hour.
+    """
+    try:
+        from models.notification import NotificationLog
+        
+        # Get metrics for the last hour
+        hour_ago = datetime.utcnow() - timedelta(hours=1)
+        
+        # Count by status and channel
+        pipeline = [
+            {"$match": {"created_at": {"$gte": hour_ago}}},
+            {"$group": {
+                "_id": {"status": "$status", "channel": "$channel"},
+                "count": {"$sum": 1}
+            }}
+        ]
+        
+        metrics = {}
+        for doc in NotificationLog.objects.aggregate(pipeline):
+            key = f"{doc['_id']['channel']}_{doc['_id']['status']}"
+            metrics[key] = doc['count']
+        
+        # Store in Redis with 1-hour expiration
+        if redis_service.cache:
+            redis_key = "notification_metrics:current_hour"
+            redis_service.cache.setex(redis_key, 3600, metrics)
+        
+        app_logger.info(f"Updated notification metrics: {metrics}")
+        return {"status": "completed", "metrics": metrics}
+        
+    except Exception as e:
+        error_logger.error(f"Error in update_notification_metrics: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}
+
+
+@shared_task
+def seed_default_notification_templates():
+    """
+    Seed default notification templates for all organizations.
+    Runs once on startup.
+    """
+    try:
+        from models.identity import Organisation
+        
+        orgs = Organisation.objects(is_deleted=False)
+        seeded_count = 0
+        
+        for org in orgs:
+            # Check if templates already exist
+            from models.notification import NotificationTemplate
+            existing_templates = NotificationTemplate.objects(
+                organization_id=str(org.id),
+                is_system=True
+            ).count()
+            
+            if existing_templates == 0:
+                notification_engine_service.seed_default_notification_templates(str(org.id))
+                seeded_count += 1
+        
+        if seeded_count > 0:
+            app_logger.info(f"Seeded default notification templates for {seeded_count} organizations")
+        
+        return {"status": "completed", "seeded_count": seeded_count}
+        
+    except Exception as e:
+        error_logger.error(f"Error in seed_default_notification_templates: {e}", exc_info=True)
+        return {"status": "error", "error": str(e)}

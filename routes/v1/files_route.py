@@ -1,6 +1,7 @@
 from flask import Blueprint, request, send_file
-from flask_jwt_extended import jwt_required, current_user
+from flask_jwt_extended import jwt_required
 from utils.response_helper import success_response, error_response
+from utils.security_helpers import get_current_user
 from logger.unified_logger import app_logger, error_logger
 import os
 
@@ -13,6 +14,10 @@ def upload_file_generic():
     """Handles standalone generic file uploads."""
     app_logger.info("Entering generic file upload route")
     try:
+        current_user = get_current_user()
+        if not current_user:
+            return error_response(message="User not found", status_code=404)
+            
         if "file" not in request.files:
             return error_response(message="No file part in request", status_code=400)
         file = request.files["file"]
@@ -45,6 +50,10 @@ def upload_signature_generic():
     """Handles generic signature image uploads."""
     app_logger.info("Entering generic signature upload route")
     try:
+        current_user = get_current_user()
+        if not current_user:
+            return error_response(message="User not found", status_code=404)
+            
         data = request.get_json() or {}
         signature_data = data.get("signature")  # Base64 representation expected
         if not signature_data:

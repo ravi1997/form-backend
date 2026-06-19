@@ -4,7 +4,7 @@ from flask import request, jsonify, current_app
 from flask import g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from routes.v1.form import form_bp
-from services.response_service import FormResponseService, FormResponseCreateSchema
+from services.response_service import ResponseService, FormResponseSchema
 from routes.v1.form.helper import get_current_user, has_form_permission
 from models.form import Form, FormVersion, Project
 from models.response import FormResponse
@@ -17,7 +17,7 @@ from bson.binary import Binary, UuidRepresentation
 
 from utils.response_helper import success_response, error_response
 
-response_service = FormResponseService()
+response_service = ResponseService()
 
 
 @form_bp.route("/<form_id>/responses", methods=["POST"])
@@ -30,7 +30,7 @@ response_service = FormResponseService()
             {
                 "name": "body",
                 "in": "body",
-                "schema": {"$ref": "#/definitions/FormResponseCreateSchema"},
+                "schema": {"$ref": "#/definitions/FormResponseSchema"},
             },
         ],
     }
@@ -103,7 +103,7 @@ def submit_response(form_id):
         elif form_project:
             submission_data["project"] = str(form_project)
 
-        create_schema = FormResponseCreateSchema(**submission_data)
+            create_schema = FormResponseSchema(**submission_data)
         response = response_service.create_submission(create_schema)
 
         audit_logger.info(
@@ -416,7 +416,7 @@ def sync_responses(form_id):
                     submission_data["project"] = str(form_project)
 
                 try:
-                    create_schema = FormResponseCreateSchema(**submission_data)
+                    create_schema = FormResponseSchema(**submission_data)
                     new_resp = response_service.create_submission(create_schema)
                     results.append({
                         "idempotency_key": idempotency_key,
