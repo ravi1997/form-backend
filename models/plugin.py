@@ -10,8 +10,18 @@ from mongoengine import (
 from models.base import BaseDocument, SoftDeleteMixin, BaseEmbeddedDocument
 
 
-class ComponentSchema(BaseEmbeddedDocument):
+class ComponentSchema(BaseDocument):
     """Plugin component schema definition."""
+
+    meta = {
+        "collection": "component_schemas",
+        "indexes": [
+            {"fields": ["plugin_id", "plugin_version", "component_type"], "unique": True},
+            "concept_id",
+            "component_type",
+        ],
+        "index_background": True,
+    }
 
     plugin_id = StringField(required=True)
     plugin_version = StringField(required=True)
@@ -84,7 +94,7 @@ class Plugin(BaseDocument, SoftDeleteMixin):
     author = DictField()  # {name, email}
     version = StringField(required=True)
     manifest = DictField(required=True)
-    status = StringField(choices=["active", "suspended", "unloaded"], default="active")
+    status = StringField(choices=["active", "suspended", "unloaded", "pending"], default="pending")
     
     # Plugin targeting
     concept_targets = ListField(StringField(), default=list)

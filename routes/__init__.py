@@ -6,7 +6,7 @@ from routes.v1.user_route import user_bp
 from routes.v1.form.ai import ai_bp
 from routes.v1.form.library import library_bp
 from routes.v1.form.permissions import permissions_bp
-from routes.v1.dashboard_route import dashboard_bp
+from routes.v1.dashboard_route import dashboard_bp, public_dashboard_bp
 from routes.v1.dashboard_settings_route import dashboard_settings_bp
 from routes.v1.analysis_board_route import analysis_board_bp
 from routes.v1.workflow_route import workflow_bp
@@ -24,7 +24,7 @@ from routes.v1.admin import register_admin_blueprints
 from routes.v1.notification_route import notification_bp
 from routes.v1.oauth_route import oauth_bp
 from routes.v1.sync_route import sync_bp
-
+from routes.v1.plugin_route import plugin_bp
 from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
 from routes.v1.files_route import files_bp
@@ -75,6 +75,10 @@ def register_blueprints(app):
         name="dashboard_bp_compat",
     )
     app.register_blueprint(
+        public_dashboard_bp,
+        url_prefix=f"{public_prefix}/public/dashboards",
+    )
+    app.register_blueprint(
         dashboard_settings_bp, url_prefix=f"{public_prefix}/dashboard-settings"
     )
     app.register_blueprint(analytics_bp, url_prefix=f"{public_prefix}/analytics")
@@ -119,6 +123,7 @@ def register_blueprints(app):
     
     # Offline sync endpoints
     app.register_blueprint(sync_bp, url_prefix=f"{internal_prefix}/sync")
+    app.register_blueprint(plugin_bp, url_prefix=f"{internal_prefix}/plugins")
     
     # Register all admin blueprints
     register_admin_blueprints(app)

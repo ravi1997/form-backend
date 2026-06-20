@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────────────────────
     APP_NAME: str = "Forms Backend"
     APP_ENV: str = "development"
+    PLATFORM_VERSION: str = "1.0.0"
     DEFAULT_PAGE_SIZE: int = 50
     MAX_PAGE_SIZE: int = 200
 
