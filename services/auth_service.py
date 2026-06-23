@@ -316,7 +316,7 @@ class AuthService(BaseService):
     def is_token_revoked(self, jti: str) -> bool:
         """Checks if a JTI exists in the blocklist (Redis first, then DB)."""
         # 1. Check Redis
-        if redis_service.cache.get(f"revoked_token:{jti}"):
+        if redis_service().cache.get(f"revoked_token:{jti}"):
             return True
 
         # 2. Fallback to DB

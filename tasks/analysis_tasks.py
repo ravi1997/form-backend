@@ -13,7 +13,6 @@ from engines.analysis_engine import AnalysisEngine
 from logger.unified_logger import app_logger, error_logger, audit_logger
 from utils.exceptions import NotFoundError, ValidationError, StateTransitionError
 from celery import shared_task
-from extensions import celery
 import traceback
 
 

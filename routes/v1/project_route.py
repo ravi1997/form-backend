@@ -119,6 +119,9 @@ def create_form_in_project(project_id):
             message="Unauthorized to manage this project", status_code=403
         )
 
+    data.setdefault("created_by", str(current_user.id))
+    data.setdefault("editors", [str(current_user.id)])
+    data.setdefault("organization_id", current_user.organization_id)
     form = project_service.create_form_in_project(
         project_id, data, current_user.organization_id, current_user
     )

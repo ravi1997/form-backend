@@ -33,6 +33,9 @@ def tenant_aware_key_func():
 jwt = JWTManager()
 cors = CORS()
 
+from flask_socketio import SocketIO
+socketio = SocketIO(cors_allowed_origins="*")
+
 # Limiter uses dedicated DB (REDIS_DB_RATE_LIMITER = 3) to avoid collisions.
 _redis_pass = f":{settings.REDIS_PASSWORD}@" if settings.REDIS_PASSWORD else ""
 limiter_storage = (

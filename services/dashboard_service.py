@@ -662,6 +662,14 @@ class DashboardService(BaseService):
                     filters.append(filter_obj)
                 dashboard.filters = filters
             
+            # Recompute linked_analysis_ids from all widget data_source.analysis_id values
+            analysis_ids = set()
+            import bson
+            for widget in dashboard.widgets:
+                if widget.data_source and widget.data_source.analysis_id:
+                    analysis_ids.add(bson.ObjectId(widget.data_source.analysis_id))
+            dashboard.linked_analysis_ids = list(analysis_ids)
+            
             dashboard.save()
             
             audit_logger.info(
@@ -682,20 +690,13 @@ class DashboardService(BaseService):
         app_logger.debug(f"Entering list_snapshots: {dashboard_id} (org: {organization_id})")
         
         try:
-            dashboard = self.model.objects(
-                id=dashboard_id, organization_id=organization_id, is_deleted=False
-            ).first()
-            
-            if not dashboard:
-                from .exceptions import NotFoundError
-                app_logger.warning(f"Dashboard not found for snapshots: {dashboard_id} (org: {organization_id})")
-                raise NotFoundError("Dashboard not found")
-            
-            # For now, return current state as snapshot
-            snapshot = self._dashboard_snapshot(dashboard)
-            return [snapshot]
+            from services.dashboard_snapshot_service import DashboardSnapshotService
+            snapshot_service = DashboardSnapshotService()
+            snapshots = snapshot_service.list_snapshots(dashboard_id, organization_id)
+            return [s.model_dump() for s in snapshots]
             
         except Exception as e:
+            from .exceptions import NotFoundError
             if not isinstance(e, NotFoundError):
                 error_logger.error(
                     f"Error in list_snapshots {dashboard_id}: {str(e)}", exc_info=True

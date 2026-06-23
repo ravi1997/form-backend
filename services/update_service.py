@@ -6,7 +6,6 @@ Platform update mechanism service.
 import os
 import json
 import subprocess
-import docker
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from flask import current_app
@@ -19,15 +18,32 @@ class UpdateService:
     def __init__(self):
         self.redis = redis_service().cache
         self.docker_client = None
+        self._docker_init_attempted = False
         self.update_lock_key = "platform_update_lock"
         self.update_status_key = "platform_update_status"
         self.version_info_key = "platform_version_info"
-        
+
+    def _get_docker_client(self):
+        """Return a Docker client when the host socket is available.
+
+        The backend runs inside containers in development and production, and
+        the Docker socket is not always mounted. Treat Docker as optional until
+        an update operation explicitly needs it.
+        """
+        if self.docker_client is not None:
+            return self.docker_client
+        if self._docker_init_attempted:
+            return None
+
+        self._docker_init_attempted = True
         try:
-            # Initialize Docker client
+            import docker
+
             self.docker_client = docker.from_env()
+            return self.docker_client
         except Exception as e:
-            error_logger.error(f"Failed to initialize Docker client: {e}")
+            error_logger.warning(f"Docker client unavailable: {e}")
+            return None
     
     def get_current_version(self) -> Dict:
         """Get current platform version information."""
@@ -69,9 +85,10 @@ class UpdateService:
         components = {}
         
         try:
-            if self.docker_client:
+            docker_client = self._get_docker_client()
+            if docker_client:
                 # Get running containers
-                containers = self.docker_client.containers.list()
+                containers = docker_client.containers.list()
                 
                 for container in containers:
                     if container.name.startswith(('backend', 'frontend', 'nginx', 'mongodb', 'redis')):
@@ -268,11 +285,12 @@ class UpdateService:
     def _perform_rolling_update(self, version: str) -> Dict:
         """Perform rolling update (zero downtime)."""
         try:
-            if not self.docker_client:
+            docker_client = self._get_docker_client()
+            if not docker_client:
                 raise Exception("Docker client not available")
             
             # Get current containers
-            containers = self.docker_client.containers.list()
+            containers = docker_client.containers.list()
             
             # Update containers one by one
             updated_containers = []
@@ -284,14 +302,14 @@ class UpdateService:
                         version
                     )
                     
-                    self.docker_client.images.pull(new_image_name)
+                    docker_client.images.pull(new_image_name)
                     
                     # Stop and remove old container
                     container.stop()
                     container.remove()
                     
                     # Start new container
-                    new_container = self.docker_client.containers.run(
+                    new_container = docker_client.containers.run(
                         new_image_name,
                         name=container.name,
                         detach=True,
@@ -320,7 +338,8 @@ class UpdateService:
     def _perform_blue_green_update(self, version: str) -> Dict:
         """Perform blue-green update (zero downtime with full environment swap)."""
         try:
-            if not self.docker_client:
+            docker_client = self._get_docker_client()
+            if not docker_client:
                 raise Exception("Docker client not available")
             
             # This is a simplified implementation
@@ -355,8 +374,9 @@ class UpdateService:
                 maintenance_config.save()
             
             # Stop all application containers
-            if self.docker_client:
-                containers = self.docker_client.containers.list()
+            docker_client = self._get_docker_client()
+            if docker_client:
+                containers = docker_client.containers.list()
                 for container in containers:
                     if container.name.startswith(('backend', 'frontend')):
                         container.stop()

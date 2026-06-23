@@ -536,3 +536,12 @@ class ProjectSchema(SoftDeleteBaseSchema):
     active_version: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     triggers: List[TriggerSchema] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_title_input(cls, data):
+        if not isinstance(data, dict):
+            return data
+        if "title" not in data and "name" in data:
+            data["title"] = data.get("name")
+        return data

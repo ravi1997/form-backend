@@ -222,13 +222,16 @@ class FormEngine:
         self,
         form_id: str,
         organization_id: str,
-        source_branch: str,
+        source_branch: str = None,
         target_branch: str = "main",
         author_id: str = None,
-        message: str = None
+        message: str = None,
+        source_commit_id: str = None,
+        target_commit_id: str = None,
+        resolutions: Dict[str, str] = None
     ) -> Dict[str, Any]:
         """
-        Merge source branch into target branch with 3-way merge conflict resolution.
+        Merge source branch/commit into target branch/commit with 3-way merge conflict resolution.
         
         Args:
             form_id: The form ID
@@ -237,6 +240,9 @@ class FormEngine:
             target_branch: Target branch name (default: "main")
             author_id: User ID performing the merge
             message: Merge commit message
+            source_commit_id: Direct source commit ID (optional)
+            target_commit_id: Direct target commit ID (optional)
+            resolutions: Conflict resolutions map (path -> "mine"|"theirs") (optional)
             
         Returns:
             Dict containing merge result and any conflicts
@@ -256,29 +262,36 @@ class FormEngine:
             if not form:
                 raise NotFoundError(f"Form {form_id} not found")
 
-            # Get branch commit IDs
-            if not hasattr(form, 'branches'):
-                raise NotFoundError("No branches found for form")
-                
-            if source_branch not in form.branches:
-                raise NotFoundError(f"Source branch {source_branch} not found")
-                
-            if target_branch not in form.branches:
-                raise NotFoundError(f"Target branch {target_branch} not found")
+            # Resolve commit IDs
+            s_commit_id = source_commit_id
+            if not s_commit_id and source_branch:
+                if hasattr(form, 'branches') and source_branch in form.branches:
+                    s_commit_id = form.branches[source_branch]
+                else:
+                    s_commit_id = source_branch # fallback
 
-            source_commit_id = form.branches[source_branch]
-            target_commit_id = form.branches[target_branch]
+            t_commit_id = target_commit_id
+            if not t_commit_id and target_branch:
+                if hasattr(form, 'branches') and target_branch in form.branches:
+                    t_commit_id = form.branches[target_branch]
+                else:
+                    t_commit_id = target_branch # fallback
+
+            if not s_commit_id:
+                raise NotFoundError("Source commit or branch not found")
+            if not t_commit_id:
+                raise NotFoundError("Target commit or branch not found")
 
             # Get commit objects
             source_commit = FormCommit.objects(
                 form_id=form_id,
-                commit_id=source_commit_id,
+                commit_id=s_commit_id,
                 organization_id=organization_id
             ).first()
             
             target_commit = FormCommit.objects(
                 form_id=form_id,
-                commit_id=target_commit_id,
+                commit_id=t_commit_id,
                 organization_id=organization_id
             ).first()
             
@@ -293,20 +306,29 @@ class FormEngine:
                 merged_content, conflicts = self.git_service.calculate_3way_merge(
                     base=base_commit.schema,
                     mine=source_commit.schema,
-                    theirs=target_commit.schema
+                    theirs=target_commit.schema,
+                    resolutions=resolutions
                 )
             else:
                 # No common ancestor, use target as base
                 merged_content, conflicts = self.git_service.calculate_3way_merge(
                     base={},
                     mine=source_commit.schema,
-                    theirs=target_commit.schema
+                    theirs=target_commit.schema,
+                    resolutions=resolutions
                 )
 
-            # Create merge commit
-            merge_message = message or f"Merge {source_branch} into {target_branch}"
-            
             if conflicts:
+                return {
+                    "status": "conflict",
+                    "conflicts": conflicts,
+                    "merged_at": datetime.now(timezone.utc).isoformat()
+                }
+
+            # Create merge commit
+            merge_message = message or f"Merge {source_branch or s_commit_id[:8]} into {target_branch or t_commit_id[:8]}"
+            
+            if resolutions:
                 merge_message += " (conflicts resolved)"
                 
             merge_commit = self.create_commit(
@@ -314,29 +336,30 @@ class FormEngine:
                 organization_id=organization_id,
                 content=merged_content,
                 message=merge_message,
-                branch=target_branch,
+                branch=target_branch if (target_branch and hasattr(form, 'branches') and target_branch in form.branches) else "main",
                 author_id=author_id,
-                parent_ids=[source_commit_id, target_commit_id]
+                parent_ids=[s_commit_id, t_commit_id]
             )
             
             # Update target branch to point to merge commit
-            form.branches[target_branch] = merge_commit.commit_id
-            form.save()
+            if target_branch and hasattr(form, 'branches') and target_branch in form.branches:
+                form.branches[target_branch] = merge_commit.commit_id
+                form.save()
             
             audit_logger.info(
-                f"AUDIT: Merged {source_branch} into {target_branch} for form {form_id}, "
-                f"commit {merge_commit.commit_id}, conflicts: {len(conflicts)}"
+                f"AUDIT: Merged {source_branch or s_commit_id} into {target_branch or t_commit_id} for form {form_id}, "
+                f"commit {merge_commit.commit_id}"
             )
             
             return {
                 "merge_commit_id": merge_commit.commit_id,
-                "conflicts": conflicts,
+                "conflicts": [],
                 "merged_at": datetime.now(timezone.utc).isoformat(),
-                "status": "completed" if not conflicts else "completed_with_resolutions"
+                "status": "completed"
             }
             
         except Exception as e:
-            logger.error(f"Failed to merge {source_branch} into {target_branch} for form {form_id}: {str(e)}", exc_info=True)
+            logger.error(f"Failed to merge {source_branch or s_commit_id} into {target_branch or t_commit_id} for form {form_id}: {str(e)}", exc_info=True)
             raise StateTransitionError(f"Merge failed: {str(e)}")
 
     def _find_common_ancestor(self, commit1: FormCommit, commit2: FormCommit) -> Optional[FormCommit]:

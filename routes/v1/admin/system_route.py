@@ -251,6 +251,8 @@ def prepare_update():
         
         # Prepare update
         result = update_service.prepare_update(version, download_url)
+        if result.get("error"):
+            return error_response(result["error"], status_code=503)
         
         audit_logger.info(f"Update to version {version} prepared by {user_id}")
         
@@ -296,6 +298,8 @@ def perform_update():
         
         # Perform update
         result = update_service.perform_update(version, strategy)
+        if result.get("error"):
+            return error_response(result["error"], status_code=503)
         
         audit_logger.info(f"Update to version {version} performed by {user_id} with strategy {strategy}")
         
@@ -339,6 +343,8 @@ def rollback_update():
         
         # Perform rollback
         result = update_service.rollback_update(target_version)
+        if result.get("error"):
+            return error_response(result["error"], status_code=503)
         
         audit_logger.info(f"Rollback to version {target_version} performed by {user_id}")
         

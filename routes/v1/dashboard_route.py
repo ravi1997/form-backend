@@ -20,37 +20,48 @@ dashboard_service = DashboardService()
 
 
 def _docs_widget(widget):
+    if isinstance(widget, dict):
+        return widget
+        
+    pos = getattr(widget, "position", None)
+    ds = getattr(widget, "data_source", None)
+    cfg = getattr(widget, "config", None)
+    
+    properties = {
+        "title": getattr(widget, "title", "") or "",
+        "group_by_field": getattr(cfg, "group_by_field", None),
+        "aggregate_field": getattr(cfg, "value_field", None),
+        "calculation_type": getattr(cfg, "aggregation_type", "count") or "count",
+        "filters": getattr(ds, "filters", {}) or {},
+        "size": "medium",
+        "color_scheme": getattr(cfg, "color_scheme", None),
+        "display_columns": getattr(cfg, "display_columns", []) or [],
+        "config": getattr(widget, "config", {}) or {},
+    }
+    if hasattr(cfg, "model_dump"):
+        properties["config"] = cfg.model_dump()
+        
     return {
         "id": str(getattr(widget, "id", "") or uuid.uuid4()),
-        "type": getattr(widget, "type", ""),
+        "type": getattr(widget, "widget_type", ""),
         "position": {
-            "x": getattr(widget, "position_x", 0),
-            "y": getattr(widget, "position_y", 0),
+            "x": getattr(pos, "x", 0.0),
+            "y": getattr(pos, "y", 0.0),
         },
         "size": {
-            "width": getattr(widget, "width", 2),
-            "height": getattr(widget, "height", 2),
+            "width": getattr(pos, "width", 2.0),
+            "height": getattr(pos, "height", 2.0),
         },
-        "z_index": getattr(widget, "z_index", 0),
+        "z_index": getattr(pos, "z_index", 0),
         "is_locked": getattr(widget, "is_locked", False),
-        "properties": {
-            "title": getattr(widget, "title", ""),
-            "group_by_field": getattr(widget, "group_by_field", None),
-            "aggregate_field": getattr(widget, "aggregate_field", None),
-            "calculation_type": getattr(widget, "calculation_type", "count"),
-            "filters": getattr(widget, "filters", {}) or {},
-            "size": getattr(widget, "size", "medium"),
-            "color_scheme": getattr(widget, "color_scheme", None),
-            "display_columns": getattr(widget, "display_columns", []) or [],
-            "config": getattr(widget, "config", {}) or {},
-        },
+        "properties": properties,
         "data_binding": {
-            "analysis_id": getattr(widget, "analysis_id", None),
-            "node_id": getattr(widget, "node_id", None),
-            "refresh_mode": getattr(widget, "refresh_mode", "with_dashboard"),
+            "analysis_id": str(getattr(ds, "analysis_id", "")) if getattr(ds, "analysis_id", None) else None,
+            "node_id": getattr(ds, "node_id", None),
+            "refresh_mode": getattr(ds, "refresh_mode", "with_dashboard"),
         },
-        "form_ref": getattr(widget, "form_id", None),
-        "form_id": getattr(widget, "form_id", None),
+        "form_ref": str(getattr(ds, "form_id", "")) if getattr(ds, "form_id", None) else None,
+        "form_id": str(getattr(ds, "form_id", "")) if getattr(ds, "form_id", None) else None,
         "filters": [],
     }
 
@@ -59,71 +70,68 @@ def _backend_widget(widget):
     if not isinstance(widget, dict):
         return widget
 
+    props = widget.get("properties", {}) or {}
+    db = widget.get("data_binding", {}) or {}
+    pos = widget.get("position", {}) or {}
+    sz = widget.get("size", {}) or {}
+    
     return {
-        "id": widget.get("id"),
-        "title": widget.get("properties", {}).get("title") or widget.get("title", ""),
-        "type": widget.get("type", ""),
-        "form_ref": (
-            widget.get("data_binding", {}).get("analysis_id")
-            or widget.get("data_binding", {}).get("node_id")
-            or widget.get("form_ref")
-            or widget.get("form_id")
-        ),
-        "group_by_field": widget.get("properties", {}).get("group_by_field"),
-        "aggregate_field": widget.get("properties", {}).get("aggregate_field"),
-        "calculation_type": widget.get("properties", {}).get("calculation_type", "count"),
-        "filters": widget.get("properties", {}).get("filters", {}) or {},
-        "size": widget.get("properties", {}).get("size", "medium"),
-        "color_scheme": widget.get("properties", {}).get("color_scheme"),
-        "position_x": widget.get("position", {}).get("x", widget.get("position_x", 0)),
-        "position_y": widget.get("position", {}).get("y", widget.get("position_y", 0)),
-        "width": widget.get("size", {}).get("width", widget.get("width", 2)),
-        "height": widget.get("size", {}).get("height", widget.get("height", 2)),
-        "display_columns": widget.get("properties", {}).get("display_columns", []) or [],
-        "config": widget.get("properties", {}).get("config", {}) or {},
+        "id": widget.get("id") or str(uuid.uuid4()),
+        "widget_type": widget.get("type") or widget.get("widget_type", ""),
+        "title": props.get("title") or widget.get("title", ""),
+        "description": widget.get("description", ""),
+        "position": {
+            "x": pos.get("x", 0.0),
+            "y": pos.get("y", 0.0),
+            "width": sz.get("width", 2.0),
+            "height": sz.get("height", 2.0),
+            "z_index": widget.get("z_index", 0),
+        },
+        "data_source": {
+            "analysis_id": db.get("analysis_id") or widget.get("form_ref") or widget.get("form_id"),
+            "node_id": db.get("node_id"),
+            "form_id": widget.get("form_id") or widget.get("form_ref"),
+            "refresh_mode": db.get("refresh_mode", "with_dashboard"),
+            "filters": props.get("filters", {}) or {},
+        },
+        "config": {
+            "chart_type": props.get("chart_type") or widget.get("type"),
+            "aggregation_type": props.get("calculation_type", "count"),
+            "group_by_field": props.get("group_by_field"),
+            "value_field": props.get("aggregate_field"),
+            "color_scheme": props.get("color_scheme"),
+            "display_columns": props.get("display_columns", []) or [],
+        },
+        "is_visible": widget.get("is_visible", True),
+        "is_locked": widget.get("is_locked", False),
     }
 
 
 def _resolve_widget_payloads(dashboard, org_id, runtime_filters=None):
     widgets_data = []
     for w in dashboard.widgets or []:
-        from bson import DBRef
-
-        raw_form_ref = None
-        if hasattr(w, "_data"):
-            raw_form_ref = w._data.get("form_ref") or w._data.get("form_id")
-        if raw_form_ref is None:
-            raw_form_ref = getattr(w, "form_ref", None) or getattr(w, "form_id", None)
-        form_id_str = None
-        if raw_form_ref:
-            if isinstance(raw_form_ref, DBRef):
-                form_id_str = str(raw_form_ref.id)
-            elif hasattr(raw_form_ref, "id"):
-                form_id_str = str(raw_form_ref.id)
-            else:
-                form_id_str = str(raw_form_ref)
-        widget_dict = {
-            "id": str(w.id),
-            "title": w.title,
-            "type": w.type,
-            "form_ref": form_id_str,
-            "group_by_field": w.group_by_field,
-            "aggregate_field": w.aggregate_field,
-            "calculation_type": w.calculation_type,
-            "filters": w.filters or {},
-            "size": w.size,
-            "color_scheme": w.color_scheme,
-            "position_x": w.position_x,
-            "position_y": w.position_y,
-            "width": w.width,
-            "height": w.height,
-            "display_columns": w.display_columns or [],
-            "config": w.config or {},
-        }
-        widget_schema = WidgetSchema(**widget_dict)
-        widgets_data.append(
-            resolve_widget_data(widget_schema, org_id, runtime_filters)
-        )
+        widget_schema = dashboard_service._widget_to_schema(w)
+        if widget_schema.data_source and widget_schema.data_source.analysis_id:
+            try:
+                from services.widget_data_binding_service import WidgetDataBindingService
+                binding_service = WidgetDataBindingService()
+                bound_data = binding_service.get_widget_data(
+                    widget_id=widget_schema.id,
+                    organization_id=org_id,
+                    filters=runtime_filters
+                )
+                widget_payload = _docs_widget(w)
+                widget_payload["data"] = bound_data.data
+                widgets_data.append(widget_payload)
+            except Exception as e:
+                app_logger.error(f"Failed to resolve data binding for widget {w.id}: {e}", exc_info=True)
+                widget_payload = _docs_widget(w)
+                widget_payload["data"] = {"error": str(e), "status": "error"}
+                widgets_data.append(widget_payload)
+        else:
+            widgets_data.append(
+                resolve_widget_data(widget_schema, org_id, runtime_filters)
+            )
     return widgets_data
 
 
@@ -232,27 +240,28 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
     Resolves widget data using high-performance MongoDB Aggregation pipelines.
     """
     app_logger.debug(
-        f"Resolving data for widget: {widget.title} (type: {widget.type}) for org {org_id}"
+        f"Resolving data for widget: {widget.title} (type: {widget.widget_type}) for org {org_id}"
     )
 
-    widget_form_id = getattr(widget, "form_id", None) or getattr(widget, "form_ref", None)
+    widget_form_id = None
+    if widget.data_source:
+        widget_form_id = widget.data_source.form_id or widget.data_source.analysis_id
+    
     counter_types = {"counter", "kpi", "kpi_card"}
     if not widget_form_id:
         return {
-            **widget.model_dump(),
-            "data": 0 if widget.type in counter_types else None,
+            **_docs_widget(widget),
+            "data": 0 if widget.widget_type in counter_types else None,
         }
 
     form_ref_val = str(widget_form_id)
 
-    # MongoEngine query uses __ for nested dict fields
     mongo_query = {
         "form": form_ref_val,
         "is_deleted": False,
         "organization_id": org_id,
     }
 
-    # Raw PyMongo query for aggregations uses dot notation for nested dict fields
     raw_query = {
         "form": form_ref_val,
         "is_deleted": False,
@@ -276,6 +285,8 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             return getattr(response, key)
         return None
 
+    widget_filters = widget.data_source.filters if widget.data_source else {}
+
     def _matches_response(response) -> bool:
         response_form = getattr(response, "form", None)
         if response_form is None:
@@ -287,8 +298,8 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
         if getattr(response, "is_deleted", False):
             return False
 
-        if widget.filters:
-            for key, val in widget.filters.items():
+        if widget_filters:
+            for key, val in widget_filters.items():
                 if _response_filter_value(response, key) != val:
                     return False
         if runtime_filters:
@@ -298,8 +309,8 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
         return True
 
     # Add optional filters from widget config
-    if widget.filters:
-        for key, val in widget.filters.items():
+    if widget_filters:
+        for key, val in widget_filters.items():
             mongo_query[f"data__{key}"] = val
             raw_query[f"data.{key}"] = val
 
@@ -312,7 +323,7 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
     pipeline = [{"$match": raw_query}]
 
     try:
-        if widget.type in [
+        if widget.widget_type in [
             "chart_bar",
             "chart_pie",
             "chart_line",
@@ -320,13 +331,13 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             "pie_chart",
             "line_chart",
         ]:
-            group_by = widget.group_by_field
-            agg_field = widget.aggregate_field
-            calc_type = widget.calculation_type
+            group_by = widget.config.group_by_field if widget.config else None
+            agg_field = widget.config.value_field if widget.config else None
+            calc_type = widget.config.aggregation_type if widget.config else "count"
 
             if not group_by:
                 return {
-                    **widget.model_dump(),
+                    **_docs_widget(widget),
                     "data": {"error": "Missing group_by_field"},
                 }
 
@@ -355,18 +366,18 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
             values = [r["value"] for r in results]
             res_data = {"labels": labels, "values": values}
 
-        elif widget.type in counter_types:
+        elif widget.widget_type in counter_types:
             org_responses = list(FormResponse.objects.all_with_deleted())
             res_data = sum(1 for response in org_responses if _matches_response(response))
             if res_data == 0:
                 res_data = FormResponse.objects(**mongo_query).count()
-            if res_data == 0 and widget.filters:
+            if res_data == 0 and widget_filters:
                 res_data = sum(
                     1
                     for response in org_responses
                     if all(
                         _response_filter_value(response, key) == val
-                        for key, val in widget.filters.items()
+                        for key, val in widget_filters.items()
                     )
                 )
             if res_data == 0:
@@ -379,14 +390,14 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
                     if all(
                         _response_filter_value(doc, key) == val
                         for key, val in {
-                            **(widget.filters or {}),
+                            **(widget_filters or {}),
                             **(runtime_filters or {}),
                         }.items()
                     )
                 )
 
-        elif widget.type in ["table", "list_view", "data_table"]:
-            limit = widget.config.get("limit", 10)
+        elif widget.widget_type in ["table", "list_view", "data_table"]:
+            limit = widget.config.max_items if widget.config else 10
             results = (
                 FormResponse.objects(**mongo_query)
                 .order_by("-submitted_at")
@@ -411,10 +422,10 @@ def resolve_widget_data(widget: WidgetSchema, org_id: str, runtime_filters=None)
         )
         res_data = {"error": "Aggregation failure"}
 
-    if res_data is None and widget.type in counter_types:
+    if res_data is None and widget.widget_type in counter_types:
         res_data = 0
 
-    return {**widget.model_dump(), "data": res_data}
+    return {**_docs_widget(widget), "data": res_data}
 
 
 @dashboard_bp.route("/<slug>", methods=["GET"])
@@ -438,7 +449,11 @@ def get_dashboard(slug):
     app_logger.info(f"User {user_id} fetching dashboard {slug} for org {org_id}")
 
     try:
-        dashboard = dashboard_service.get_by_slug(slug, organization_id=org_id)
+        import bson
+        if bson.ObjectId.is_valid(slug):
+            dashboard = dashboard_service.get_dashboard(slug, organization_id=org_id)
+        else:
+            dashboard = dashboard_service.get_by_slug(slug, organization_id=org_id)
 
         # Extract runtime filters from query parameters (starting with filter_)
         runtime_filters = {}
@@ -865,3 +880,413 @@ def export_dashboard(dashboard_id):
     except Exception as e:
         error_logger.error(f"Export dashboard error: {e}", exc_info=True)
         return error_response(message=str(e), status_code=400)
+
+
+# --- Remaining Phase 4 Dashboard Endpoints ---
+
+from middleware.rate_limiter import rate_limit
+from datetime import datetime, timezone
+import bson
+
+public_dashboard_bp = Blueprint("public_dashboard", __name__)
+
+
+@dashboard_bp.route("/", methods=["GET"])
+@jwt_required()
+def list_dashboards():
+    """List dashboards by project_id."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    project_id = request.args.get("project_id")
+    app_logger.info(f"User {user_id} listing dashboards for org {org_id}, project {project_id}")
+    try:
+        dashboards = dashboard_service.list_dashboards(organization_id=org_id, project_id=project_id)
+        docs_dashboards = [_docs_dashboard(d) for d in dashboards]
+        return success_response(data={"dashboards": docs_dashboards})
+    except Exception as e:
+        error_logger.error(f"List dashboards error: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>", methods=["PATCH"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def patch_dashboard(dashboard_id):
+    """Partial update of Dashboard metadata."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    app_logger.info(f"User {user_id} patching dashboard {dashboard_id} for org {org_id}")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        data = request.get_json() or {}
+        if "name" in data and "title" not in data:
+            data["title"] = data["name"]
+        schema = DashboardUpdateSchema(**data)
+        result = dashboard_service.update_dashboard(dashboard_id, organization_id=org_id, update_data=schema, user_id=user_id)
+        audit_logger.info(f"Dashboard patched: ID={dashboard_id}, Title='{result.title}', UpdatedBy={user_id}, OrgID={org_id}")
+        return success_response(data=_docs_dashboard(result), message="Dashboard updated")
+    except Exception as e:
+        error_logger.error(f"Patch Dashboard error: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>", methods=["DELETE"])
+@jwt_required()
+@require_permission("dashboard", "delete")
+def delete_dashboard(dashboard_id):
+    """Soft delete a dashboard."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    app_logger.info(f"User {user_id} deleting dashboard {dashboard_id} for org {org_id}")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        dashboard_service.delete_dashboard(dashboard_id, organization_id=org_id, user_id=user_id)
+        return success_response(message="Dashboard deleted successfully")
+    except Exception as e:
+        error_logger.error(f"Delete Dashboard error: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/canvas/data", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def get_dashboard_canvas_data(dashboard_id):
+    """Get the dashboard canvas with resolved widget data."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    app_logger.info(f"User {user_id} fetching dashboard canvas data {dashboard_id} for org {org_id}")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        from models.dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            id=dashboard_id, organization_id=org_id, is_deleted=False
+        )
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                runtime_filters[key[7:]] = val
+
+        widgets_data = _resolve_widget_payloads(
+            dashboard,
+            org_id,
+            runtime_filters,
+        )
+        canvas = dashboard_service.get_canvas(dashboard_id, organization_id=org_id)
+        canvas["widgets"] = widgets_data
+        return success_response(data=canvas)
+    except NotFoundError:
+        return error_response(message="Dashboard not found", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Get dashboard canvas data error: {e}", exc_info=True)
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/public-token", methods=["POST"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def enable_public_token(dashboard_id):
+    """Enable public sharing and generate public token."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        result = dashboard_service.enable_public_sharing(dashboard_id, org_id, user_id)
+        return success_response(data=result, message="Public sharing enabled")
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/public-token", methods=["DELETE"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def disable_public_token(dashboard_id):
+    """Disable public sharing and revoke public token."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        dashboard_service.disable_public_sharing(dashboard_id, org_id, user_id)
+        return success_response(message="Public sharing disabled")
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/data", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def get_dashboard_data(dashboard_id):
+    """Get resolved data for all widgets in the dashboard (authenticated)."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        from models.dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            id=dashboard_id, organization_id=org_id, is_deleted=False
+        )
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                runtime_filters[key[7:]] = val
+
+        widgets_data = _resolve_widget_payloads(
+            dashboard,
+            org_id,
+            runtime_filters,
+        )
+        widget_data_only = {}
+        for w in widgets_data:
+            widget_data_only[w["id"]] = {
+                "status": "ok" if "error" not in w.get("data", {}) else "error",
+                "data": w.get("data"),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        return success_response(data={"widget_data": widget_data_only})
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/widgets/<widget_id>/data", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def get_widget_data_endpoint(dashboard_id, widget_id):
+    """Get independent data for a specific widget."""
+    org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        from services.widget_data_binding_service import WidgetDataBindingService
+        binding_service = WidgetDataBindingService()
+        
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                runtime_filters[key[7:]] = val
+
+        bound_data = binding_service.get_widget_data(widget_id, org_id, runtime_filters)
+        return success_response(data={
+            "widget_id": widget_id,
+            "status": "ok",
+            "data": bound_data.data,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/filter-options", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def get_filter_options(dashboard_id):
+    """Get distinct values for a column in an analysis output node."""
+    org_id = get_jwt().get("org_id")
+    analysis_id = request.args.get("analysis_id")
+    node_id = request.args.get("node_id")
+    column = request.args.get("column")
+    limit = request.args.get("limit", 200, type=int)
+
+    if not all([analysis_id, node_id, column]):
+        return error_response(message="Missing required parameters: analysis_id, node_id, column", status_code=400)
+
+    try:
+        from models.analysis import AnalysisResults
+        import bson
+
+        analysis_result = AnalysisResults.objects(
+            analysis_id=bson.ObjectId(analysis_id),
+            node_id=node_id,
+            organization_id=org_id,
+            is_deleted=False
+        ).order_by("-created_at").first()
+
+        if not analysis_result or not analysis_result.data:
+            return error_response(message="No analysis results found", status_code=404)
+
+        rows = []
+        if isinstance(analysis_result.data, dict):
+            rows = analysis_result.data.get("rows", [])
+        elif isinstance(analysis_result.data, list):
+            rows = analysis_result.data
+
+        distinct_vals = set()
+        for r in rows:
+            if isinstance(r, dict) and column in r:
+                distinct_vals.add(str(r[column]))
+
+        sorted_vals = sorted(list(distinct_vals))
+        limited_vals = sorted_vals[:limit]
+
+        return success_response(data={
+            "column": column,
+            "values": limited_vals,
+            "total_distinct": len(distinct_vals)
+        })
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/snapshots", methods=["POST"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def create_snapshot(dashboard_id):
+    """Create a new dashboard snapshot."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    if not org_id:
+        return error_response(message="Organization context missing", status_code=400)
+    try:
+        from services.dashboard_snapshot_service import DashboardSnapshotService, SnapshotCreateSchema
+        snapshot_service = DashboardSnapshotService()
+        
+        from models.dashboard import Dashboard
+        dashboard = Dashboard.objects.get(id=dashboard_id, organization_id=org_id, is_deleted=False)
+        
+        schema = SnapshotCreateSchema(
+            dashboard_id=dashboard_id,
+            name=f"Snapshot - {dashboard.name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            description=f"Automated snapshot of {dashboard.name}"
+        )
+        snapshot = snapshot_service.create_snapshot(schema, user_id, org_id)
+        return success_response(
+            data={"snapshot": snapshot.model_dump()},
+            message="Snapshot created successfully",
+            status_code=201
+        )
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/snapshots/<snapshot_id>", methods=["GET"])
+@jwt_required()
+@require_permission("dashboard", "view")
+def get_snapshot(dashboard_id, snapshot_id):
+    """Get full dashboard snapshot details."""
+    org_id = get_jwt().get("org_id")
+    try:
+        from services.dashboard_snapshot_service import DashboardSnapshotService
+        snapshot_service = DashboardSnapshotService()
+        snapshot = snapshot_service.get_snapshot(snapshot_id, org_id)
+        return success_response(data={"snapshot": snapshot.model_dump()})
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+@dashboard_bp.route("/<dashboard_id>/snapshots/<snapshot_id>", methods=["DELETE"])
+@jwt_required()
+@require_permission("dashboard", "edit")
+def delete_snapshot(dashboard_id, snapshot_id):
+    """Delete a dashboard snapshot."""
+    user_id = get_jwt_identity()
+    org_id = get_jwt().get("org_id")
+    try:
+        from services.dashboard_snapshot_service import DashboardSnapshotService
+        snapshot_service = DashboardSnapshotService()
+        snapshot_service.delete_snapshot(snapshot_id, org_id, user_id)
+        return success_response(message="Snapshot deleted successfully")
+    except Exception as e:
+        return error_response(message=str(e), status_code=400)
+
+
+# --- Public blueprint endpoints ---
+
+@public_dashboard_bp.route("/<public_token>", methods=["GET"])
+@rate_limit("20 per minute")
+def get_public_dashboard(public_token):
+    """Get public dashboard canvas and widget data."""
+    try:
+        from models.dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            public_token=public_token, is_public=True, is_deleted=False
+        )
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                runtime_filters[key[7:]] = val
+
+        widgets_data = _resolve_widget_payloads(
+            dashboard,
+            dashboard.organization_id,
+            runtime_filters,
+        )
+        
+        stripped_widgets = []
+        for w in widgets_data:
+            w_copy = w.copy()
+            if "data_binding" in w_copy:
+                w_copy.pop("data_binding")
+            if "form_ref" in w_copy:
+                w_copy.pop("form_ref")
+            if "form_id" in w_copy:
+                w_copy.pop("form_id")
+            stripped_widgets.append(w_copy)
+
+        canvas_data = {
+            "width": getattr(dashboard, "canvas_width", 1920),
+            "height": getattr(dashboard, "canvas_height", 1080),
+            "background_color": getattr(dashboard, "background_color", "#F5F5F5"),
+            "widgets": stripped_widgets,
+        }
+        
+        payload = {
+            "name": dashboard.name,
+            "description": dashboard.description or "",
+            "canvas": canvas_data,
+            "settings": {
+                "auto_refresh": getattr(dashboard, "auto_refresh", False),
+                "refresh_interval_seconds": getattr(dashboard, "refresh_interval_seconds", 60),
+                "theme": getattr(dashboard, "theme", {}) or {},
+            },
+            "last_updated": (dashboard.updated_at or datetime.now(timezone.utc)).isoformat(),
+        }
+        return success_response(data={
+            "dashboard": payload,
+            "widget_data": {w["id"]: w.get("data") for w in widgets_data}
+        })
+    except Dashboard.DoesNotExist:
+        return error_response(message="Public dashboard not found or inactive", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Error fetching public dashboard: {e}", exc_info=True)
+        return error_response(message="Failed to load public dashboard", status_code=500)
+
+
+@public_dashboard_bp.route("/<public_token>/data", methods=["GET"])
+@rate_limit("20 per minute")
+def get_public_dashboard_data(public_token):
+    """Poll public dashboard widget data."""
+    try:
+        from models.dashboard import Dashboard
+        dashboard = Dashboard.objects.get(
+            public_token=public_token, is_public=True, is_deleted=False
+        )
+        runtime_filters = {}
+        for key, val in request.args.items():
+            if key.startswith("filter_"):
+                runtime_filters[key[7:]] = val
+
+        widgets_data = _resolve_widget_payloads(
+            dashboard,
+            dashboard.organization_id,
+            runtime_filters,
+        )
+        widget_data_only = {}
+        for w in widgets_data:
+            widget_data_only[w["id"]] = {
+                "status": "ok" if "error" not in w.get("data", {}) else "error",
+                "data": w.get("data"),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        return success_response(data={
+            "widget_data": widget_data_only,
+            "server_time": datetime.now(timezone.utc).isoformat()
+        })
+    except Dashboard.DoesNotExist:
+        return error_response(message="Public dashboard not found or inactive", status_code=404)
+    except Exception as e:
+        error_logger.error(f"Error fetching public dashboard data: {e}", exc_info=True)
+        return error_response(message="Failed to load public dashboard data", status_code=500)

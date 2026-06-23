@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Development overrides — merged on top of docker-compose.yml via:
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
@@ -17,6 +15,7 @@ services:
     volumes:
       - .:/app
       - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     # Use Flask's built-in development server with --debug and --reload for hot-reloading.
     # Keep the container port aligned with the published host mapping from docker-compose.yml.
     command: [ "python", "-m", "flask", "--app", "app", "run", "--host", "0.0.0.0", "--port", "5000", "--debug", "--reload" ]

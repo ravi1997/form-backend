@@ -144,7 +144,7 @@ def create_branch(form_id):
 def merge_branches(form_id):
     """
     Merge source branch into target branch.
-    Expects request body: {"source_branch": "...", "target_branch": "...", "message": "..."}
+    Expects request body: {"source_branch": "...", "target_branch": "...", "message": "...", "theirs_commit_id": "...", "mine_commit_id": "...", "resolutions": {...}}
     """
     try:
         user = get_current_user()
@@ -154,9 +154,13 @@ def merge_branches(form_id):
         source_branch = data.get("source_branch")
         target_branch = data.get("target_branch", "main")
         merge_message = data.get("message")
+        
+        theirs_commit_id = data.get("theirs_commit_id")
+        mine_commit_id = data.get("mine_commit_id")
+        resolutions = data.get("resolutions")
 
-        if not source_branch:
-            return error_response("Source branch is required", status_code=400)
+        if not source_branch and not mine_commit_id:
+            return error_response("Source branch or mine_commit_id is required", status_code=400)
 
         # Verify form exists and matches org
         form = Form.objects(id=form_id, organization_id=org_id).first()
@@ -170,14 +174,17 @@ def merge_branches(form_id):
             source_branch=source_branch,
             target_branch=target_branch,
             author_id=str(user.id),
-            message=merge_message
+            message=merge_message,
+            source_commit_id=mine_commit_id,
+            target_commit_id=theirs_commit_id,
+            resolutions=resolutions
         )
 
         audit_logger.info(
-            f"User {user.id} merged {source_branch} into {target_branch} for form {form_id}"
+            f"User {user.id} merged {source_branch or mine_commit_id} into {target_branch or theirs_commit_id} for form {form_id}"
         )
 
-        return success_response(result, message="Merge completed successfully")
+        return success_response(result, message="Merge status updated")
     except Exception as e:
         error_logger.error(f"Error during merge: {e}", exc_info=True)
         return error_response(str(e))

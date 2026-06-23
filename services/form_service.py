@@ -98,7 +98,7 @@ class FormService(BaseService):
             slug_query = Form.objects(
                 organization_id=organization_id,
                 is_deleted=False,
-            ).filter(Q(slug=slug) | Q(slug_history=slug))
+            ).filter(Q(slug=slug))
             if form_id:
                 slug_query = slug_query.filter(id__ne=form_id)
             if slug_query.first():
@@ -312,24 +312,16 @@ class FormService(BaseService):
         self,
         form_id: str,
         organization_id: str,
-        source_branch: str,
+        source_branch: str = None,
         target_branch: str = "main",
         author_id: str = None,
-        message: str = None
+        message: str = None,
+        source_commit_id: str = None,
+        target_commit_id: str = None,
+        resolutions: Dict[str, str] = None
     ) -> Dict[str, Any]:
         """
-        Merge source branch into target branch.
-        
-        Args:
-            form_id: The form ID
-            organization_id: The organization ID
-            source_branch: Source branch name
-            target_branch: Target branch name (default: "main")
-            author_id: User ID performing the merge
-            message: Merge commit message
-            
-        Returns:
-            Merge result
+        Merge source branch/commit into target branch/commit with 3-way merge conflict resolution.
         """
         try:
             return self.form_engine.merge_branch(
@@ -338,7 +330,10 @@ class FormService(BaseService):
                 source_branch=source_branch,
                 target_branch=target_branch,
                 author_id=author_id,
-                message=message
+                message=message,
+                source_commit_id=source_commit_id,
+                target_commit_id=target_commit_id,
+                resolutions=resolutions
             )
             
         except Exception as e:
@@ -783,7 +778,7 @@ class FormService(BaseService):
             sections_data.append(self._snapshot_section(section_ref))
         snapshot = {
             "sections": sections_data,
-            "translations": form_doc.translations or {},
+            "translations": getattr(form_doc, "translations", {}) or {},
         }
         workflows = getattr(form_doc, "workflows", None)
         if workflows is not None:
@@ -919,12 +914,45 @@ class FormService(BaseService):
                 tenant_service.check_form_quota(create_schema.organization_id)
 
             data = create_schema.model_dump(exclude_unset=True, exclude={"sections"})
+            # The public schema still carries legacy UI fields that do not exist
+            # on the MongoEngine Form document. Normalize them before save.
+            title = data.pop("title", None)
+            if title and not data.get("name"):
+                data["name"] = title
+            help_text = data.pop("help_text", None)
+            if help_text and not data.get("description"):
+                data["description"] = help_text
+
+            meta_data = dict(data.get("meta_data") or {})
+            for field_name in (
+                "project",
+                "advanced_settings",
+                "is_template",
+                "supported_languages",
+                "default_language",
+            ):
+                value = data.pop(field_name, None)
+                if value is not None:
+                    meta_data[field_name] = value
+            if meta_data:
+                data["meta_data"] = meta_data
+
             if data.get("data_export_settings") is not None:
                 data["data_export_settings"] = (
                     DataExportSettingsSchema.model_validate(
                         data["data_export_settings"]
                     ).model_dump(exclude_none=True)
                 )
+            if not data.get("sections"):
+                data["sections"] = [
+                    {
+                        "id": "section-1",
+                        "name": "Section 1",
+                        "title": "Section 1",
+                        "questions": [],
+                        "subsections": [],
+                    }
+                ]
             quick_responses = data.get("quick_responses")
             if quick_responses is not None:
                 data["quick_responses"] = [
@@ -946,14 +974,21 @@ class FormService(BaseService):
                 resolved_slug=data.get("slug"),
                 resolved_locale_default=data.get("default_language"),
             )
-            data["advanced_settings"] = advanced_settings
             data["slug"] = advanced_settings.get("slug") or data.get("slug")
-            data["default_language"] = (
-                advanced_settings.get("locale_default")
-                or data.get("default_language")
-                or "en"
-            )
-            form_doc = self.model(**data)
+            if advanced_settings.get("locale_default"):
+                meta_data = dict(data.get("meta_data") or {})
+                meta_data["default_language"] = advanced_settings.get(
+                    "locale_default"
+                )
+                data["meta_data"] = meta_data
+
+            allowed_fields = set(self.model._fields.keys())
+            filtered_data = {
+                key: value
+                for key, value in data.items()
+                if key in allowed_fields
+            }
+            form_doc = self.model(**filtered_data)
             form_doc.save()
 
             if form_doc.organization_id:
@@ -1024,20 +1059,38 @@ class FormService(BaseService):
                     ).model_dump(exclude_none=True)
                 )
 
+            update_data = update_schema.model_dump(exclude_unset=True)
+            title = update_data.pop("title", None)
+            if title and not update_data.get("name"):
+                update_data["name"] = title
+            help_text = update_data.pop("help_text", None)
+            if help_text and not update_data.get("description"):
+                update_data["description"] = help_text
+
+            meta_data = dict(getattr(current_form, "meta_data", None) or {})
+            for field_name in (
+                "project",
+                "advanced_settings",
+                "is_template",
+                "supported_languages",
+                "default_language",
+            ):
+                value = update_data.pop(field_name, None)
+                if value is not None:
+                    meta_data[field_name] = value
+            if meta_data:
+                update_data["meta_data"] = meta_data
+
+            allowed_fields = set(self.model._fields.keys())
+            filtered_update = {
+                key: value for key, value in update_data.items() if key in allowed_fields
+            }
+            update_payload = filtered_update
+
             form = super().update(
-                form_id, update_schema, organization_id=organization_id
+                form_id, update_payload, organization_id=organization_id
             )
-            updated_advanced_settings = getattr(update_schema, "advanced_settings", None)
-            new_slug = getattr(update_schema, "slug", None)
-            if old_slug and new_slug and old_slug != new_slug:
-                history = list(getattr(current_form, "slug_history", []) or [])
-                if old_slug not in history:
-                    history.append(old_slug)
-                self.model.objects(
-                    id=form_id, organization_id=organization_id
-                ).update_one(set__slug_history=history)
-                if updated_advanced_settings is not None:
-                    current_form.slug_history = history
+            updated_advanced_settings = update_payload.get("advanced_settings")
             event_bus.publish("form.indexed", form.model_dump())
             audit_logger.info(f"AUDIT: Form updated with ID {form_id}")
             app_logger.info(
@@ -1060,7 +1113,7 @@ class FormService(BaseService):
                     organization_id=organization_id,
                     is_deleted=False,
                 )
-                .filter(Q(slug=slug) | Q(slug_history=slug))
+                .filter(Q(slug=slug))
                 .first()
             )
 
@@ -1245,6 +1298,85 @@ class ProjectService(BaseService):
     def __init__(self):
         super().__init__(model=Project, schema=ProjectSchema)
 
+    @staticmethod
+    def _normalize_project_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = dict(payload or {})
+
+        # The public project create payload still uses legacy UI names.
+        title = normalized.pop("title", None)
+        if title and not normalized.get("name"):
+            normalized["name"] = title
+
+        help_text = normalized.pop("help_text", None)
+        if help_text and not normalized.get("description"):
+            normalized["description"] = help_text
+
+        # Preserve unsupported UI fields in meta_data rather than crashing on create.
+        meta_data = dict(normalized.get("meta_data") or {})
+        for field_name in ("help_text", "sub_projects", "triggers"):
+            value = normalized.pop(field_name, None)
+            if value is not None:
+                meta_data[field_name] = value
+        if meta_data:
+            normalized["meta_data"] = meta_data
+
+        normalized.setdefault("sub_projects", [])
+        normalized.setdefault("triggers", [])
+        normalized.setdefault("forms", [])
+        normalized.setdefault("tags", [])
+        normalized.setdefault("status", "draft")
+        return normalized
+
+    def create(self, create_schema: ProjectCreateSchema):
+        normalized_payload = self._normalize_project_payload(
+            create_schema.model_dump(exclude_unset=True)
+        )
+        allowed_fields = set(self.model._fields.keys())
+        document_payload = {
+            key: value for key, value in normalized_payload.items() if key in allowed_fields
+        }
+        document = self.model(**document_payload)
+        document.save()
+        return self._to_schema(document)
+
+    def update(
+        self,
+        doc_id: str,
+        update_schema: ProjectUpdateSchema,
+        organization_id: Optional[str] = None,
+    ):
+        normalized_payload = self._normalize_project_payload(
+            update_schema.model_dump(exclude_unset=True)
+        )
+        allowed_fields = set(self.model._fields.keys())
+        update_data = {
+            key: value for key, value in normalized_payload.items() if key in allowed_fields
+        }
+
+        app_logger.info(f"Entering ProjectService.update for Project ID {doc_id}")
+        try:
+            filters = {"id": doc_id}
+            if organization_id:
+                filters["organization_id"] = organization_id
+
+            document = self.model.objects(**filters).get()
+            if getattr(document, "is_deleted", False):
+                raise NotFoundError("Project not found for update")
+
+            if update_data:
+                document.update(**{f"set__{key}": value for key, value in update_data.items()})
+                document.reload()
+
+            audit_logger.info(
+                f"AUDIT: Updated Project {doc_id} (org: {organization_id})"
+            )
+            return self._to_schema(document)
+        except Exception as e:
+            error_logger.error(
+                f"Error updating Project {doc_id}: {str(e)}", exc_info=True
+            )
+            raise
+
     def create_project_with_form(
         self,
         project_data: Dict[str, Any],
@@ -1257,7 +1389,7 @@ class ProjectService(BaseService):
         project_data["organization_id"] = organization_id
         form_data["organization_id"] = organization_id
         project_schema = ProjectCreateSchema(**project_data)
-        project = super().create(project_schema)
+        project = self.create(project_schema)
         form_data["project"] = str(project.id)
         form_schema = FormCreateSchema(**form_data)
         form = FormService().create(form_schema)
@@ -1290,6 +1422,9 @@ class ProjectService(BaseService):
         ):
             raise PermissionError("Unauthorized to manage this project")
         form_data = dict(form_data or {})
+        if user:
+            form_data.setdefault("created_by", str(user.id))
+            form_data.setdefault("editors", [str(user.id)])
         form_data["organization_id"] = organization_id
         form_data["project"] = str(project.id)
         form_schema = FormCreateSchema(**form_data)
@@ -1339,14 +1474,9 @@ class ProjectService(BaseService):
                 seen_form_ids.add(form_id_str)
                 forms.append(form_doc)
 
-            direct_forms = Form.objects(
-                project=project_doc.id,
-                is_deleted=False,
-                **({"organization_id": organization_id} if organization_id else {}),
-            )
-            for direct_form in direct_forms:
-                _append_form(direct_form)
-
+            # Project membership is stored on the project document itself.
+            # Forms do not have a direct `project` field in MongoEngine, so rely
+            # on the project's referenced form list here.
             for form_ref in project_doc.forms or []:
                 try:
                     app_logger.info(f"Form reference {form_ref}")

@@ -93,15 +93,41 @@ class GitFormService:
         return dst
 
     @staticmethod
+    def get_value_at_path(doc: Any, path: str) -> Any:
+        if not path or path == "/":
+            return doc
+        parts = path.strip("/").split("/")
+        curr = doc
+        for part in parts:
+            if isinstance(curr, list):
+                try:
+                    part_idx = int(part)
+                    if 0 <= part_idx < len(curr):
+                        curr = curr[part_idx]
+                    else:
+                        return None
+                except ValueError:
+                    return None
+            elif isinstance(curr, dict):
+                if part in curr:
+                    curr = curr[part]
+                else:
+                    return None
+            else:
+                return None
+        return curr
+
+    @staticmethod
     def calculate_3way_merge(
-        base: Dict[str, Any], mine: Dict[str, Any], theirs: Dict[str, Any]
+        base: Dict[str, Any], mine: Dict[str, Any], theirs: Dict[str, Any],
+        resolutions: Dict[str, str] = None
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Performs a 3-way merge between base (common ancestor), mine (draft), and theirs (server).
         Returns:
             Tuple containing:
             - The merged dictionary (containing auto-merged changes).
-            - A list of conflict descriptors, each containing 'path', 'mine_val', 'theirs_val'.
+            - A list of conflict descriptors, each containing 'path', 'mine', 'theirs', 'base', 'mine_op', 'theirs_op'.
         """
         diff_mine = GitFormService.diff(base, mine)
         diff_theirs = GitFormService.diff(base, theirs)
@@ -114,6 +140,8 @@ class GitFormService:
         conflicts = []
 
         all_paths = set(mine_ops_map.keys()).union(set(theirs_ops_map.keys()))
+
+        resolutions = resolutions or {}
 
         for path in all_paths:
             op_mine = mine_ops_map.get(path)
@@ -132,23 +160,31 @@ class GitFormService:
                     merged_ops.append(op_mine)
                 else:
                     # Conflicting changes!
-                    conflicts.append(
-                        {
-                            "path": path,
-                            "mine": (
-                                op_mine.get("value")
-                                if op_mine["op"] != "remove"
-                                else None
-                            ),
-                            "theirs": (
-                                op_theirs.get("value")
-                                if op_theirs["op"] != "remove"
-                                else None
-                            ),
-                            "mine_op": op_mine["op"],
-                            "theirs_op": op_theirs["op"],
-                        }
-                    )
+                    # Check if resolved
+                    res = resolutions.get(path)
+                    if res == "mine":
+                        merged_ops.append(op_mine)
+                    elif res == "theirs":
+                        merged_ops.append(op_theirs)
+                    else:
+                        conflicts.append(
+                            {
+                                "path": path,
+                                "mine": (
+                                    op_mine.get("value")
+                                    if op_mine["op"] != "remove"
+                                    else None
+                                ),
+                                "theirs": (
+                                    op_theirs.get("value")
+                                    if op_theirs["op"] != "remove"
+                                    else None
+                                ),
+                                "base": GitFormService.get_value_at_path(base, path),
+                                "mine_op": op_mine["op"],
+                                "theirs_op": op_theirs["op"],
+                            }
+                        )
 
         # Apply successful auto-merged operations to base
         merged_result = GitFormService.patch(base, merged_ops)

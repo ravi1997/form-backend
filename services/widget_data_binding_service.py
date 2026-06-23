@@ -136,13 +136,14 @@ class WidgetDataBindingService(BaseService):
             # Find the widget in the dashboard
             dashboard = Dashboard.objects(
                 organization_id=organization_id,
+                widgets__id=binding_data.widget_id,
                 is_deleted=False
             ).first()
             
             if not dashboard:
                 from .exceptions import NotFoundError
-                app_logger.warning(f"No dashboard found for widget binding: {binding_data.widget_id}")
-                raise NotFoundError("No dashboard found for widget binding")
+                app_logger.warning(f"No dashboard found containing widget: {binding_data.widget_id}")
+                raise NotFoundError(f"No dashboard found containing widget {binding_data.widget_id}")
             
             # Find the widget
             widget = None
@@ -209,13 +210,14 @@ class WidgetDataBindingService(BaseService):
             # Find the dashboard containing the widget
             dashboard = Dashboard.objects(
                 organization_id=organization_id,
+                widgets__id=widget_id,
                 is_deleted=False
             ).first()
             
             if not dashboard:
                 from .exceptions import NotFoundError
-                app_logger.warning(f"No dashboard found for widget unbinding: {widget_id}")
-                raise NotFoundError("No dashboard found for widget unbinding")
+                app_logger.warning(f"No dashboard found containing widget: {widget_id}")
+                raise NotFoundError(f"No dashboard found containing widget {widget_id}")
             
             # Find the widget
             widget = None
@@ -260,13 +262,14 @@ class WidgetDataBindingService(BaseService):
             # Find the dashboard containing the widget
             dashboard = Dashboard.objects(
                 organization_id=organization_id,
+                widgets__id=widget_id,
                 is_deleted=False
             ).first()
             
             if not dashboard:
                 from .exceptions import NotFoundError
-                app_logger.warning(f"No dashboard found for widget data: {widget_id}")
-                raise NotFoundError("No dashboard found for widget data")
+                app_logger.warning(f"No dashboard found containing widget: {widget_id}")
+                raise NotFoundError(f"No dashboard found containing widget {widget_id}")
             
             # Find the widget
             widget = None
@@ -333,17 +336,29 @@ class WidgetDataBindingService(BaseService):
 
     def _apply_widget_filters(self, data: Any, widget: DashboardWidget, additional_filters: Optional[Dict[str, Any]] = None) -> Any:
         """Apply widget-specific filters to the data."""
-        if not data or not widget.data_source:
+        if not data:
             return data
         
         # Combine widget filters with additional filters
         all_filters = {}
-        if widget.data_source.filters:
+        if widget.data_source and widget.data_source.filters:
             all_filters.update(widget.data_source.filters)
         if additional_filters:
             all_filters.update(additional_filters)
+            
+        if not all_filters:
+            return data
+
+        # If data is a dict representing a table/dataframe, it has a 'rows' key
+        if isinstance(data, dict) and "rows" in data:
+            filtered_rows = self._filter_list_data(data["rows"], all_filters)
+            data_copy = data.copy()
+            data_copy["rows"] = filtered_rows
+            if "row_count" in data_copy:
+                data_copy["row_count"] = len(filtered_rows)
+            return data_copy
         
-        # Apply filters based on data type
+        # If data itself is a list
         if isinstance(data, list) and data:
             return self._filter_list_data(data, all_filters)
         

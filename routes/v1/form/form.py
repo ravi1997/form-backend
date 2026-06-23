@@ -1560,8 +1560,12 @@ def merge_form_branch(form_id):
         target_branch = data.get("target_branch", "main")
         message = data.get("message")
         
-        if not source_branch:
-            return error_response(message="Source branch is required", status_code=400)
+        theirs_commit_id = data.get("theirs_commit_id")
+        mine_commit_id = data.get("mine_commit_id")
+        resolutions = data.get("resolutions")
+        
+        if not source_branch and not mine_commit_id:
+            return error_response(message="Source branch or mine_commit_id is required", status_code=400)
         
         result = form_service.merge_form_branch(
             form_id=form_id,
@@ -1569,13 +1573,16 @@ def merge_form_branch(form_id):
             source_branch=source_branch,
             target_branch=target_branch,
             author_id=str(current_user.id),
-            message=message
+            message=message,
+            source_commit_id=mine_commit_id,
+            target_commit_id=theirs_commit_id,
+            resolutions=resolutions
         )
         
         audit_logger.info(
             f"AUDIT: Form branch merged for form {form_id} by user {current_user.id}"
         )
-        return success_response(data=result, message="Merge completed")
+        return success_response(data=result, message="Merge status updated")
     except DoesNotExist:
         return error_response(message="Form not found", status_code=404)
     except Exception as e:

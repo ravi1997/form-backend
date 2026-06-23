@@ -29,12 +29,19 @@ from routes.v1.theme_route import theme_bp
 from routes.v1.forms_misc_route import forms_misc_bp
 from routes.v1.files_route import files_bp
 from routes.health import health_bp
+from routes.v1.analysis_route import analysis_bp
 
 
 def register_blueprints(app):
+    # Import collab namespace registration
+    import routes.v1.collab_route
+    
     # Public and internal API prefixes follow the CONTEXT.md routing structure.
     public_prefix = "/api/v1"
     internal_prefix = "/api/internal/v1"
+
+    # Register analysis blueprint
+    app.register_blueprint(analysis_bp, url_prefix=public_prefix)
 
     # System health stays on the public API surface.
     app.register_blueprint(health_bp, url_prefix=f"{public_prefix}/health")
