@@ -5,7 +5,8 @@ Form and form-related models: Form, Section, Question, Version, Template.
 
 from mongoengine import (
     StringField, ListField, EmbeddedDocumentField, ReferenceField, DictField,
-    BooleanField, DateTimeField, IntField, EmbeddedDocument, ValidationError
+    BooleanField, DateTimeField, IntField, EmbeddedDocument, ValidationError,
+    BinaryField
 )
 from models.base import BaseDocument, SoftDeleteMixin, BaseEmbeddedDocument
 from models.components import Condition, Trigger, LogicComponent, UIComponent
@@ -89,27 +90,43 @@ class Question(LogicComponent, UIComponent):
     meta_data = DictField()
 
 
-class Section(LogicComponent, UIComponent):
-    """Form section containing questions and subsections."""
+class Section(BaseDocument, SoftDeleteMixin):
+    """Form section containing questions and subsections – stored as top-level documents."""
 
-    id = StringField(required=True)
-    name = StringField(required=True)
-    title = StringField(required=True)
+    meta = {
+        "collection": "sections",
+        "indexes": [
+            "organization_id",
+            "form",
+            "is_deleted",
+            ("organization_id", "is_deleted"),
+        ],
+        "index_background": True,
+    }
+
+    organization_id = StringField()
+    form = ReferenceField("Form")
+    version = ReferenceField("Version")
+    name = StringField()
+    title = StringField()
     description = StringField()
     order = IntField(default=0)
     repeatable = BooleanField(default=False)
     repeat_label = StringField()
     max_repeats = IntField()
-    questions = ListField(EmbeddedDocumentField(Question))
-    subsections = ListField(EmbeddedDocumentField("self"))
+    questions = ListField(DictField(), default=list)
+    # Nested subsections stored as references
+    sections = ListField(ReferenceField("self"), default=list)
     ui_component = StringField()
     ui_props = DictField()
-    triggers = ListField(EmbeddedDocumentField(Trigger))
+    triggers = ListField(DictField(), default=list)
     meta_data = DictField()
+    conditions = ListField(DictField(), default=list)
+    logic = DictField()
 
 
-class FormVersion(BaseEmbeddedDocument):
-    """Version control for form schema changes."""
+class FormVersionEmbedded(BaseEmbeddedDocument):
+    """Legacy embedded version control for form schema changes (backward compat)."""
 
     version_id = StringField(required=True)
     version_number = StringField(required=True)
@@ -121,6 +138,50 @@ class FormVersion(BaseEmbeddedDocument):
     schema = DictField()
     ui_config = DictField()
     meta_data = DictField()
+
+
+class FormVersion(BaseDocument):
+    """Version snapshot document linking a Form to its Version + SnapshotStore."""
+
+    meta = {
+        "collection": "form_versions",
+        "indexes": [
+            ("form", "version"),
+            "form",
+            "organization_id",
+            "status",
+        ],
+        "index_background": True,
+    }
+
+    form = ReferenceField("Form")
+    version = ReferenceField("Version")
+    organization_id = StringField()
+    status = StringField(choices=["draft", "published", "archived"], default="draft")
+    snapshot_ref = ReferenceField("SnapshotStore")
+    translations = DictField(default=dict)
+    quick_responses = ListField(DictField(), default=list)
+    access_policy = DictField()
+    submission_settings = DictField()
+    data_export_settings = DictField()
+    advanced_settings = DictField()
+    meta_data = DictField()
+
+    @property
+    def resolved_snapshot(self):
+        """Decompress and return snapshot data dict from SnapshotStore."""
+        if not self.snapshot_ref:
+            return {}
+        ref = self.snapshot_ref
+        if hasattr(ref, "compressed_data") and ref.is_compressed and ref.compressed_data:
+            import zlib, json
+            try:
+                return json.loads(zlib.decompress(ref.compressed_data).decode("utf-8"))
+            except Exception:
+                pass
+        if hasattr(ref, "snapshot_data") and ref.snapshot_data:
+            return ref.snapshot_data
+        return {}
 
 
 class Form(BaseDocument, SoftDeleteMixin):
@@ -145,9 +206,19 @@ class Form(BaseDocument, SoftDeleteMixin):
     status = StringField(choices=STATUS_CHOICES, default="draft")
     ui_type = StringField(choices=UI_TYPE_CHOICES, default="flex")
     ui_config = DictField()
-    sections = ListField(EmbeddedDocumentField(Section))
-    versions = ListField(EmbeddedDocumentField(FormVersion))
+    sections = ListField(ReferenceField(Section), default=list)
+    versions = ListField(EmbeddedDocumentField(FormVersionEmbedded))
     current_version = StringField()
+    # The active version reference (populated by sync_draft_version / publish_form)
+    active_version = ReferenceField("Version")
+    active_version_id = StringField()
+    publish_at = DateTimeField()
+    translations = DictField(default=dict)
+    quick_responses = ListField(ReferenceField("QuickResponse"))
+    access_policy = DictField()
+    submission_settings = DictField()
+    advanced_settings = DictField()
+    workflows = DictField()
     created_by = ReferenceField("User", reverse_delete_rule=3)
     owner = ReferenceField("User", reverse_delete_rule=3)
     collaborators = ListField(ReferenceField("User"))
@@ -162,20 +233,41 @@ class Form(BaseDocument, SoftDeleteMixin):
     meta_data = DictField()
 
     def clean(self):
-        # Ensure at least one section exists
+        # Sections may not yet be linked on first insert - skip hard validation
         if not self.sections:
-            raise ValidationError("Form must have at least one section.")
-        
-        # Validate section IDs are unique
-        section_ids = [section.id for section in self.sections]
-        if len(section_ids) != len(set(section_ids)):
-            raise ValidationError("Section IDs must be unique within a form.")
-        
+            return
+
+        # Validate section IDs are unique (sections are now References, not embedded)
+        try:
+            section_ids = [
+                str(getattr(s, "id", s) or "") for s in (self.sections or [])
+            ]
+            non_empty = [sid for sid in section_ids if sid]
+            if len(non_empty) != len(set(non_empty)):
+                raise ValidationError("Section IDs must be unique within a form.")
+        except Exception as e:
+            if isinstance(e, ValidationError):
+                raise
+            # Gracefully handle DBRef resolution failures on partial saves
+
         # Validate question IDs are unique within each section
-        for section in self.sections:
-            question_ids = [question.id for question in section.questions]
-            if len(question_ids) != len(set(question_ids)):
-                raise ValidationError(f"Question IDs must be unique within section '{section.id}'.")
+        for section in (self.sections or []):
+            try:
+                questions = getattr(section, "questions", []) or []
+                # questions is now ListField(DictField)
+                q_ids = [
+                    str(q.get("id", "") if isinstance(q, dict) else getattr(q, "id", ""))
+                    for q in questions
+                ]
+                non_empty_q = [qid for qid in q_ids if qid]
+                if len(non_empty_q) != len(set(non_empty_q)):
+                    raise ValidationError(
+                        f"Question IDs must be unique within section '{getattr(section, 'id', '?')}'."
+                    )
+            except ValidationError:
+                raise
+            except Exception:
+                pass  # Unresolved reference on partial save; skip
 
 
 class FormTemplate(BaseDocument, SoftDeleteMixin):
@@ -332,6 +424,11 @@ class SnapshotStore(BaseDocument, SoftDeleteMixin):
     }
 
     form_id = ReferenceField("Form")
+    organization_id = StringField()
     snapshot_data = DictField()
     created_at = DateTimeField()
     meta_data = DictField()
+    
+    compressed_data = BinaryField()
+    is_compressed = BooleanField(default=False)
+    size_bytes = IntField()

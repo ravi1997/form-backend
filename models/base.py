@@ -194,7 +194,7 @@ class BaseEmbeddedDocument(EmbeddedDocument, TimestampMixin):
     """
 
     meta = {"abstract": True}
-    id = UUIDField(default=uuid.uuid4, binary=False)
+    id = StringField(default=lambda: str(uuid.uuid4()))
 
 
 class BaseDocument(Document, TimestampMixin):
@@ -203,7 +203,7 @@ class BaseDocument(Document, TimestampMixin):
     """
 
     meta = {"abstract": True, "queryset_class": TenantIsolatedSoftDeleteQuerySet}
-    id = UUIDField(primary_key=True, default=uuid.uuid4, binary=False)
+    id = StringField(primary_key=True, default=lambda: str(uuid.uuid4()))
     organization_id = StringField(
         required=False, help_text="Global tenant partition key. Do not modify manually."
     )
