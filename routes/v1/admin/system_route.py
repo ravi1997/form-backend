@@ -389,7 +389,7 @@ def toggle_maintenance_mode():
             return error_response("enabled is required", status_code=400)
         
         # Update maintenance mode
-        from models.oauth import SystemConfig
+        from models.system import SystemSettings as SystemConfig
         maintenance_config = SystemConfig.objects(key="maintenance_mode").first()
         
         if not maintenance_config:

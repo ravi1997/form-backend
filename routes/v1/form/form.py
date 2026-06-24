@@ -690,16 +690,24 @@ def create_form_section(form_id):
 
         form_version = (
             FormVersion.objects(form=form_id, status="draft")
+            .no_dereference()
             .order_by("-created_at")
             .first()
         )
         version_string = None
-        if form_version and form_version.version:
-            version_doc = Version.objects(
-                id=getattr(form_version.version, "id", form_version.version)
-            ).first()
-            if version_doc:
-                version_string = version_doc.version_string
+        try:
+            if form_version and form_version.version:
+                version_id = form_version.version
+                from bson import DBRef
+                if isinstance(version_id, DBRef):
+                    version_id = version_id.id
+                elif hasattr(version_id, "id"):
+                    version_id = version_id.id
+                version_doc = Version.objects(id=version_id).first()
+                if version_doc:
+                    version_string = version_doc.version_string
+        except Exception:
+            pass
         section_payload = (
             section.to_dict()
             if hasattr(section, "to_dict")
