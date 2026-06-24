@@ -54,7 +54,7 @@ class UpdateService:
                 return json.loads(cached_version)
             
             # Get version from system config
-            from models.oauth import SystemConfig
+            from models.system import SystemSettings as SystemConfig
             version_config = SystemConfig.objects(key="platform_version").first()
             
             if not version_config:
@@ -247,7 +247,7 @@ class UpdateService:
             self.redis.setex(self.update_status_key, 3600, json.dumps(status))
             
             # Update version in system config
-            from models.oauth import SystemConfig
+            from models.system import SystemSettings as SystemConfig
             version_config = SystemConfig.objects(key="platform_version").first()
             if version_config:
                 version_config.value = version
@@ -363,7 +363,7 @@ class UpdateService:
         """Perform maintenance update (with downtime)."""
         try:
             # Set maintenance mode
-            from models.oauth import SystemConfig
+            from models.system import SystemSettings as SystemConfig
             maintenance_config = SystemConfig.objects(key="maintenance_mode").first()
             if not maintenance_config:
                 maintenance_config = SystemConfig(
@@ -436,7 +436,7 @@ class UpdateService:
             audit_logger.info(f"Starting rollback to version {target_version}")
             
             # Update version in system config
-            from models.oauth import SystemConfig
+            from models.system import SystemSettings as SystemConfig
             version_config = SystemConfig.objects(key="platform_version").first()
             if version_config:
                 version_config.value = target_version

@@ -44,7 +44,7 @@ from .anomaly_detection_service import AnomalyDetectionService
 from .dashboard_service import DashboardService
 # from .webhook_service import WebhookService
 from .external_sms_service import ExternalSMSService, get_sms_service, SMSResult
-# from .event_bus import event_bus
+from .event_bus import event_bus
 from .org_service import OrgService
 # from .feature_flag_service import FeatureFlagService
 from .tombstone_service import TombstoneService

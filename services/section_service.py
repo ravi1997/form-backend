@@ -173,9 +173,11 @@ class SectionService(BaseService):
         from services.form_service import FormService
 
         form_version = FormService().sync_draft_version(form_id, organization_id)
-        if form_version and form_version.version:
-            section.version = form_version.version
-            section.save()
+        if form_version:
+            version_ref = form_version._data.get("version")
+            if version_ref:
+                section.version = version_ref
+                section.save()
         audit_logger.info(
             f"AUDIT: Section created with ID {section.id} on form {form_id}"
             + (

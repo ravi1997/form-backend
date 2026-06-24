@@ -956,8 +956,8 @@ class FormService(BaseService):
             quick_responses = data.get("quick_responses")
             if quick_responses is not None:
                 data["quick_responses"] = [
-                    QuickResponse(
-                        **QuickResponseSchema.model_validate(
+                    (
+                        QuickResponseSchema.model_validate(
                             item.model_dump(exclude_none=True)
                             if hasattr(item, "model_dump")
                             else item
@@ -983,13 +983,43 @@ class FormService(BaseService):
                 data["meta_data"] = meta_data
 
             allowed_fields = set(self.model._fields.keys())
+            # Sections must be saved as separate Section documents first
+            sections_data = data.pop("sections", []) or []
+            # quick_responses is now a plain DictField list
+            if "quick_responses" in data and isinstance(data.get("quick_responses"), list):
+                data["quick_responses"] = [
+                    (item.model_dump(exclude_none=True) if hasattr(item, "model_dump") else dict(item))
+                    for item in data["quick_responses"]
+                    if item is not None
+                ]
             filtered_data = {
                 key: value
                 for key, value in data.items()
                 if key in allowed_fields
             }
+            filtered_data.pop("sections", None)  # ensure no sections leak as dicts
             form_doc = self.model(**filtered_data)
             form_doc.save()
+
+            # Create Section documents and link to form
+            from models.form import Section as SectionModel
+            section_refs = []
+            for sec_data in sections_data:
+                sec = SectionModel(
+                    organization_id=form_doc.organization_id,
+                    form=form_doc,
+                    name=sec_data.get("name", "Section"),
+                    title=sec_data.get("title", "Section"),
+                    description=sec_data.get("description", ""),
+                    order=sec_data.get("order", 0),
+                    questions=sec_data.get("questions", []),
+                    meta_data=sec_data.get("meta_data", {}),
+                )
+                sec.save()
+                section_refs.append(sec)
+            if section_refs:
+                form_doc.sections = section_refs
+                form_doc.save()
 
             if form_doc.organization_id:
                 tenant_service.recalculate_usage(form_doc.organization_id)
@@ -1136,10 +1166,21 @@ class FormService(BaseService):
             data = section.to_mongo().to_dict()
         else:
             # Handle DBRef/raw reference values from legacy forms.
-            section_doc = Section.objects(
-                id=getattr(section, "id", section),
-                is_deleted=False,
-            ).first()
+            sec_id = section.id if hasattr(section, "id") else section
+            from bson import DBRef
+            if isinstance(sec_id, DBRef):
+                sec_id = sec_id.id
+            import uuid
+            sec_id_str = str(sec_id) if isinstance(sec_id, uuid.UUID) else sec_id
+            try:
+                sec_id_uuid = uuid.UUID(sec_id) if isinstance(sec_id, str) else sec_id
+            except Exception:
+                sec_id_uuid = sec_id
+
+            section_doc = Section.objects(id=sec_id_str, is_deleted=False).first()
+            if not section_doc and isinstance(sec_id_uuid, uuid.UUID):
+                section_doc = Section.objects(id=sec_id_uuid, is_deleted=False).first()
+
             if not section_doc:
                 raise NotFoundError("Section not found while snapshotting form")
             data = section_doc.to_mongo().to_dict()
@@ -1286,6 +1327,91 @@ class FormService(BaseService):
             )
 
 
+    def _to_schema(self, document: Form) -> FormSchema:
+        from services.section_service import SectionService
+        from bson import DBRef
+        from uuid import UUID
+        from models.form import Section as SectionModel
+
+        try:
+            if hasattr(document, "to_dict"):
+                doc_dict = document.to_dict()
+            else:
+                doc_dict = document.to_mongo().to_dict()
+
+            if "_id" in doc_dict and "id" not in doc_dict:
+                doc_dict["id"] = str(doc_dict.pop("_id"))
+
+            if "name" in doc_dict and "title" not in doc_dict:
+                doc_dict["title"] = doc_dict.get("name")
+
+            if "description" in doc_dict and "help_text" not in doc_dict:
+                doc_dict["help_text"] = doc_dict.get("description")
+
+            # Extract metadata fields back to top-level if needed
+            meta_data = doc_dict.get("meta_data") or {}
+            for field in ["project", "is_template", "supported_languages", "default_language"]:
+                if field in meta_data and field not in doc_dict:
+                    doc_dict[field] = meta_data[field]
+
+            # Convert sections ReferenceField list into SectionSchema dicts
+            section_service = SectionService()
+            resolved_sections = []
+            if hasattr(document, "sections") and document.sections:
+                for sec in document.sections:
+                    if sec:
+                        if not hasattr(sec, "id"):
+                            try:
+                                sec_id = sec.id if hasattr(sec, "id") else str(sec)
+                                sec_obj = SectionModel.objects(id=sec_id).first()
+                            except Exception:
+                                sec_obj = None
+                        else:
+                            sec_obj = sec
+
+                        if sec_obj:
+                            try:
+                                resolved_sections.append(section_service._to_schema(sec_obj).model_dump())
+                            except Exception as section_err:
+                                app_logger.warning(f"Failed to serialize section {getattr(sec_obj, 'id', 'unknown')}: {section_err}")
+            doc_dict["sections"] = resolved_sections
+
+            # Convert quick responses to dicts
+            qrs = []
+            for qr in (doc_dict.get("quick_responses") or []):
+                if isinstance(qr, dict):
+                    qrs.append(qr)
+                elif hasattr(qr, "to_dict"):
+                    qrs.append(qr.to_dict())
+                else:
+                    if isinstance(qr, DBRef):
+                        pass
+            doc_dict["quick_responses"] = qrs
+
+            def normalize(value):
+                if isinstance(value, UUID):
+                    return str(value)
+                if isinstance(value, DBRef):
+                    return str(value.id)
+                if isinstance(value, dict):
+                    return {k: normalize(v) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [normalize(v) for v in value]
+                return value
+
+            doc_dict = normalize(doc_dict)
+            return self.schema.model_validate(doc_dict)
+        except Exception as e:
+            error_logger.error(
+                f"Schema validation failed for Model Form: {str(e)}",
+                exc_info=True,
+            )
+            raise ValidationError(
+                f"Data corruption detected in DB for Form",
+                details={"error": str(e)},
+            )
+
+
 class ProjectCreateSchema(ProjectSchema, InboundPayloadSchema):
     pass
 
@@ -1331,6 +1457,11 @@ class ProjectService(BaseService):
         normalized_payload = self._normalize_project_payload(
             create_schema.model_dump(exclude_unset=True)
         )
+        # Auto-generate slug from name to prevent null-slug unique index collisions
+        if not normalized_payload.get("slug"):
+            import re, time
+            base = re.sub(r"[^a-z0-9]+", "-", (normalized_payload.get("name") or "project").lower()).strip("-")
+            normalized_payload["slug"] = f"{base}-{int(time.time() * 1000) % 1000000}"
         allowed_fields = set(self.model._fields.keys())
         document_payload = {
             key: value for key, value in normalized_payload.items() if key in allowed_fields
