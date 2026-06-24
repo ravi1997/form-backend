@@ -10,7 +10,8 @@ from services.storage_quota_service import storage_quota_service
 from services.compliance_registry_service import compliance_registry_service
 from services.notification_service import notification_service
 from services.update_service import update_service
-from models.oauth import SystemConfig, Organisation
+from models.system import SystemSettings as SystemConfig
+from models.identity import Organization as Organisation
 from logger.unified_logger import app_logger, error_logger, audit_logger
 
 # Get Celery instance
@@ -26,7 +27,7 @@ def calculate_storage_usage_task(self, org_id=None, force=False):
             app_logger.info(f"Storage usage calculated for org {org_id}")
         else:
             # Calculate for all organizations
-            from models.oauth import Organisation
+            from models.identity import Organization as Organisation
             orgs = Organisation.objects(is_deleted=False)
             
             for org in orgs:

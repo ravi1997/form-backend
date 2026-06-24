@@ -353,3 +353,23 @@ def seed_default_notification_templates():
     except Exception as e:
         error_logger.error(f"Error in seed_default_notification_templates: {e}", exc_info=True)
         return {"status": "error", "error": str(e)}
+
+
+@shared_task
+def process_notification_triggers(triggers_data: list, payload: dict):
+    """
+    Process notification triggers asynchronously.
+    """
+    from services.hook_service import hook_service
+    from models.components import Trigger
+    
+    app_logger.info(f"Asynchronously processing {len(triggers_data)} triggers for payload")
+    
+    for trigger_dict in triggers_data:
+        try:
+            # Reconstruct Trigger object
+            trigger = Trigger(**trigger_dict)
+            org_id = payload.get("organization_id")
+            hook_service._execute_hook(trigger, payload, org_id)
+        except Exception as e:
+            error_logger.error(f"Error executing trigger in celery task: {e}", exc_info=True)

@@ -58,7 +58,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A config.celery beat --loglevel=info
+    command: celery -A config.celery beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     env_file:
       - .env
     environment:
@@ -76,7 +76,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python -m scripts.event_listener
+    command: python -m workers.event_listener
     env_file:
       - .env
     environment:
