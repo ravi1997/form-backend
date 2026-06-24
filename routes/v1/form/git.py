@@ -253,3 +253,50 @@ def get_commit(form_id, commit_id):
     except Exception as e:
         error_logger.error(f"Error getting commit: {e}", exc_info=True)
         return error_response(str(e))
+
+
+@form_bp.route("/<form_id>/branches", methods=["GET"])
+@jwt_required()
+@require_feature("git_versioning")
+def list_branches_route(form_id):
+    """
+    List all branches of a form.
+    """
+    try:
+        user = get_current_user()
+        org_id = user.organization_id
+
+        # Verify form exists and matches org
+        form = Form.objects(id=form_id, organization_id=org_id).first()
+        if not form:
+            return error_response("Form not found", status_code=404)
+
+        branches = form_engine.list_branches(form_id, org_id)
+        return success_response(branches)
+    except Exception as e:
+        error_logger.error(f"Error listing branches: {e}", exc_info=True)
+        return error_response(str(e))
+
+
+@form_bp.route("/<form_id>/branches/<branch_name>", methods=["DELETE"])
+@jwt_required()
+@require_feature("git_versioning")
+def delete_branch_route(form_id, branch_name):
+    """
+    Delete a branch from a form.
+    """
+    try:
+        user = get_current_user()
+        org_id = user.organization_id
+
+        # Verify form exists and matches org
+        form = Form.objects(id=form_id, organization_id=org_id).first()
+        if not form:
+            return error_response("Form not found", status_code=404)
+
+        result = form_engine.delete_branch(form_id, org_id, branch_name)
+        return success_response(result, message=f"Branch {branch_name} deleted successfully")
+    except Exception as e:
+        error_logger.error(f"Error deleting branch: {e}", exc_info=True)
+        return error_response(str(e))
+

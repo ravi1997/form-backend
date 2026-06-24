@@ -218,6 +218,74 @@ class FormEngine:
             logger.error(f"Failed to create branch {branch_name} for form {form_id}: {str(e)}", exc_info=True)
             raise
 
+    def list_branches(
+        self,
+        form_id: str,
+        organization_id: str
+    ) -> List[str]:
+        """
+        List all branches for a form.
+        """
+        try:
+            form = Form.objects(
+                id=form_id,
+                organization_id=organization_id,
+                is_deleted=False
+            ).first()
+            if not form:
+                raise NotFoundError(f"Form {form_id} not found")
+            
+            branches = list(getattr(form, 'branches', {}).keys())
+            if not branches:
+                branches = ["main"]
+            if "main" not in branches:
+                branches.insert(0, "main")
+            return branches
+        except Exception as e:
+            logger.error(f"Failed to list branches for form {form_id}: {str(e)}", exc_info=True)
+            raise
+
+    def delete_branch(
+        self,
+        form_id: str,
+        organization_id: str,
+        branch_name: str
+    ) -> Dict[str, Any]:
+        """
+        Delete a branch. Main branch cannot be deleted.
+        """
+        try:
+            if branch_name == "main":
+                raise StateTransitionError("Cannot delete the main branch")
+                
+            form = Form.objects(
+                id=form_id,
+                organization_id=organization_id,
+                is_deleted=False
+            ).first()
+            if not form:
+                raise NotFoundError(f"Form {form_id} not found")
+                
+            if not hasattr(form, 'branches') or branch_name not in form.branches:
+                raise NotFoundError(f"Branch {branch_name} not found")
+                
+            del form.branches[branch_name]
+            form.save()
+            
+            audit_logger.info(
+                f"AUDIT: Deleted branch {branch_name} for form {form_id}"
+            )
+            
+            return {
+                "form_id": form_id,
+                "deleted_branch": branch_name,
+                "status": "deleted"
+            }
+        except Exception as e:
+            logger.error(f"Failed to delete branch {branch_name} for form {form_id}: {str(e)}", exc_info=True)
+            raise
+
+
     def merge_branch(
         self,
         form_id: str,
